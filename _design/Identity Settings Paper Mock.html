@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Identity Settings · Paper Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  ISOLATED MOCK: Settings → Identity (today: "General" + "Vocabulary"), rebuilt
+  as one page about how the chapter LOOKS and TALKS.
+
+  Same data model, nothing new on the server:
+    Organization.logoUrl        (POST/DELETE /api/orgs/logo)
+    OrganizationConfig.instagramHandle      (PATCH /api/orgs/config)
+    OrganizationConfig.vocabularyOverrides  (PATCH /api/orgs/config, VOCAB_KEYS)
+  Name + orgType + slug are shown, not edited — PATCH /api/orgs/config takes no
+  `name` (see A2 in docs/settings-ux-audit.md). The card says so in plain words.
+
+  What changes for the officer:
+    1. The badge — a chapter card at the top, drawn from the real fields, that
+       redraws as you edit. It IS the summary; there's no separate "Chapter" block.
+    2. Your icon — big drop target + "Shows up in" with the three real places
+       (sidebar header, sign-in, org switcher), each redrawn live. Initials
+       fallback is shown as what it is, not as an empty state.
+    3. Instagram — @ is printed, not typed; preview is the Media page header.
+       Blank reads "Hidden", which is what the server does with it.
+    4. Your words — every VOCAB_KEY is a swap tag: platform word → your word,
+       with one-tap suggestions and a per-tag "use the default".
+  One save bar for everything (today: icon instant, handle own button, vocab
+  own Save/Reset). The icon would stage as a local preview until Save.
+  Quick actions / Refresh / Print aren't identity: folded into a small
+  "Also in here" strip at the bottom. Danger zone stays last, as an always-visible rose card.
+
+  "View as Member" (top right) shows the read-only page non-officers get.
+-->
+<style>
+:root {
+  --pp-peach:#FFD5C4;  --pp-peach-soft:#FFEDE5;  --pp-peach-ink:#C9542D;
+  --pp-sky:#CFE2FF;    --pp-sky-soft:#EAF2FF;    --pp-sky-ink:#2A66C7;
+  --pp-mint:#C7EFDA;   --pp-mint-soft:#E6F8EF;   --pp-mint-ink:#1B815B;
+  --pp-butter:#FFE5A0; --pp-butter-soft:#FFF6DC; --pp-butter-ink:#9C6B08;
+  --pp-lilac:#E1D8FF;  --pp-lilac-soft:#F1EDFF;  --pp-lilac-ink:#6244CC;
+  --pp-rose:#FFD6E6;   --pp-rose-soft:#FFEDF4;   --pp-rose-ink:#C23C77;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --card:#FFFFFF; --card-3:#F4ECDD;
+  --ink:#26211B; --ink-soft:#544A3F; --muted:#8A7F71; --faint:#998D7C;
+  --line:#EBE1CF; --line-med:#DCD0B9; --scrim:rgba(38,33,27,.28);
+
+  --display:"Bricolage Grotesque", Inter, system-ui, sans-serif;
+  --sans:Inter, -apple-system, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --spring:cubic-bezier(.16,.9,.3,1.02);
+}
+html[data-theme="night"] {
+  color-scheme: dark;
+  --pp-peach:#E5A28A;  --pp-peach-soft:rgba(255,178,148,.085); --pp-peach-ink:#FFB49A;
+  --pp-sky:#8DB2EC;    --pp-sky-soft:rgba(150,190,255,.085);   --pp-sky-ink:#AACBFF;
+  --pp-mint:#80CBA4;   --pp-mint-soft:rgba(140,220,180,.08);   --pp-mint-ink:#8FDDB6;
+  --pp-butter:#E3BF66; --pp-butter-soft:rgba(255,214,120,.08); --pp-butter-ink:#F0CC72;
+  --pp-lilac:#A593EE;  --pp-lilac-soft:rgba(180,160,255,.10);  --pp-lilac-ink:#C4B6FF;
+  --pp-rose:#E598B7;   --pp-rose-soft:rgba(255,160,200,.08);   --pp-rose-ink:#FFAACB;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --paper:#15110D; --paper-2:#1B1712; --card:#1F1A15; --card-3:#2B251E;
+  --ink:#F2EADC; --ink-soft:#CDBFAB; --muted:#948876; --faint:#7D7262;
+  --line:#2F271E; --line-med:#43382B; --scrim:rgba(5,4,2,.6);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh; background: var(--paper); color: var(--ink);
+  font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+button, input { font: inherit; color: inherit; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+svg { flex-shrink: 0; }
+:focus-visible { outline: 2px solid var(--pp-lilac-ink); outline-offset: 2px; }
+
+/* ── Shell ────────────────────────────────────────────────────────────────── */
+.app { display: grid; grid-template-columns: 248px minmax(0,1fr); min-height: 100vh; }
+.se-nav { border-right: 1.5px solid var(--line); background: var(--paper-2); padding: 20px 14px; }
+.se-back { display: inline-flex; align-items: center; gap: 6px; font: 550 .8rem var(--sans); color: var(--muted); margin: 2px 6px 18px; }
+.se-back svg { width: 14px; height: 14px; }
+.se-h { font: 700 1.35rem var(--display); letter-spacing: -.03em; margin: 0 8px 16px; }
+.se-g { font: 600 .62rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 16px 8px 6px; display: flex; align-items: center; gap: 7px; }
+.se-g i { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--ink); background: var(--s); }
+.se-it { display: block; padding: 6px 10px; border-radius: 9px; font: 500 .84rem var(--sans); color: var(--ink-soft); }
+.se-it.on { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink), 2px 2px 0 1.5px var(--pp-lilac); font-weight: 600; }
+
+.se-main { padding: 30px 40px 140px; max-width: 1000px; min-width: 0; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.se-crumb { font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.toggles { display: flex; gap: 8px; }
+.seg { display: inline-flex; padding: 3px; border: 1.5px solid var(--line-med); border-radius: 999px; background: var(--card); }
+.seg button { border: 0; background: none; padding: 4px 11px; border-radius: 999px; font: 600 .72rem var(--sans); color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.se-title { font: 700 2.3rem/1.05 var(--display); letter-spacing: -.035em; margin: 8px 0 6px; }
+.se-lede { color: var(--ink-soft); margin: 0 0 26px; max-width: 60ch; font-size: .95rem; }
+
+.ro-note {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin: -10px 0 22px; border-radius: 12px;
+  background: var(--pp-sky-soft); border: 1.5px solid color-mix(in oklab, var(--pp-sky-ink) 35%, transparent); color: var(--ink-soft); font-size: .85rem;
+}
+.ro-note svg { width: 16px; height: 16px; color: var(--pp-sky-ink); }
+
+
+/* ── The badge ────────────────────────────────────────────────────────────── */
+.badge {
+  position: relative; display: grid; grid-template-columns: auto minmax(0,1fr); gap: 22px; align-items: center;
+  padding: 24px 26px 22px 54px; border-radius: 20px; background: var(--card); border: 1.5px solid var(--ink);
+  box-shadow: 5px 5px 0 var(--pp-lilac); overflow: hidden; margin-bottom: 30px;
+}
+.badge::before { /* punched holes */
+  content: ""; position: absolute; left: 18px; top: 20px; bottom: 20px; width: 12px;
+  background: radial-gradient(circle, var(--paper) 4px, var(--line-med) 4.5px, transparent 5.5px) 0 0/12px 42px repeat-y;
+}
+.badge::after { /* washi tape */
+  content: ""; position: absolute; top: -8px; right: 46px; width: 92px; height: 26px; transform: rotate(4deg);
+  background: repeating-linear-gradient(45deg, var(--pp-butter) 0 8px, color-mix(in oklab, var(--pp-butter) 70%, var(--card)) 8px 16px);
+  opacity: .9; border-radius: 2px;
+}
+.mark {
+  --sz: 96px; width: var(--sz); height: var(--sz); border-radius: calc(var(--sz) * .24); flex-shrink: 0;
+  display: grid; place-items: center; overflow: hidden; border: 1.5px solid var(--ink);
+  background: linear-gradient(135deg, var(--pp-lilac), var(--pp-sky)); color: #26211B;
+  font: 750 calc(var(--sz) * .36)/1 var(--display); letter-spacing: -.04em;
+}
+.mark img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.badge .type { display: inline-flex; align-items: center; gap: 6px; font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.badge .type i { width: 8px; height: 8px; border-radius: 50%; background: var(--pp-lilac-ink); }
+.badge h2 { font: 750 2rem/1.05 var(--display); letter-spacing: -.035em; margin: 5px 0 10px; overflow-wrap: anywhere; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.fact {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font: 500 .78rem var(--sans);
+  background: var(--paper-2); border: 1.5px solid var(--line); color: var(--ink-soft); max-width: 100%;
+}
+.fact svg { width: 13px; height: 13px; color: var(--muted); }
+.fact.mono { font-family: var(--mono); font-size: .74rem; }
+.fact.off { color: var(--faint); border-style: dashed; }
+.name-note { margin: 12px 0 0; font-size: .76rem; color: var(--faint); display: flex; align-items: center; gap: 6px; }
+.name-note svg { width: 12px; height: 12px; }
+
+/* ── Steps ────────────────────────────────────────────────────────────────── */
+.step { padding: 4px 0 30px; margin-bottom: 26px; border-bottom: 1.5px dashed var(--line-med); }
+.step:last-of-type { border-bottom: 0; }
+.step-h { display: flex; align-items: baseline; gap: 10px; }
+.step-n {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  border: 1.5px solid var(--ink); font: 700 .78rem var(--display); background: var(--s, var(--card)); color: #26211B; transform: translateY(3px);
+}
+.step-t { font: 680 1.3rem var(--display); letter-spacing: -.025em; margin: 0; }
+.step-sub { margin: 4px 0 16px 36px; color: var(--muted); font-size: .88rem; max-width: 60ch; }
+.step-body { margin-left: 36px; }
+
+/* 1 · Icon */
+.icon-row { display: grid; grid-template-columns: 200px minmax(0,1fr); gap: 22px; align-items: start; }
+.drop {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px 14px 14px;
+  border: 2px dashed var(--line-med); border-radius: 18px; background: var(--paper-2); text-align: center; cursor: pointer;
+  transition: border-color .15s, background .15s, transform .2s var(--spring);
+}
+.drop:hover, .drop.over { border-color: var(--ink); background: var(--pp-lilac-soft); }
+.drop.over { transform: scale(1.02); }
+.drop .mark { --sz: 104px; box-shadow: 3px 3px 0 var(--pp-lilac); }
+.drop .hint { font-size: .74rem; color: var(--muted); line-height: 1.35; }
+.drop .hint b { color: var(--ink); font-weight: 600; }
+.icon-btns { display: flex; gap: 8px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
+.err { margin: 8px 0 0; font-size: .78rem; color: var(--pp-rose-ink); }
+
+.where-h { font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 2px 0 10px; }
+.places { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+.place { border: 1.5px solid var(--line); border-radius: 14px; background: var(--card); overflow: hidden; box-shadow: var(--sh-1); }
+.place .scene { height: 112px; padding: 12px; background: var(--paper-2); display: flex; flex-direction: column; justify-content: center; gap: 6px; position: relative; }
+.place .cap { padding: 8px 11px 9px; font: 600 .78rem var(--sans); border-top: 1.5px solid var(--line); }
+.place .cap small { display: block; font-weight: 450; color: var(--muted); font-size: .72rem; margin-top: 1px; }
+/* sidebar scene */
+.sc-side { align-items: stretch; }
+.sb-head { display: flex; align-items: center; gap: 8px; padding: 7px 8px; background: var(--card); border: 1.5px solid var(--line-med); border-radius: 10px; }
+.sb-head .mark { --sz: 26px; border-width: 1px; }
+.sb-head b { font: 650 .76rem var(--sans); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-head svg { width: 12px; height: 12px; color: var(--muted); }
+.ghost-line { height: 7px; border-radius: 4px; background: var(--line); }
+/* sign-in scene */
+.sc-login { align-items: center; text-align: center; }
+.sc-login .mark { --sz: 34px; border-width: 1px; }
+.sc-login p { margin: 0; font: 650 .74rem var(--display); }
+.sc-login .gbtn { font: 600 .62rem var(--sans); padding: 4px 9px; border-radius: 999px; background: var(--ink); color: var(--paper); }
+/* switcher scene */
+.sw-row { display: flex; align-items: center; gap: 7px; padding: 5px 7px; border-radius: 8px; font: 550 .72rem var(--sans); }
+.sw-row .mark { --sz: 20px; border-width: 1px; font-size: 8px; }
+.sw-row.on { background: var(--card); border: 1.5px solid var(--ink); }
+.sw-row.dim { color: var(--muted); }
+.sw-row.dim .mark { background: var(--card-3); }
+.sw-row svg { width: 12px; height: 12px; margin-left: auto; color: var(--pp-mint-ink); }
+
+/* 2 · Instagram */
+.ig-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 18px; align-items: start; }
+.field-l { display: block; font: 600 .78rem var(--sans); margin-bottom: 6px; }
+.at-field {
+  display: flex; align-items: center; border: 1.5px solid var(--line-med); border-radius: 12px; background: var(--card);
+  transition: border-color .15s, box-shadow .15s;
+}
+.at-field:focus-within { border-color: var(--ink); box-shadow: 3px 3px 0 var(--pp-peach); }
+.at-field span { padding: 0 2px 0 13px; font: 600 1.05rem var(--display); color: var(--muted); }
+.at-field input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; padding: 11px 12px 11px 2px; font: 550 1rem var(--sans); }
+.at-field.bad { border-color: var(--pp-rose-ink); }
+.help { margin: 7px 0 0; font-size: .76rem; color: var(--muted); }
+.ig-prev { border: 1.5px solid var(--line); border-radius: 14px; background: var(--paper-2); padding: 12px 14px; }
+.ig-prev .k { font: 600 .62rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.ig-prev .hd { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.ig-prev .hd b { font: 700 1.25rem var(--display); letter-spacing: -.03em; }
+.ig-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 7px; border-radius: 999px;
+  background: var(--pp-peach-soft); border: 1.5px solid color-mix(in oklab, var(--pp-peach-ink) 50%, var(--ink)); font: 600 .76rem var(--sans);
+}
+.ig-chip svg { width: 13px; height: 13px; color: var(--pp-peach-ink); }
+.ig-chip.off { background: none; border-style: dashed; border-color: var(--line-med); color: var(--faint); font-weight: 500; }
+.ig-prev .tiles { display: flex; gap: 6px; margin-top: 10px; }
+.ig-prev .tiles i { flex: 1; aspect-ratio: 4/5; border-radius: 6px; background: var(--card); border: 1.5px solid var(--line); }
+.ig-prev .tiles i:nth-child(1) { background: var(--pp-peach-soft); } .ig-prev .tiles i:nth-child(3) { background: var(--pp-sky-soft); }
+
+/* 3 · Words */
+.w-group { margin-bottom: 18px; }
+.w-group-h { display: flex; align-items: center; gap: 8px; font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 9px; }
+.w-group-h i { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--ink); background: var(--s); }
+.w-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+.tag {
+  position: relative; padding: 12px 14px 12px; border-radius: 14px; background: var(--card); border: 1.5px solid var(--line-med);
+  transition: border-color .15s, box-shadow .2s var(--spring), background .2s;
+}
+.tag:focus-within { border-color: var(--ink); }
+.tag.changed { border-color: var(--ink); box-shadow: 3px 3px 0 var(--pp-butter); background: color-mix(in oklab, var(--pp-butter-soft) 60%, var(--card)); }
+.swap { display: flex; align-items: center; gap: 9px; }
+.from { font: 500 .8rem var(--mono); color: var(--muted); white-space: nowrap; transition: color .15s; }
+.tag.changed .from { text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--pp-butter-ink) 70%, transparent); text-decoration-thickness: 1.5px; }
+.swap .arr { width: 16px; height: 16px; color: var(--faint); }
+.tag.changed .arr { color: var(--pp-butter-ink); }
+.swap input {
+  flex: 1; min-width: 0; border: 0; border-bottom: 1.5px solid var(--line); background: none; outline: 0; padding: 2px 0 3px;
+  font: 680 1.08rem var(--display); letter-spacing: -.02em;
+}
+.swap input::placeholder { color: var(--faint); font-weight: 500; }
+.swap input:focus { border-bottom-color: var(--ink); }
+.undo {
+  border: 0; background: none; padding: 3px; border-radius: 6px; cursor: pointer; color: var(--muted); display: grid; place-items: center;
+}
+.undo:hover { color: var(--ink); background: var(--card-3); }
+.undo svg { width: 14px; height: 14px; }
+.tag:not(.changed) .undo { visibility: hidden; }
+.picks { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.pick {
+  border: 1.5px solid var(--line); background: var(--paper-2); border-radius: 999px; padding: 2px 9px; cursor: pointer;
+  font: 550 .72rem var(--sans); color: var(--ink-soft); transition: border-color .12s, transform .15s var(--spring);
+}
+.pick:hover { border-color: var(--ink); transform: translateY(-1px); }
+.pick[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.where { margin-top: 8px; font-size: .7rem; color: var(--faint); display: flex; align-items: center; gap: 5px; }
+.where svg { width: 11px; height: 11px; }
+
+/* read-only mode */
+.ro .owner-only { display: none !important; }
+.ro .swap input { border-bottom-color: transparent; }
+.ro .drop { cursor: default; }
+.ro .drop:hover { border-color: var(--line-med); background: var(--paper-2); }
+
+/* ── Also in here + danger ────────────────────────────────────────────────── */
+.also { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 14px 16px; border-radius: 14px; background: var(--paper-2); border: 1.5px solid var(--line); margin-top: 6px; }
+.also .k { font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+.danger {
+  margin-top: 22px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 18px 20px; border-radius: 16px;
+  background: var(--pp-rose-soft); border: 1.5px solid var(--pp-rose-ink); box-shadow: 4px 4px 0 var(--pp-rose);
+}
+.danger .ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; background: var(--card); border: 1.5px solid var(--pp-rose-ink); color: var(--pp-rose-ink); }
+.danger .ic svg { width: 20px; height: 20px; }
+.danger .tx { flex: 1; min-width: 220px; }
+.danger h3 { margin: 0 0 2px; font: 680 1.05rem var(--display); letter-spacing: -.02em; color: var(--pp-rose-ink); }
+.danger p { margin: 0; color: var(--ink-soft); font-size: .86rem; max-width: 56ch; }
+.btn.rose.solid { --bg: var(--pp-rose-ink); --fg: #fff; border-color: var(--pp-rose-ink); --hs: var(--ink); }
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.btn {
+  --bg: var(--ink); --fg: var(--paper); --hs: var(--pp-lilac);
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer;
+  padding: 10px 17px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--bg); color: var(--fg);
+  font: 600 .88rem var(--sans); letter-spacing: -.01em; white-space: nowrap; box-shadow: 2.5px 2.5px 0 var(--hs);
+  transition: transform .18s var(--spring), box-shadow .18s var(--spring), background .15s;
+}
+.btn:hover:not(:disabled) { transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--hs); }
+.btn.sm { padding: 6px 12px; font-size: .78rem; }
+.btn.ghost { --bg: var(--card); --fg: var(--ink-soft); border-color: var(--line-med); box-shadow: none; }
+.btn.ghost:hover:not(:disabled) { border-color: var(--ink); box-shadow: none; transform: none; }
+.btn.rose { --bg: var(--card); --fg: var(--pp-rose-ink); border-color: var(--pp-rose-ink); --hs: var(--pp-rose); }
+.btn:disabled { --bg: var(--paper-2); --fg: var(--muted); border-color: var(--line-med); box-shadow: none; cursor: not-allowed; }
+.btn svg { width: 14px; height: 14px; }
+
+/* ── Save bar + toast ─────────────────────────────────────────────────────── */
+.savebar {
+  position: fixed; left: 50%; bottom: 22px; z-index: 30; transform: translate(-50%, 140%); opacity: 0;
+  display: flex; align-items: center; gap: 14px; padding: 9px 9px 9px 18px; border-radius: 999px;
+  background: var(--card); border: 1.5px solid var(--ink); box-shadow: 4px 4px 0 var(--pp-butter);
+  transition: transform .4s var(--spring), opacity .25s; max-width: calc(100vw - 32px);
+}
+.savebar.up { transform: translate(-50%, 0); opacity: 1; }
+.savebar .msg { font-size: .84rem; color: var(--ink-soft); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.savebar .msg b { color: var(--ink); }
+.savebar .pip { width: 8px; height: 8px; border-radius: 50%; background: var(--pp-butter-ink); flex-shrink: 0; }
+.savebar .acts { display: flex; gap: 6px; flex-shrink: 0; }
+.toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 31; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  display: flex; align-items: center; gap: 9px; padding: 10px 16px; border-radius: 999px; background: var(--ink); color: var(--paper);
+  font: 550 .84rem var(--sans); transition: transform .35s var(--spring), opacity .25s; max-width: calc(100vw - 32px);
+}
+.toast.show { transform: translate(-50%, 0); opacity: 1; }
+.toast svg { width: 15px; height: 15px; color: var(--pp-mint); }
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; } .se-nav { display: none; }
+  .se-main { padding: 18px 16px 140px; }
+  .topbar { flex-wrap: wrap; }
+  .se-title { font-size: 1.8rem; }
+  .badge { grid-template-columns: 1fr; padding: 20px 18px 18px 40px; gap: 14px; }
+  .badge::before { left: 12px; }
+  .badge h2 { font-size: 1.6rem; }
+  .badge .mark { --sz: 72px; }
+  .step-sub, .step-body { margin-left: 0; }
+  .icon-row, .ig-row, .w-grid { grid-template-columns: minmax(0,1fr); }
+  .drop { flex-direction: row; text-align: left; }
+  .drop .mark { --sz: 76px; }
+  .icon-btns { justify-content: flex-start; }
+  .places { grid-template-columns: 1fr 1fr; }
+  .places .place:last-child { display: none; }
+  .savebar { left: 16px; right: 16px; transform: translateY(140%); padding-left: 14px; }
+  .savebar.up { transform: none; }
+  .savebar .msg .long { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="se-nav" aria-label="Settings">
+    <a class="se-back"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 3 5 8l5 5"/></svg>Back to app</a>
+    <div class="se-h">Settings</div>
+    <div class="se-g" style="--s:var(--pp-lilac)"><i></i>Identity</div>
+    <a class="se-it on">Identity</a>
+    <div class="se-g" style="--s:var(--pp-sky)"><i></i>Membership</div>
+    <a class="se-it">Accounts</a><a class="se-it">Invitations</a><a class="se-it">Roles</a><a class="se-it">Member fields</a>
+    <div class="se-g" style="--s:var(--pp-butter)"><i></i>Operations</div>
+    <a class="se-it">Thresholds</a><a class="se-it">Semesters</a><a class="se-it">Event types</a><a class="se-it">Money categories</a><a class="se-it">Workflows</a>
+    <div class="se-g" style="--s:var(--pp-mint)"><i></i>System</div>
+    <a class="se-it">Activity log</a><a class="se-it">Billing</a>
+  </aside>
+
+  <main class="se-main" id="main">
+    <div class="topbar">
+      <div class="se-crumb">Settings · Identity</div>
+      <div class="toggles">
+        <div class="seg" role="group" aria-label="View as">
+          <button type="button" data-role="admin" aria-pressed="true">Officer</button>
+          <button type="button" data-role="member" aria-pressed="false">Member</button>
+        </div>
+        <div class="seg" role="group" aria-label="Theme">
+          <button type="button" data-theme-btn="day" aria-pressed="true">Day</button>
+          <button type="button" data-theme-btn="night" aria-pressed="false">Night</button>
+        </div>
+      </div>
+    </div>
+    <h1 class="se-title">How your chapter looks &amp; talks</h1>
+    <p class="se-lede">Your icon, your handle and the words you use. Everyone in the chapter sees these, and the previews update as you go.</p>
+
+    <div class="ro-note" id="roNote" hidden>
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clip-rule="evenodd"/></svg>
+      You can see how your chapter is set up. Officers with Org settings can change it.
+    </div>
+
+    <!-- The badge -->
+    <section class="badge" aria-label="Your chapter">
+      <div class="mark" data-mark style="--sz:96px"></div>
+      <div style="min-width:0">
+        <div class="type"><i></i>Fraternity</div>
+        <h2 data-name></h2>
+        <div class="facts">
+          <span class="fact mono"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6.5 9.5a3 3 0 0 0 4.2 0l2.1-2.1a3 3 0 0 0-4.2-4.2l-.7.7M9.5 6.5a3 3 0 0 0-4.2 0L3.2 8.6a3 3 0 0 0 4.2 4.2l.7-.7"/></svg>chaptos.com/org/lpe</span>
+          <span class="fact" data-ig-fact></span>
+          <span class="fact"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 13.5c.6-2.3 2.3-3.5 4.5-3.5s3.9 1.2 4.5 3.5M11 3.2a2.4 2.4 0 0 1 0 4.6M12.5 10.3c1 .5 1.7 1.6 2 3.2"/></svg>52 <span data-w="Member" data-plural></span></span>
+          <span class="fact"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>Fall 2026 <span data-w="Period"></span></span>
+        </div>
+        <p class="name-note"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm.75 10.5h-1.5V7h1.5v4.5ZM8 5.75a.9.9 0 1 1 0-1.8.9.9 0 0 1 0 1.8Z"/></svg>The name and web address were set when the chapter was created and can't be changed here yet.</p>
+      </div>
+    </section>
+
+    <div class="layout">
+      <div>
+        <!-- 1 · Icon -->
+        <section class="step" aria-labelledby="s1">
+          <div class="step-h"><span class="step-n" style="--s:var(--pp-lilac)">1</span><h2 class="step-t" id="s1">Your icon</h2></div>
+          <p class="step-sub">The little picture people recognize your chapter by. Without one we use your initials.</p>
+          <div class="step-body">
+            <div class="icon-row">
+              <div>
+                <div class="drop" id="drop" tabindex="0" role="button" aria-label="Upload a chapter icon">
+                  <div class="mark" data-mark></div>
+                  <div class="hint owner-only"><b>Drop an image here</b><br>or click to choose<br>Square works best · PNG, JPG or SVG · up to 2 MB</div>
+                  <input type="file" id="file" accept="image/*" hidden>
+                </div>
+                <div class="icon-btns owner-only">
+                  <button class="btn sm rose" type="button" id="removeIcon" hidden>Remove</button>
+                </div>
+                <p class="err" id="iconErr" role="alert" hidden></p>
+              </div>
+              <div>
+                <div class="where-h">Shows up in</div>
+                <div class="places">
+                  <div class="place">
+                    <div class="scene sc-side">
+                      <div class="sb-head"><div class="mark" data-mark></div><b data-name></b><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 6 3 3 3-3"/></svg></div>
+                      <div class="ghost-line" style="width:70%"></div><div class="ghost-line" style="width:52%"></div>
+                    </div>
+                    <div class="cap">The sidebar<small>Top left, for everyone</small></div>
+                  </div>
+                  <div class="place">
+                    <div class="scene sc-login">
+                      <div class="mark" data-mark></div>
+                      <p>Sign in to <span data-name></span></p>
+                      <span class="gbtn">Continue with Google</span>
+                    </div>
+                    <div class="cap">Sign-in &amp; invites<small>The first thing new people see</small></div>
+                  </div>
+                  <div class="place">
+                    <div class="scene">
+                      <div class="sw-row on"><div class="mark" data-mark></div><span data-name></span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m3.5 8.5 3 3 6-7"/></svg></div>
+                      <div class="sw-row dim"><div class="mark">MS</div>Mock Trial Society</div>
+                    </div>
+                    <div class="cap">Chapter switcher<small>For people in more than one</small></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2 · Instagram -->
+        <section class="step owner-only" aria-labelledby="s2">
+          <div class="step-h"><span class="step-n" style="--s:var(--pp-peach)">2</span><h2 class="step-t" id="s2">Instagram</h2></div>
+          <p class="step-sub">The account your Media page plans posts for. Leave it empty if you don't have one.</p>
+          <div class="step-body">
+            <div class="ig-row">
+              <div>
+                <label class="field-l" for="ig">Account handle</label>
+                <div class="at-field" id="igField"><span>@</span><input id="ig" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="yourchapter"></div>
+                <p class="help" id="igHelp">Letters, numbers, dots and underscores.</p>
+              </div>
+              <div class="ig-prev" aria-hidden="true">
+                <div class="k">On your Media page</div>
+                <div class="hd"><b>Media</b><span class="ig-chip" id="igChip"></span></div>
+                <div class="tiles"><i></i><i></i><i></i><i></i></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3 · Words -->
+        <section class="step" aria-labelledby="s3">
+          <div class="step-h"><span class="step-n" style="--s:var(--pp-butter)">3</span><h2 class="step-t" id="s3" data-step3>Your words</h2></div>
+          <p class="step-sub">Call things what your chapter calls them. Type your own or tap a suggestion. Empty means we use our word.</p>
+          <div class="step-body" id="words"></div>
+        </section>
+
+        <div class="also owner-only">
+          <span class="k">Also in here</span>
+          <button class="btn sm ghost" type="button">Log revenue</button>
+          <button class="btn sm ghost" type="button">Add IG task</button>
+          <button class="btn sm ghost" type="button">Add task</button>
+          <button class="btn sm ghost" type="button" id="refresh">↻ Refresh data</button>
+          <button class="btn sm ghost" type="button" onclick="window.print()">Print this page</button>
+        </div>
+
+        <section class="danger owner-only" aria-labelledby="dz">
+          <div class="ic"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.44c-.8.08-1.57.18-2.34.32a.75.75 0 0 0 .27 1.48l.15-.03.84 10.06A2.75 2.75 0 0 0 7.66 18.5h4.68a2.75 2.75 0 0 0 2.74-2.48l.84-10.06.15.03a.75.75 0 0 0 .27-1.48c-.77-.14-1.55-.24-2.34-.32v-.44A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.67.02 2.5.07v-.32c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.32C8.33 4.02 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clip-rule="evenodd"/></svg></div>
+          <div class="tx">
+            <h3 id="dz">Delete this chapter</h3>
+            <p>Removes the chapter and everything in it — roster, money, meetings, docs — for all 52 people. This can't be undone.</p>
+          </div>
+          <button class="btn rose solid" type="button">Delete chapter…</button>
+        </section>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<div class="savebar" id="savebar" role="region" aria-label="Unsaved changes">
+  <span class="pip"></span>
+  <span class="msg" id="saveMsg"></span>
+  <span class="acts">
+    <button class="btn sm ghost" type="button" id="discard">Discard</button>
+    <button class="btn sm" type="button" id="save" style="--hs:var(--pp-butter)">Save changes</button>
+  </span>
+</div>
+<div class="toast" id="toast" role="status"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m3.5 8.5 3 3 6-7"/></svg><span id="toastMsg"></span></div>
+
+<script>
+const ORG = { name: "Lambda Phi Epsilon" };
+const DEFAULTS = { Member:"Member", Admin:"Admin", Role:"Role", Treasury:"Treasury", Dues:"Dues", Meetings:"Meetings",
+  Service:"Service", Attendance:"Attendance", Announcement:"Announcement", Doc:"Doc", Period:"Semester", Event:"Event" };
+const GROUPS = [
+  { label: "People",   s: "var(--pp-lilac)",  keys: ["Member", "Admin", "Role"] },
+  { label: "Pages",    s: "var(--pp-mint)",   keys: ["Treasury", "Meetings", "Service", "Dues", "Attendance", "Announcement", "Doc"] },
+  { label: "Time",     s: "var(--pp-butter)", keys: ["Period", "Event"] },
+];
+const PICKS = {
+  Member: ["Brother", "Sister", "Sibling", "Player"], Admin: ["Officer", "Exec", "Board"], Role: ["Position", "Office", "Chair"],
+  Treasury: ["Finances", "Budget"], Dues: ["Fees", "Contributions"], Meetings: ["Chapter", "Sessions", "Board"],
+  Service: ["Philanthropy", "Volunteering"], Attendance: ["Check-in", "Roll call"], Announcement: ["Bulletin", "Update"],
+  Doc: ["File", "Resource"], Period: ["Term", "Quarter", "Season"], Event: ["Session", "Practice"],
+};
+const WHERE = { Member: "Sidebar, roster, member cards", Treasury: "Sidebar & page title", Meetings: "Sidebar & page title", Service: "Sidebar & page title" };
+const INVARIANT = new Set(["Dues", "Attendance"]);
+
+const saved = { logo: null, ig: "lpe.uw", words: { Member: "Brother", Meetings: "Chapter" } };
+let draft = structuredClone(saved);
+
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const plural = w => {
+  if (/(s|sh|ch|x|z)$/i.test(w)) return w + "es";
+  if (/[^aeiou]y$/i.test(w)) return w.slice(0, -1) + "ies";
+  return w + "s";
+};
+const word = (k, pl) => { const w = (draft.words[k] || "").trim() || DEFAULTS[k]; return pl && !INVARIANT.has(k) ? plural(w) : w; };
+const initials = n => n.trim().split(/\s+/).slice(0, 2).map(w => w[0].toUpperCase()).join("");
+const igOk = h => /^[a-z0-9._]{1,30}$/i.test(h);
+
+/* Words grid */
+function buildWords() {
+  $("#words").innerHTML = GROUPS.map(g => `
+    <div class="w-group">
+      <div class="w-group-h" style="--s:${g.s}"><i></i>${g.label}</div>
+      <div class="w-grid">${g.keys.map(k => `
+        <div class="tag" data-key="${k}">
+          <div class="swap">
+            <span class="from">${DEFAULTS[k]}</span>
+            <svg class="arr" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+            <input aria-label="Your word for ${DEFAULTS[k]}" maxlength="40" placeholder="${DEFAULTS[k]}" data-input="${k}">
+            <button class="undo owner-only" type="button" data-undo="${k}" title="Use “${DEFAULTS[k]}”" aria-label="Use ${DEFAULTS[k]}">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3.5 6.5h6a3.5 3.5 0 0 1 0 7H6M6 3.5l-3 3 3 3"/></svg>
+            </button>
+          </div>
+          <div class="picks owner-only">${PICKS[k].map(p => `<button class="pick" type="button" data-pick="${k}" data-val="${p}">${p}</button>`).join("")}</div>
+          ${WHERE[k] ? `<div class="where"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 14s5-4.2 5-8A5 5 0 0 0 3 6c0 3.8 5 8 5 8Z"/><circle cx="8" cy="6" r="1.8"/></svg>${WHERE[k]}</div>` : ""}
+        </div>`).join("")}
+      </div>
+    </div>`).join("");
+}
+
+/* Render everything from draft. `changed` = vocab keys to flash. */
+function render(changed = []) {
+  $$("[data-mark]").forEach(el => {
+    el.innerHTML = draft.logo ? `<img src="${draft.logo}" alt="">` : esc(initials(ORG.name));
+  });
+  $$("[data-name]").forEach(el => el.textContent = ORG.name);
+  $("#removeIcon").hidden = !draft.logo;
+
+  // Instagram
+  const h = draft.ig.trim().replace(/^@/, "");
+  const bad = h && !igOk(h);
+  $("#igField").classList.toggle("bad", !!bad);
+  $("#igHelp").textContent = bad ? "Only letters, numbers, dots and underscores, up to 30." : "Letters, numbers, dots and underscores.";
+  $("#igHelp").style.color = bad ? "var(--pp-rose-ink)" : "";
+  const igSvg = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="12" height="12" rx="3.5"/><circle cx="8" cy="8" r="2.8"/><circle cx="11.6" cy="4.4" r=".6" fill="currentColor"/></svg>`;
+  $("#igChip").className = "ig-chip" + (h ? "" : " off");
+  $("#igChip").innerHTML = h ? `${igSvg}@${esc(h)}` : "Hidden — no account linked";
+  const f = $("[data-ig-fact]");
+  f.className = "fact" + (h ? "" : " off");
+  f.innerHTML = h ? `${igSvg}@${esc(h)}` : `${igSvg}No Instagram`;
+
+  // Words
+  $$("[data-w]").forEach(el => {
+    const k = el.dataset.w;
+    el.textContent = word(k, el.hasAttribute("data-plural"));
+    if (changed.includes(k)) {
+      const t = el;
+      t.classList.remove("flash"); void t.offsetWidth; t.classList.add("flash");
+    }
+  });
+  $$(".tag").forEach(tag => {
+    const k = tag.dataset.key, v = (draft.words[k] || "").trim();
+    const isChanged = !!v && v !== DEFAULTS[k];
+    tag.classList.toggle("changed", isChanged);
+    const inp = tag.querySelector("input");
+    if (document.activeElement !== inp) inp.value = draft.words[k] || "";
+    tag.querySelectorAll(".pick").forEach(p => p.setAttribute("aria-pressed", String(p.dataset.val === v)));
+  });
+
+  renderSaveBar();
+}
+
+function diff() {
+  const out = [];
+  if (draft.logo !== saved.logo) out.push(draft.logo ? "new icon" : "icon removed");
+  if (draft.ig.trim().replace(/^@/, "") !== saved.ig) out.push("Instagram");
+  const keys = Object.keys(DEFAULTS).filter(k => (draft.words[k] || "").trim() !== (saved.words[k] || ""));
+  if (keys.length) out.push(keys.length === 1 ? `“${word(keys[0])}”` : `${keys.length} words`);
+  return out;
+}
+function renderSaveBar() {
+  const d = diff();
+  const bad = (() => { const h = draft.ig.trim().replace(/^@/, ""); return h && !igOk(h); })();
+  $("#savebar").classList.toggle("up", d.length > 0);
+  $("#saveMsg").innerHTML = d.length ? `<b>${d.length === 1 ? "1 change" : d.length + " changes"}</b><span class="long"> · ${esc(d.join(", "))}</span>` : "";
+  $("#save").disabled = !!bad;
+}
+
+/* Events */
+$("#words").addEventListener("input", e => {
+  const k = e.target.dataset.input; if (!k) return;
+  draft.words[k] = e.target.value; render([k]);
+});
+$("#words").addEventListener("click", e => {
+  const p = e.target.closest("[data-pick]"), u = e.target.closest("[data-undo]");
+  if (p) { const k = p.dataset.pick; draft.words[k] = (draft.words[k] || "").trim() === p.dataset.val ? "" : p.dataset.val; render([k]); }
+  if (u) { const k = u.dataset.undo; draft.words[k] = ""; render([k]); }
+});
+$("#ig").addEventListener("input", e => {
+  const v = e.target.value.replace(/^@+/, "");
+  if (v !== e.target.value) e.target.value = v;
+  draft.ig = v; render();
+});
+
+function takeFile(file) {
+  const err = $("#iconErr");
+  if (!file) return;
+  if (!file.type.startsWith("image/")) { err.textContent = "That isn't an image. Try a PNG, JPG or SVG."; err.hidden = false; return; }
+  if (file.size > 2 * 1024 * 1024) { err.textContent = "That image is over 2 MB. Try a smaller one."; err.hidden = false; return; }
+  err.hidden = true;
+  const r = new FileReader(); r.onload = () => { draft.logo = r.result; render(); }; r.readAsDataURL(file);
+}
+const drop = $("#drop");
+const isRo = () => document.body.classList.contains("ro");
+drop.addEventListener("click", () => { if (!isRo()) $("#file").click(); });
+drop.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && !isRo()) { e.preventDefault(); $("#file").click(); } });
+$("#file").addEventListener("change", e => { takeFile(e.target.files[0]); e.target.value = ""; });
+["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { if (isRo()) return; e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => { if (!isRo()) takeFile(e.dataTransfer.files[0]); });
+$("#removeIcon").addEventListener("click", () => { draft.logo = null; render(); });
+
+function toast(msg) {
+  $("#toastMsg").textContent = msg; const t = $("#toast");
+  t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600);
+}
+$("#discard").addEventListener("click", () => {
+  const ch = Object.keys(DEFAULTS);
+  draft = structuredClone(saved); $("#ig").value = draft.ig; render(ch);
+});
+$("#save").addEventListener("click", () => {
+  const words = {};
+  for (const k of Object.keys(DEFAULTS)) { const v = (draft.words[k] || "").trim(); if (v && v !== DEFAULTS[k]) words[k] = v; }
+  draft.words = words; draft.ig = draft.ig.trim().replace(/^@/, "");
+  saved.logo = draft.logo; saved.ig = draft.ig; saved.words = { ...words };
+  $("#savebar").classList.remove("up");
+  setTimeout(() => toast("Saved — the whole chapter sees it now"), 250);
+  render();
+});
+$("#refresh").addEventListener("click", () => toast("Refreshed."));
+
+$$("[data-role]").forEach(b => b.addEventListener("click", () => {
+  const ro = b.dataset.role === "member";
+  $$("[data-role]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  if (ro) { draft = structuredClone(saved); $("#ig").value = draft.ig; }
+  document.body.classList.toggle("ro", ro);
+  $("#roNote").hidden = !ro;
+  $$("#words input").forEach(i => i.readOnly = ro);
+  drop.tabIndex = ro ? -1 : 0;
+  render();
+  if (ro) $("#savebar").classList.remove("up");
+}));
+$$("[data-theme-btn]").forEach(b => b.addEventListener("click", () => {
+  document.documentElement.dataset.theme = b.dataset.themeBtn;
+  $$("[data-theme-btn]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+}));
+
+buildWords();
+$("#ig").value = draft.ig;
+render();
+</script>
+</body>
+</html>

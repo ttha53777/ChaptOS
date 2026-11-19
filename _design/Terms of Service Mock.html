@@ -1,0 +1,2353 @@
+<!doctype html>
+<html lang="en" data-aesthetic="paper">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terms of Service Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:wght@400..700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Caveat:wght@700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   ChaptOS — marketing landing page
+   Ported from _design/ChaptOS Landing Doodle Mock v5.html.
+
+   Direction: Notion-warm (soft pastels, doodles, whitespace) + Klarna motion.
+
+   Everything is scoped under `.lp` so none of these very generic class names
+   (.btn, .card, .pill, .chat, .dot, .chip, .avatar, .seat, .done, .mono) can
+   reach the dashboard or the auth pages. Sibling scopes: `.auth-scope` in
+   app/globals.css, `.ocp` in app/create/create-paper.css.
+
+   Motion budget: exactly ONE pinned scrub on the page (§5, the ask scene).
+   Everything else is reveal-and-swap. If a second scene ever wants the pin,
+   something has to give it up. The hero's build is a load-time timeline, not a
+   scrub, so it doesn't spend from that budget.
+
+   Structure
+     0. tokens + base
+     1. primitives  (buttons, pills, eyebrows, doodles)
+     2. chrome      (progress bar, nav)
+     3. hero
+     4. pain marquee
+     5. ask scene   (scroll-scrubbed six-beat conversation — the pinned one)
+     6. day dial    (a clock face; six moments, one product shot at a time)
+     7. modules     (three surfaces a Tuesday can't show, one tab each + the rest)
+     8. blueprint   (the setup card — used by /for/<audience>, not the landing)
+     9. trust
+    10. pricing    (one headcount slider that lands you on a band — not a plan
+                    you pick; the page's deepest parallax stack sits behind it)
+    11. cta (semester-aware)
+    12. footer
+    13. motion utilities + reduced-motion + mobile
+
+   Motion contract: elements carrying [data-para] are owned by the JS parallax
+   engine and must never also carry [data-reveal] — nest instead. Mobile clears
+   inline transforms with `transform:none !important` (see §12).
+   ========================================================================== */
+
+/* Registered so the health ring can transition its sweep instead of snapping.
+   @property can't be scoped to a selector; --pct is used nowhere else in the
+   app, so the global registration is harmless. */
+@property --pct{syntax:'<number>'; inherits:false; initial-value:0}
+
+/* ---------- 0. tokens + base ---------------------------------------------- */
+
+/* Page-level rules the scope class can't express. Horizontal clipping lives on
+   <body>, NEVER on <html>: overflow on the root propagates to the viewport and
+   silently kills position:sticky, which the ask scene depends on.
+
+   The paper colour goes on <body> rather than on .lp so that .hi::before
+   (z-index:-1, the hand-drawn highlighter) still paints. Against a background
+   painted by .lp itself, a negative z-index child would sit behind it. */
+html:has(.lp){color-scheme:light; scroll-behavior:smooth; -webkit-text-size-adjust:100%}
+body:has(.lp){
+  overflow-x:hidden;
+  background:#FFFCF6;
+  color:#26211B;
+  font-feature-settings:normal;
+  font-variant-numeric:normal;
+  text-rendering:auto;
+}
+/* globals.css paints a near-invisible light thumb for the dark app */
+html:has(.lp) *::-webkit-scrollbar-thumb{background:rgba(38,33,27,.14)}
+html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
+
+.lp{
+  /* paper + ink */
+  --paper:#FFFCF6;
+  --paper-2:#FBF5EA;
+  --paper-3:#F4ECDD;
+  --card:#FFFFFF;
+  --ink:#26211B;
+  --ink-2:#544A3F;
+  --ink-3:#8A7F71;
+  --line:#EBE1CF;
+  --line-2:#DCD0B9;
+
+  /* pastels — each has a soft fill, a tint, and a legible ink */
+  --peach:#FFD5C4;   --peach-soft:#FFEDE5;  --peach-ink:#C9542D;
+  --sky:#CFE2FF;     --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;
+  --mint:#C7EFDA;    --mint-soft:#E6F8EF;   --mint-ink:#1B815B;
+  --butter:#FFE5A0;  --butter-soft:#FFF6DC; --butter-ink:#9C6B08;
+  --lilac:#E1D8FF;   --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;
+  --rose:#FFD6E6;    --rose-soft:#FFEDF4;   --rose-ink:#C23C77;
+
+  --r-sm:10px; --r-md:16px; --r-lg:22px; --r-xl:30px; --r-pill:999px;
+
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sh-3:0 2px 4px rgba(38,33,27,.05), 0 26px 60px -18px rgba(38,33,27,.22);
+
+  /* next/font faces from ./fonts.ts, with the mock's original fallback stacks */
+  --sans:var(--font-inter), 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:var(--font-bricolage), 'Bricolage Grotesque', var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --mono:var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  --wrap:1180px;
+
+  font-family:var(--sans);
+  color:var(--ink);
+  font-size:17px;
+  line-height:1.6;
+  letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased;
+  /* globals.css turns on Geist's cv11/ss01/ss03 and tabular-nums for the whole
+     app; neither is right under Inter. Same reset .auth-scope does. */
+  font-feature-settings:normal;
+  font-variant-numeric:normal;
+  width:100%;
+}
+
+.lp *,.lp *::before,.lp *::after{box-sizing:border-box}
+.lp h1,.lp h2,.lp h3,.lp h4,.lp h5,.lp p,.lp figure,.lp blockquote,
+.lp ul,.lp ol,.lp dl,.lp dd{margin:0}
+.lp ul,.lp ol{padding:0;list-style:none}
+.lp img,.lp svg{display:block;max-width:100%}
+.lp button,.lp input{font:inherit;color:inherit}
+
+/* the paper itself: faint grain + a couple of huge soft washes */
+.lp::before{
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.5;
+  background:
+    radial-gradient(60vw 50vh at 8% 2%,  var(--butter-soft), transparent 62%),
+    radial-gradient(52vw 48vh at 96% 22%, var(--sky-soft),   transparent 60%),
+    radial-gradient(48vw 46vh at 4% 62%,  var(--lilac-soft), transparent 62%),
+    radial-gradient(56vw 50vh at 92% 88%, var(--peach-soft), transparent 62%);
+}
+.lp main,.lp header,.lp footer{position:relative;z-index:1}
+
+.lp .wrap{width:min(100% - 44px, var(--wrap)); margin-inline:auto}
+.lp .wrap--narrow{width:min(100% - 44px, 880px)}
+
+.lp h1,.lp h2,.lp h3,.lp h4,.lp .display{font-family:var(--display); font-weight:600; letter-spacing:-.028em; line-height:1.04}
+.lp h1{font-size:clamp(2.15rem, 4.5vw, 3.5rem)}
+.lp h2{font-size:clamp(1.95rem, 3.9vw, 3rem); line-height:1.06; text-wrap:balance}
+.lp h3{font-size:clamp(1.35rem, 2.2vw, 1.75rem); line-height:1.15; letter-spacing:-.022em}
+.lp h4{font-size:1.06rem; line-height:1.3; letter-spacing:-.015em; font-weight:600}
+.lp .lede{font-size:clamp(1.06rem, 1.55vw, 1.32rem); line-height:1.55; color:var(--ink-2); letter-spacing:-.012em}
+.lp .mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.lp .mute{color:var(--ink-3)}
+.lp section{position:relative}
+.lp .section{padding:clamp(84px, 11vw, 168px) 0}
+.lp .section--tight{padding:clamp(60px, 7vw, 104px) 0}
+
+/* highlighter behind a word — hand-drawn, slightly off-register */
+.lp .hi{position:relative; white-space:nowrap}
+.lp .hi::before{
+  content:''; position:absolute; z-index:-1; left:-.14em; right:-.14em; bottom:.02em; height:.52em;
+  background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em;
+  transform:rotate(-.7deg) scaleX(var(--mark-x, 1)); transform-origin:left center;
+  opacity:.85;
+}
+
+/* ---------- 1. primitives -------------------------------------------------- */
+.lp .eyebrow{
+  display:inline-flex; align-items:center; gap:9px;
+  font-size:.775rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-3);
+}
+.lp .eyebrow::before{content:''; width:22px; height:2px; border-radius:2px; background:var(--eb, var(--peach))}
+
+.lp .btn{
+  --btn-bg:var(--ink); --btn-fg:#FFFCF6; --btn-shadow:var(--lilac);
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  padding:14px 24px; border-radius:var(--r-pill); border:1.5px solid var(--ink);
+  background:var(--btn-bg); color:var(--btn-fg);
+  font-weight:600; font-size:.97rem; letter-spacing:-.01em; text-decoration:none; cursor:pointer;
+  box-shadow:3px 3px 0 var(--btn-shadow);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), background .18s;
+  white-space:nowrap;
+}
+.lp .btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:5.5px 5.5px 0 var(--btn-shadow)}
+.lp .btn:active{transform:translate(1px,1px); box-shadow:1.5px 1.5px 0 var(--btn-shadow)}
+.lp .btn--ghost{--btn-bg:transparent; --btn-fg:var(--ink); --btn-shadow:var(--peach)}
+.lp .btn--sm{padding:9.5px 17px; font-size:.88rem; box-shadow:2.5px 2.5px 0 var(--btn-shadow)}
+.lp .btn--lg{padding:17px 30px; font-size:1.04rem}
+
+.lp .pill{
+  display:inline-flex; align-items:center; gap:7px;
+  padding:5px 12px; border-radius:var(--r-pill);
+  font-size:.78rem; font-weight:600; letter-spacing:-.005em;
+  background:var(--p-bg, var(--paper-2)); color:var(--p-fg, var(--ink-2));
+  border:1px solid var(--p-bd, transparent);
+}
+.lp .pill--paid  {--p-bg:var(--mint-soft);   --p-fg:var(--mint-ink);   --p-bd:#BDE7D2}
+.lp .pill--part  {--p-bg:var(--butter-soft); --p-fg:var(--butter-ink); --p-bd:#F4DFA6}
+.lp .pill--due   {--p-bg:var(--peach-soft);  --p-fg:var(--peach-ink);  --p-bd:#F8D2C2}
+.lp .pill--info  {--p-bg:var(--sky-soft);    --p-fg:var(--sky-ink);    --p-bd:#CCDFFB}
+.lp .pill--calm  {--p-bg:var(--lilac-soft);  --p-fg:var(--lilac-ink);  --p-bd:#DCD2FB}
+.lp .pill--rose  {--p-bg:var(--rose-soft);   --p-fg:var(--rose-ink);   --p-bd:#F8CEE0}
+.lp .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+
+.lp .card{
+  background:var(--card); border:1.5px solid var(--line);
+  border-radius:var(--r-lg); box-shadow:var(--sh-1);
+}
+
+/* doodles: hand-drawn strokes */
+.lp .doodle{fill:none; stroke:var(--ink); stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round}
+.lp .doodle--thin{stroke-width:1.8}
+.lp .doodle path,.lp .doodle circle,.lp .doodle line,.lp .doodle rect,.lp .doodle polyline{vector-effect:non-scaling-stroke}
+
+.lp .sticky-note{
+  --note:var(--butter);
+  position:relative; padding:18px 20px 20px; border-radius:4px 12px 6px 10px;
+  background:var(--note); color:var(--ink);
+  box-shadow:var(--sh-2);
+  font-size:.95rem; line-height:1.42;
+  transform:rotate(var(--rot, -1.4deg));
+}
+.lp .sticky-note::after{
+  content:''; position:absolute; left:50%; top:-7px; width:52px; height:16px;
+  transform:translateX(-50%) rotate(var(--tape-rot,-2deg));
+  background:rgba(255,255,255,.5); border-inline:1px dashed rgba(38,33,27,.14);
+}
+.lp .sticky-note b{font-weight:600}
+
+/* the blinking caret shared by the hero ask bar and the spotlight scene */
+.lp .caret{
+  display:inline-block; width:2px; height:1.05em; background:var(--peach-ink);
+  vertical-align:-.16em; margin-left:1px; animation:lp-blink 1.05s steps(1,end) infinite;
+}
+@keyframes lp-blink{50%{opacity:0}}
+
+/* ---------- 2. chrome ------------------------------------------------------ */
+.lp .progress{position:fixed; inset:0 0 auto 0; height:3px; z-index:90; background:transparent; pointer-events:none}
+.lp .progress i{
+  display:block; height:100%; width:0;
+  background:linear-gradient(90deg, var(--peach-ink), var(--butter-ink) 34%, var(--mint-ink) 66%, var(--sky-ink));
+  border-radius:0 3px 3px 0;
+}
+
+.lp .nav{
+  position:sticky; top:0; z-index:80;
+  padding:16px 0;
+  transition:padding .3s var(--ease-out), background .3s, box-shadow .3s, border-color .3s;
+  border-bottom:1.5px solid transparent;
+}
+.lp .nav.is-stuck{
+  padding:9px 0; background:rgba(255,252,246,.82); backdrop-filter:blur(14px) saturate(1.3);
+  border-bottom-color:var(--line); box-shadow:0 6px 22px -18px rgba(38,33,27,.5);
+}
+.lp .nav__in{display:flex; align-items:center; gap:26px}
+.lp .brand{display:inline-flex; align-items:center; gap:10px; text-decoration:none; color:var(--ink); font-family:var(--display); font-weight:700; font-size:1.16rem; letter-spacing:-.03em}
+.lp .brand__mark{width:34px;height:34px;flex:none}
+.lp .nav__links{display:flex; gap:4px; margin-left:auto}
+.lp .nav__links a{
+  padding:8px 13px; border-radius:var(--r-pill); text-decoration:none;
+  color:var(--ink-2); font-size:.92rem; font-weight:500;
+  transition:background .18s, color .18s;
+}
+.lp .nav__links a:hover{background:var(--paper-2); color:var(--ink)}
+.lp .nav__cta{display:flex; align-items:center; gap:10px}
+.lp .nav__short{display:none}
+
+/* ---------- 3. hero -------------------------------------------------------- */
+.lp .hero{padding:clamp(48px,7vw,96px) 0 clamp(70px,9vw,124px); position:relative}
+.lp .hero__grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:clamp(28px,4vw,64px); align-items:center}
+.lp .hero__copy{max-width:620px; position:relative; z-index:6}  /* always above the drifting piles */
+.lp .hero h1{margin:20px 0 0}
+.lp .hero h1 .line{display:block}
+.lp .hero__lede{margin-top:22px; max-width:52ch}
+.lp .hero__actions{display:flex; flex-wrap:wrap; gap:12px; margin-top:32px}
+.lp .hero__fine{margin-top:18px; font-size:.85rem; color:var(--ink-3); display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center}
+.lp .hero__fine .dot{background:var(--line-2)}
+/* the one link in the fine print — underlined so it reads as a way through,
+   not as emphasis on a claim */
+.lp .hero__fine a{color:var(--ink-2); font-weight:600; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.lp .hero__fine a:hover{color:var(--ink); text-decoration-color:var(--mint-ink)}
+
+.lp .hero__stage{position:relative; min-height:470px}
+
+/* the "before" pile — what officers are using today, drifting behind the card */
+.lp .pile{position:absolute; z-index:1; width:190px; will-change:transform}
+.lp .pile--sheet{top:-34px; left:-76px; width:198px}
+.lp .pile--chat{bottom:6px; left:-58px; width:194px}
+/* the third scrap hangs off the card's right edge, high enough to clear the
+   ⌘K spotlight parked at the bottom-right corner */
+.lp .pile--receipt{top:150px; right:-84px; width:172px}
+
+.lp .hero__card{
+  position:relative; z-index:3; background:var(--card);
+  border:1.5px solid var(--line); border-radius:var(--r-xl);
+  box-shadow:var(--sh-3); overflow:hidden; will-change:transform;
+}
+.lp .hero__cardbar{
+  display:flex; align-items:center; gap:8px; padding:13px 16px;
+  border-bottom:1.5px solid var(--line); background:var(--paper-2);
+}
+.lp .hero__cardbar .tl{width:9px;height:9px;border-radius:50%;background:var(--line-2)}
+.lp .hero__cardbar .tl:nth-child(1){background:#F3B7A4}
+.lp .hero__cardbar .tl:nth-child(2){background:#F5D79A}
+.lp .hero__cardbar .tl:nth-child(3){background:#B7DFC6}
+.lp .hero__crumb{margin-left:8px; font-size:.79rem; color:var(--ink-3); font-weight:500}
+.lp .hero__cardbody{padding:20px}
+
+/* the floating ⌘K spotlight — hangs off the card's bottom-right corner, far
+   enough down that it clears the last attention row rather than sitting on top
+   of its action button */
+.lp .hero__spot{position:absolute; z-index:5; width:312px; right:-52px; bottom:-84px; will-change:transform}
+.lp .spotmini{
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-lg);
+  box-shadow:5px 5px 0 var(--lilac); padding:13px 15px 14px;
+}
+.lp .spotmini__hd{display:flex; align-items:center; gap:8px; font-size:.72rem; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3)}
+.lp .spotmini__hd kbd{margin-left:auto; font-family:var(--mono); font-size:.7rem; border:1px solid var(--line); border-radius:6px; padding:1px 6px; background:var(--paper-2); text-transform:none; letter-spacing:0}
+.lp .spotmini__q{margin-top:9px; font-size:.94rem; color:var(--ink); min-height:1.5em; font-weight:500}
+.lp .spotmini__a{
+  margin-top:10px; padding-top:10px; border-top:1px dashed var(--line-2);
+  font-size:.85rem; color:var(--ink-2); line-height:1.4;
+  opacity:0; transform:translateY(6px); transition:opacity .45s var(--ease-out), transform .5s var(--ease-spring);
+}
+.lp .spotmini.is-live .spotmini__a{opacity:1; transform:none}
+.lp .spotmini__a b{font-weight:650; color:var(--ink)}
+
+.lp .avatar{
+  width:30px;height:30px;flex:none;border-radius:50%;
+  display:grid;place-items:center;
+  font-size:.72rem; font-weight:700; letter-spacing:-.02em;
+  background:var(--av, var(--lilac)); color:rgba(38,33,27,.72);
+  border:1.5px solid rgba(38,33,27,.08);
+  font-style:normal;
+}
+.lp .avatar--sm{width:24px;height:24px;font-size:.64rem}
+
+.lp .trustbar{margin-top:clamp(64px,8vw,104px)}
+.lp .trustbar__label{font-size:.8rem; color:var(--ink-3); font-weight:500; text-align:center}
+.lp .trustbar__row{margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:10px 12px}
+.lp .orgchip{
+  display:inline-flex; align-items:center; gap:9px; padding:9px 16px 9px 11px;
+  border:1.5px solid var(--line); border-radius:var(--r-pill); background:var(--card);
+  font-size:.87rem; font-weight:550; color:var(--ink-2); box-shadow:var(--sh-1);
+}
+.lp .orgchip svg{width:22px;height:22px;flex:none}
+.lp .orgchip small{color:var(--ink-3); font-weight:500}
+
+/* ---------- 4. pain marquee ------------------------------------------------ */
+.lp .pain{padding:clamp(44px,5.5vw,76px) 0; overflow:hidden}
+.lp .pain__head{text-align:center; max-width:680px; margin-inline:auto}
+/* ChaptOS is pre-launch — the gripes below are composites of the officer
+   workload it was designed around, not customer quotes, and the page says so. */
+.lp .pain__note{
+  margin-top:20px; font-size:.83rem; line-height:1.5; color:var(--ink-3);
+  max-width:52ch; margin-inline:auto; font-style:italic;
+}
+.lp .marquee{margin-top:44px; display:grid; gap:20px; --dur:52s}
+.lp .marquee__track{display:flex; gap:20px; width:max-content; animation:lp-slide var(--dur) linear infinite}
+.lp .marquee:hover .marquee__track{animation-play-state:paused}
+/* --shift is measured in JS (half the duplicated content + one gap) so the loop
+   seam is exact; -50% is a close-enough fallback if the script never runs. */
+@keyframes lp-slide{from{transform:translate3d(0,0,0)} to{transform:translate3d(var(--shift,-50%),0,0)}}
+.lp .gripe{
+  flex:none; width:min(74vw, 340px); padding:18px 20px;
+  border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card);
+  box-shadow:var(--sh-1); font-size:.97rem; line-height:1.45; color:var(--ink-2);
+  transform:rotate(var(--rot,0deg));
+}
+.lp .gripe q{font-style:normal}
+.lp .gripe b{color:var(--ink); font-weight:600}
+.lp .gripe footer{margin-top:11px; font-size:.79rem; color:var(--ink-3); font-weight:500; display:flex; align-items:center; gap:7px}
+.lp .gripe--tint{background:var(--t, var(--butter-soft))}
+
+/* ---------- 5. ask scene (scroll-scrubbed conversation) -------------------- */
+/* THE pinned scene. The rail is tall, the stage pins, and JS maps rail progress
+   onto beat thresholds — so the reader sets the pace. That matters here and not
+   elsewhere: these beats carry real cognitive load (a reasoning ledger, a table
+   of receipts, a drafted message you have to actually read). Mobile drops the
+   pin and plays through once. */
+.lp .scene{background:linear-gradient(180deg, transparent, var(--paper-2) 12%, var(--paper-2) 88%, transparent); position:relative}
+/* namespaced: a bare --rail would inherit into any future rail on the page */
+.lp .scene__rail{height:var(--ask-rail, 300vh); position:relative}
+.lp .scene__stage{position:sticky; top:0; height:100vh; display:flex; align-items:center; overflow:hidden}
+.lp .scene__in{
+  width:min(100% - 44px, var(--wrap)); margin-inline:auto;
+  display:grid; grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr);
+  gap:clamp(24px,4vw,68px); align-items:center; height:100%; padding:76px 0 56px;
+}
+.lp .scene__side{position:relative}
+.lp .scene__side h2{margin-top:16px}
+.lp .scene__side .lede{margin-top:18px; max-width:38ch}
+.lp .scene__doodle{position:absolute; pointer-events:none}
+
+.lp .beatlist{margin-top:30px; display:grid; gap:2px}
+.lp .beatlist li{
+  display:flex; align-items:flex-start; gap:12px; padding:9px 12px; border-radius:var(--r-md);
+  font-size:.93rem; color:var(--ink-3); font-weight:500; line-height:1.35;
+  transition:background .35s var(--ease-out), color .35s var(--ease-out);
+}
+.lp .beatlist li .n{
+  width:22px;height:22px;flex:none;border-radius:50%; margin-top:1px;
+  display:grid;place-items:center; font-family:var(--mono); font-size:.7rem;
+  border:1.5px solid var(--line-2); color:var(--ink-3); background:var(--paper);
+  transition:background .35s, color .35s, border-color .35s, transform .35s var(--ease-spring);
+}
+.lp .beatlist li.is-on{background:var(--card); color:var(--ink); box-shadow:var(--sh-1)}
+.lp .beatlist li.is-on .n{background:var(--ink); border-color:var(--ink); color:var(--paper); transform:scale(1.06)}
+.lp .beatlist li.is-done .n{background:var(--mint); border-color:var(--mint-ink); color:var(--mint-ink)}
+
+/* the chat itself: beats grow from the bottom, older ones ride up under a fade */
+.lp .chat{
+  position:relative; height:min(74vh, 640px);
+  display:flex; flex-direction:column; justify-content:flex-end; gap:14px;
+  overflow:hidden; padding:0 6px;
+  -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 13%, #000 100%);
+          mask-image:linear-gradient(to bottom, transparent 0, #000 13%, #000 100%);
+}
+
+/* the collapsing step: rows animate their own height so nothing jumps */
+.lp .beat{display:grid; grid-template-rows:0fr; transition:grid-template-rows .62s var(--ease-out)}
+.lp .beat.is-in{grid-template-rows:1fr}
+.lp .beat__in{overflow:hidden; min-height:0}
+.lp .beat__in > *{
+  opacity:0; transform:translate3d(0,16px,0) scale(.985);
+  transition:opacity .45s var(--ease-out) .1s, transform .6s var(--ease-spring) .1s;
+}
+.lp .beat.is-in .beat__in > *{opacity:1; transform:none}
+
+.lp .bubble{
+  max-width:min(100%, 560px); padding:15px 19px; border-radius:20px;
+  border:1.5px solid var(--line); background:var(--card); box-shadow:var(--sh-1);
+  font-size:1rem; line-height:1.5;
+}
+.lp .bubble--me{
+  margin-left:auto; background:var(--ink); color:#FFFCF6; border-color:var(--ink);
+  border-bottom-right-radius:7px; box-shadow:3px 3px 0 var(--lilac);
+}
+.lp .bubble--bot{border-bottom-left-radius:7px}
+.lp .who{display:flex; align-items:center; gap:9px; margin-bottom:7px; font-size:.78rem; font-weight:600; color:var(--ink-3)}
+.lp .who--right{justify-content:flex-end}
+
+/* reasoning ledger */
+.lp .ledger{border:1.5px dashed var(--line-2); border-radius:var(--r-lg); background:var(--paper); padding:15px 17px; max-width:520px}
+.lp .ledger__t{font-size:.78rem; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); display:flex; align-items:center; gap:8px}
+.lp .ledger__t .spin{width:13px;height:13px;border-radius:50%;border:2px solid var(--line-2); border-top-color:var(--lilac-ink); animation:lp-spin .9s linear infinite}
+@keyframes lp-spin{to{transform:rotate(360deg)}}
+.lp .ledger ul{margin-top:10px; display:grid; gap:8px}
+.lp .ledger li{display:flex; align-items:center; gap:10px; font-size:.9rem; color:var(--ink-2); opacity:.32; transition:opacity .4s var(--ease-out)}
+.lp .ledger li .tick{
+  width:17px;height:17px;flex:none;border-radius:50%;border:1.5px solid var(--line-2); background:var(--paper-2);
+  display:grid; place-items:center; transition:background .35s, border-color .35s;
+}
+.lp .ledger li .tick svg{width:10px;height:10px;opacity:0;transition:opacity .3s .1s}
+.lp .ledger.is-live li{opacity:1}
+.lp .ledger.is-live li .tick{background:var(--mint); border-color:var(--mint-ink)}
+.lp .ledger.is-live li .tick svg{opacity:1}
+.lp .ledger.is-live li:nth-child(2),.lp .ledger.is-live li:nth-child(2) .tick,.lp .ledger.is-live li:nth-child(2) .tick svg{transition-delay:.18s}
+.lp .ledger.is-live li:nth-child(3),.lp .ledger.is-live li:nth-child(3) .tick,.lp .ledger.is-live li:nth-child(3) .tick svg{transition-delay:.36s}
+.lp .ledger.is-live li:nth-child(4),.lp .ledger.is-live li:nth-child(4) .tick,.lp .ledger.is-live li:nth-child(4) .tick svg{transition-delay:.54s}
+.lp .consulted{margin-top:13px; display:flex; flex-wrap:wrap; gap:6px; padding-top:12px; border-top:1px dashed var(--line-2)}
+
+/* answer card. The cards cap at 560px rather than filling the column: a chat
+   transcript that runs the full width stops reading as a conversation. */
+.lp .acard{border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card); box-shadow:var(--sh-2); overflow:hidden; max-width:560px}
+.lp .acard__hd{padding:15px 18px; border-bottom:1.5px solid var(--line); display:flex; align-items:center; gap:12px}
+/* big figures use the display face — monospace puts a full cell around the comma,
+   which reads as "$1 , 480" at headline sizes. Small values stay mono. */
+.lp .acard__hd .k{font-family:var(--display); font-size:1.75rem; font-weight:600; letter-spacing:-.035em; font-variant-numeric:tabular-nums}
+.lp .acard__hd .sub{font-size:.86rem; color:var(--ink-3); line-height:1.35}
+.lp .acard__rows{display:grid}
+.lp .acard__row{display:flex; align-items:center; gap:11px; padding:11px 18px; border-bottom:1px solid var(--paper-3); font-size:.93rem}
+.lp .acard__row:last-child,.lp .acard__row:last-of-type{border-bottom:0}
+.lp .acard__row .nm{font-weight:550}
+.lp .acard__row .amt{margin-left:auto; font-family:var(--mono); font-size:.88rem}
+.lp .acard__ft{padding:11px 18px; background:var(--paper-2); font-size:.83rem; color:var(--ink-3); display:flex; align-items:center; gap:8px}
+
+/* writ card (a proposal waiting on a human) */
+.lp .draft{border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card); box-shadow:var(--sh-2); overflow:hidden; max-width:560px}
+.lp .draft__hd{display:flex; align-items:center; gap:10px; padding:12px 17px; background:var(--butter-soft); border-bottom:1.5px solid #F4DFA6; font-size:.83rem; font-weight:600; color:var(--butter-ink)}
+.lp .draft__body{padding:17px 19px; font-size:.95rem; line-height:1.55; color:var(--ink-2)}
+.lp .draft__body .msg{border-left:2.5px solid var(--peach); padding-left:14px; font-style:italic}
+.lp .draft__ft{display:flex; align-items:center; gap:10px; padding:13px 17px; border-top:1.5px solid var(--line); background:var(--paper); flex-wrap:wrap}
+.lp .draft__ft .who-ok{margin-left:auto; font-size:.78rem; color:var(--ink-3)}
+.lp .done{display:flex; align-items:center; gap:14px; max-width:560px}
+.lp .done__ic{width:44px;height:44px;flex:none;border-radius:50%; background:var(--mint); display:grid; place-items:center; box-shadow:var(--sh-1)}
+
+/* ---------- 6. day dial (a clock face; six moments, one shot at a time) ---- */
+/* §5 owns the pin, so two pinned scenes back to back would read as the same
+   trick twice — and the day's job is "prove this is a real system", which a
+   dial does in ~1.4 screens with six real product shots.
+
+   The marks sit at even 60° steps, not true 24h angles. 8:12a→11:58p on a real
+   dial crams every moment into a 123°–360° arc with 27° between 7:31 and 9:20,
+   and the labels collide. It reads as a selector, not a chronometer. The one
+   literal touch is the closing segment: the 60° running 11:58 PM back round to
+   8:12 AM is dashed, because that arc IS the part of the day nobody is doing
+   admin — which is the whole argument. */
+.lp .day{background:linear-gradient(180deg, transparent, var(--paper-2) 10%, var(--paper-2) 90%, transparent); position:relative}
+.lp .dial__head{max-width:62ch}
+.lp .dial__head .lede{max-width:56ch}
+.lp .dial__grid{
+  margin-top:clamp(30px,4vw,54px);
+  display:grid; grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr);
+  gap:clamp(24px,4vw,56px); align-items:center;
+}
+.lp .dial__side{position:relative; display:flex; flex-direction:column; justify-content:center}
+.lp .dial__doodle{position:absolute; pointer-events:none}
+
+/* --r is the label orbit; the SVG ring is drawn to land under it. The box adds
+   room for the chips, which are centred ON the ring rather than outside it. */
+.lp .dial{
+  --r:clamp(96px, 12.5vw, 146px);
+  position:relative; width:calc(var(--r) * 2 + 108px); max-width:100%; aspect-ratio:1;
+  margin:0 auto;
+}
+.lp .dial__face{position:absolute; inset:0; width:100%; height:100%; overflow:visible}
+.lp .dial__ring,.lp .dial__quiet,.lp .dial__prog{fill:none; stroke-linecap:round}
+.lp .dial__ring{stroke:var(--line-2); stroke-width:1.5; vector-effect:non-scaling-stroke}
+.lp .dial__quiet{stroke:var(--line-2); stroke-width:1.5; stroke-dasharray:3 6; vector-effect:non-scaling-stroke}
+/* Deliberately NO non-scaling-stroke: it makes the browser read stroke-dasharray
+   in rendered px while getTotalLength() reports user units, so the pattern wraps
+   and the progress arc paints in two disconnected places. Width is in user units
+   instead — the dial only spans 300→400px, so 1.4 renders 2.1–2.8px. */
+.lp .dial__prog{stroke:var(--ink); stroke-width:1.4; transition:stroke-dashoffset .72s var(--ease-spring)}
+.lp .dial__hand{transform-box:view-box; transform-origin:50% 50%; transition:transform .72s var(--ease-spring)}
+.lp .dial__hand line{stroke:var(--ink); stroke-width:2.5; stroke-linecap:round; vector-effect:non-scaling-stroke}
+.lp .dial__hand circle{fill:var(--butter); stroke:var(--ink); stroke-width:2; vector-effect:non-scaling-stroke}
+/* drawn over the hand's inner end so the count reads clean at the hub */
+.lp .dial__disc{fill:var(--paper-2)}
+
+.lp .dial__hub{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:grid; place-items:center; gap:2px; text-align:center; pointer-events:none}
+.lp .dial__hub .c{font-family:var(--mono); font-size:1.06rem; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.lp .dial__hub .l{font-size:.63rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+
+.lp .dial__ticks{position:absolute; inset:0}
+/* orbit, then counter-rotate so the label stays upright */
+.lp .dial__tick{
+  position:absolute; left:50%; top:50%; padding:5px 10px;
+  border:1.5px solid var(--line-2); border-radius:var(--r-pill); background:var(--paper);
+  font-family:var(--mono); font-size:.72rem; font-weight:600; letter-spacing:-.02em;
+  color:var(--ink-3); white-space:nowrap; cursor:pointer;
+  transform:translate(-50%,-50%) rotate(var(--a)) translateY(calc(var(--r) * -1)) rotate(calc(var(--a) * -1));
+  transition:background .3s var(--ease-out), color .3s, border-color .3s, box-shadow .3s;
+}
+.lp .dial__tick:hover{border-color:var(--ink-3); color:var(--ink)}
+.lp .dial__tick.is-done{background:var(--mint-soft); border-color:var(--mint-ink); color:var(--mint-ink)}
+.lp .dial__tick.is-on,.lp .dial__tick.is-on:hover{background:var(--ink); border-color:var(--ink); color:#FFFCF6; box-shadow:var(--sh-1)}
+/* On the ring, at the dashed arc's midpoint — the same orbit as the chips. At a
+   shorter radius it drifted inside the 11:58 chip's box, which is 60° away but
+   ~70px wide. No chip background: it's an annotation, not a stop. */
+.lp .dial__quiet-l{
+  position:absolute; left:50%; top:50%; font-size:.68rem; color:var(--ink-3);
+  letter-spacing:.02em; white-space:nowrap; pointer-events:none; font-style:italic;
+  background:var(--paper-2); padding:1px 7px;   /* punch through the dashed arc */
+  transform:translate(-50%,-50%) rotate(var(--a)) translateY(calc(var(--r) * -1)) rotate(calc(var(--a) * -1));
+}
+/* the tick only says a time; this says what the moment IS */
+.lp .dial__cap{
+  margin-top:16px; text-align:center; font-family:var(--display);
+  font-size:1.06rem; font-weight:600; letter-spacing:-.022em; color:var(--ink);
+  line-height:1.35; min-height:2.7em; transition:opacity .22s var(--ease-out);
+}
+.lp .dial__replay{margin-top:clamp(14px,2vw,20px); display:flex; justify-content:center}
+
+.lp .dialdeck{position:relative; height:min(56vh, 440px)}
+.lp .dialcard{
+  position:absolute; inset:0; display:flex; align-items:center;
+  opacity:0; transform:translate3d(0,20px,0) scale(.988); pointer-events:none;
+  transition:opacity .5s var(--ease-out), transform .68s var(--ease-spring);
+}
+.lp .dialcard.is-on{opacity:1; transform:none; pointer-events:auto}
+.lp .dialcard > div{width:100%}
+.lp .dialcard__t{display:none; font-family:var(--mono); font-size:.78rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-3); margin-bottom:10px}
+.lp .dialcard__note{margin-top:12px; font-size:.88rem; color:var(--ink-3); display:flex; gap:9px; align-items:flex-start; line-height:1.45}
+.lp .dialcard__note svg{width:16px;height:16px;flex:none;margin-top:2px}
+.lp .dayslide__note{font-size:.88rem; color:var(--ink-3); display:flex; gap:9px; align-items:flex-start; line-height:1.45}
+.lp .dayslide__note svg{width:16px;height:16px;flex:none;margin-top:2px}
+
+/* ---------- 7. modules ----------------------------------------------------- */
+.lp .modules__head{max-width:760px}
+/* The three surfaces sit behind tabs on one stage instead of stacking three
+   screen-tall blocks. Panels are display:none until .is-on; modtabs() in
+   LandingMotion swaps the class and replays the panel's reveals. */
+.lp .modtabs{display:flex; flex-wrap:wrap; gap:10px; margin-top:clamp(28px,3.5vw,40px)}
+.lp .modtab{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:10px 16px; border-radius:var(--r-pill);
+  border:1.5px solid var(--line-2); background:var(--card);
+  font-size:.95rem; font-weight:550; color:var(--ink-2); cursor:pointer;
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), background .2s, color .2s, border-color .2s;
+}
+.lp .modtab:hover{border-color:var(--ink-3); color:var(--ink); transform:translateY(-1.5px)}
+.lp .modtab.is-on{background:var(--ink); border-color:var(--ink); color:var(--paper); box-shadow:3px 3px 0 var(--lilac)}
+.lp .modtab:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:3px}
+.lp .moddeck{position:relative}
+.lp .mod{display:none; padding:clamp(36px,4.5vw,64px) 0 clamp(40px,5vw,72px); position:relative}
+.lp .mod.is-on{display:block; animation:lp-mod-in .45s var(--ease-out)}
+@keyframes lp-mod-in{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+.lp #modules{padding-bottom:clamp(56px,7vw,104px)}
+.lp .mod__grid{display:grid; grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr); gap:clamp(30px,5vw,80px); align-items:center}
+.lp .mod__copy h3{margin-top:14px}
+.lp .mod__pain{
+  margin-top:20px; padding:15px 18px; border-radius:var(--r-md) var(--r-md) var(--r-md) 4px;
+  background:var(--pain-bg, var(--peach-soft)); border:1.5px solid var(--pain-bd, #F8D2C2);
+  font-size:.99rem; line-height:1.45; color:var(--ink);
+}
+.lp .mod__pain .src{display:block; margin-top:8px; font-size:.79rem; color:var(--ink-3); font-weight:500}
+.lp .mod__fix{margin-top:20px; color:var(--ink-2); font-size:1.03rem; line-height:1.6}
+.lp .mod__stage{position:relative; will-change:transform}
+
+/* the fake product window */
+.lp .shot{
+  border:1.5px solid var(--line); border-radius:var(--r-xl); background:var(--card);
+  box-shadow:var(--sh-3); overflow:hidden; position:relative; z-index:2;
+}
+.lp .shot--flat{box-shadow:var(--sh-2)}
+.lp .shot__bar{display:flex; align-items:center; gap:8px; padding:12px 15px; border-bottom:1.5px solid var(--line); background:var(--paper-2)}
+.lp .shot__bar .tl{width:8.5px;height:8.5px;border-radius:50%;background:var(--line-2)}
+.lp .shot__bar .tl:nth-child(1){background:#F3B7A4}
+.lp .shot__bar .tl:nth-child(2){background:#F5D79A}
+.lp .shot__bar .tl:nth-child(3){background:#B7DFC6}
+.lp .shot__path{margin-left:10px; font-size:.77rem; color:var(--ink-3); font-weight:500; display:flex; align-items:center; gap:6px; min-width:0}
+.lp .shot__path .sep{color:var(--line-2)}
+.lp .shot__body{padding:18px 20px 20px}
+.lp .shot__toolbar{display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap}
+.lp .shot__title{font-family:var(--display); font-size:1.1rem; font-weight:600; letter-spacing:-.024em}
+.lp .shot__spacer{margin-left:auto}
+.lp .shot__tabs{display:flex; gap:3px; background:var(--paper-2); padding:3px; border-radius:var(--r-pill); border:1px solid var(--line)}
+.lp .shot__tabs span{padding:5px 12px; border-radius:var(--r-pill); font-size:.79rem; font-weight:550; color:var(--ink-3)}
+.lp .shot__tabs span.on{background:var(--card); color:var(--ink); box-shadow:var(--sh-1)}
+
+/* floating callout that hangs off a shot */
+.lp .callout{
+  position:absolute; z-index:4; max-width:250px; padding:12px 15px;
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-md);
+  box-shadow:3px 3px 0 var(--co, var(--butter));
+  font-size:.85rem; line-height:1.4; font-weight:500;
+}
+.lp .callout b{font-weight:650}
+
+/* --- ui kit used inside the shots --- */
+/* briefing header: mono kicker → display greeting → the digest sentence */
+.lp .ui-kick{font-family:var(--mono); font-size:.71rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.lp .ui-greet{font-family:var(--display); font-size:1.5rem; font-weight:600; letter-spacing:-.03em; margin-top:6px; line-height:1.1}
+.lp .ui-brief{display:flex; align-items:flex-start; gap:16px}
+.lp .ui-brief > div:first-child{min-width:0}
+.lp .ui-digest{margin-top:9px; font-size:.92rem; line-height:1.45; color:var(--ink-2); display:flex; gap:9px; align-items:flex-start}
+.lp .ui-digest .aichip{
+  flex:none; display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:var(--r-pill);
+  background:var(--lilac-soft); border:1px solid #DCD2FB; color:var(--lilac-ink);
+  font-size:.68rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; margin-top:2px;
+}
+
+/* wrap, not shrink: these rows carry nowrap buttons and mono figures, so on a
+   narrow shot they must break to a second line instead of setting a min-width
+   the whole page then has to honour */
+.lp .ui-stat{display:flex; align-items:center; gap:16px; padding:16px; border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--paper); flex-wrap:wrap}
+.lp .ui-ring{
+  width:74px;height:74px;flex:none;border-radius:50%;
+  background:conic-gradient(var(--ring-c, var(--mint-ink)) calc(var(--pct,0) * 1%), var(--paper-3) 0);
+  display:grid; place-items:center; transition:--pct 1.4s var(--ease-out);
+}
+.lp .ui-ring--sm{width:70px;height:70px}
+.lp .ui-ring i{width:56px;height:56px;border-radius:50%;background:var(--card); display:grid; place-items:center; font-family:var(--mono); font-size:.9rem; font-weight:600; font-style:normal}
+.lp .ui-ring--sm i{width:54px;height:54px;font-size:.84rem; line-height:1}
+/* the label has to clear the ring's inner circle — .48rem is the largest that
+   fits "health" inside 54px without touching the sweep */
+.lp .ui-ring--sm i small{display:block; margin-top:1px; font-size:.48rem; letter-spacing:.04em; color:var(--ink-3); text-transform:uppercase; font-family:var(--sans); font-weight:700}
+.lp .ui-stat__k{font-family:var(--display); font-size:1.62rem; font-weight:600; letter-spacing:-.035em; line-height:1.1; font-variant-numeric:tabular-nums}
+.lp .ui-stat__l{font-size:.83rem; color:var(--ink-3); margin-top:3px}
+
+/* KPI ledger strip */
+.lp .ui-meas{display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-top:15px}
+.lp .meas{padding:10px 12px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--paper)}
+.lp .meas__l{font-size:.67rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:700}
+.lp .meas__v{margin-top:5px; font-family:var(--display); font-size:1.14rem; font-weight:600; letter-spacing:-.032em; font-variant-numeric:tabular-nums; line-height:1.1}
+.lp .meas__d{margin-top:3px; font-size:.7rem; color:var(--ink-3); font-family:var(--mono); letter-spacing:-.02em}
+.lp .meas__d.up{color:var(--mint-ink)}
+.lp .meas__d.dn{color:var(--peach-ink)}
+
+/* needs-attention queue */
+.lp .ui-att{margin-top:14px; display:grid; gap:8px}
+.lp .att{display:flex; align-items:center; gap:11px; padding:10px 12px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card)}
+.lp .att__tag{
+  font-family:var(--mono); font-size:.63rem; letter-spacing:.09em; text-transform:uppercase; font-weight:600;
+  padding:3px 7px; border-radius:5px; flex:none;
+  background:var(--tg-bg, var(--peach-soft)); color:var(--tg-fg, var(--peach-ink));
+}
+.lp .att__tag.gold{--tg-bg:var(--butter-soft); --tg-fg:var(--butter-ink)}
+.lp .att__tag.sky {--tg-bg:var(--sky-soft);    --tg-fg:var(--sky-ink)}
+.lp .att__tag.calm{--tg-bg:var(--lilac-soft);  --tg-fg:var(--lilac-ink)}
+.lp .att__b{min-width:0}
+.lp .att__b .t{font-size:.9rem; font-weight:550; line-height:1.25}
+.lp .att__b .m{font-size:.77rem; color:var(--ink-3); margin-top:2px}
+.lp .att__a{margin-left:auto; flex:none; font-size:.78rem; font-weight:600; color:var(--ink-2); border:1.5px solid var(--line); background:var(--paper-2); border-radius:var(--r-pill); padding:5px 11px; white-space:nowrap}
+
+.lp .ui-table{margin-top:14px; border:1.5px solid var(--line); border-radius:var(--r-md); overflow:hidden}
+.lp .ui-th{display:grid; grid-template-columns:1.6fr .8fr .9fr; gap:10px; padding:9px 14px; background:var(--paper-2); border-bottom:1.5px solid var(--line); font-size:.71rem; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.lp .ui-tr{display:grid; grid-template-columns:1.6fr .8fr .9fr; gap:10px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--paper-3); font-size:.89rem; background:var(--card)}
+.lp .ui-tr:last-child{border-bottom:0}
+.lp .ui-tr .who{margin:0; display:flex; align-items:center; gap:9px; color:var(--ink); font-size:.89rem; font-weight:500}
+.lp .ui-tr .amt{font-family:var(--mono); font-size:.84rem}
+.lp .ui-tr .txt{font-size:.85rem; color:var(--ink-2)}
+.lp .ui-tr.is-flagged{background:var(--peach-soft)}
+.lp .ui-table--4 .ui-th,.lp .ui-table--4 .ui-tr{grid-template-columns:1.5fr 1fr .8fr .8fr}
+
+.lp .ui-note{margin-top:12px; display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:var(--r-md); background:var(--lilac-soft); border:1.5px solid #DCD2FB; font-size:.86rem; color:var(--lilac-ink); font-weight:500; flex-wrap:wrap}
+.lp .ui-note b{font-weight:650}
+.lp .ui-note svg{flex:none}
+
+/* attendance roll */
+.lp .ui-roll{display:grid; grid-template-columns:repeat(auto-fill, minmax(122px,1fr)); gap:8px; margin-top:14px}
+.lp .ui-person{display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r-md); border:1.5px solid var(--line); background:var(--card); font-size:.83rem; font-weight:500}
+.lp .ui-person.is-here{background:var(--mint-soft); border-color:#BDE7D2}
+.lp .ui-person.is-late{background:var(--butter-soft); border-color:#F4DFA6}
+.lp .ui-person.is-out{background:var(--paper-2); color:var(--ink-3)}
+.lp .ui-person .mk{width:17px;height:17px;flex:none;border-radius:5px;border:1.5px solid var(--line-2); background:var(--paper); display:grid; place-items:center}
+.lp .ui-person.is-here .mk{background:var(--mint-ink); border-color:var(--mint-ink)}
+.lp .ui-person.is-late .mk{background:var(--butter); border-color:var(--butter-ink)}
+.lp .ui-person svg{width:10px;height:10px}
+
+/* programming stage board */
+.lp .ui-board{margin-top:14px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
+.lp .bcol{border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--paper); padding:8px; min-height:158px; display:grid; gap:7px; align-content:start}
+.lp .bcol__h{display:flex; align-items:center; gap:7px; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3); padding:2px 2px 3px}
+.lp .bcol__h i{width:7px;height:7px;border-radius:50%;background:var(--s,var(--line-2));flex:none}
+.lp .bcol__h b{margin-left:auto; font-family:var(--mono); font-size:.7rem; color:var(--ink-3); font-weight:600}
+.lp .bcard{background:var(--card); border:1.5px solid var(--line); border-radius:9px; padding:8px 9px; font-size:.79rem; font-weight:550; line-height:1.25; overflow-wrap:anywhere}
+.lp .bcard small{display:block; margin-top:4px; font-weight:500; color:var(--ink-3); font-size:.7rem; font-family:var(--mono)}
+.lp .bcard.is-moved{border-color:var(--mint-ink); box-shadow:0 0 0 3px var(--mint-soft)}
+
+/* checklists (prep items, action items) */
+.lp .ui-check{margin-top:13px; display:grid; gap:8px}
+.lp .ui-check li{display:flex; align-items:center; gap:11px; padding:10px 13px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); font-size:.89rem}
+.lp .ui-check li .box{width:19px;height:19px;flex:none;border-radius:6px;border:1.5px solid var(--line-2); display:grid;place-items:center; background:var(--paper)}
+.lp .ui-check li.done .box{background:var(--mint-ink); border-color:var(--mint-ink)}
+.lp .ui-check li .lbl{font-weight:500; color:var(--ink)}
+.lp .ui-check li.done .lbl{color:var(--ink-3); text-decoration:line-through; text-decoration-color:var(--line-2)}
+.lp .ui-check li .owner{margin-left:auto; flex:none}
+
+/* minutes → summary */
+.lp .ui-split{margin-top:14px; display:grid; grid-template-columns:1fr 1fr; gap:11px}
+.lp .ui-raw{border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--paper); padding:12px 13px; font-size:.82rem; line-height:1.5; color:var(--ink-2)}
+.lp .ui-raw h5{font-size:.66rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin-bottom:8px}
+.lp .ui-raw p + p{margin-top:7px}
+.lp .ui-sum{border:1.5px solid #DCD2FB; border-radius:var(--r-md); background:var(--lilac-soft); padding:12px 13px}
+.lp .ui-sum h5{font-size:.66rem; letter-spacing:.09em; text-transform:uppercase; color:var(--lilac-ink); font-weight:700}
+.lp .ui-sum h5 + ul{margin-top:7px}
+.lp .ui-sum ul{display:grid; gap:6px; margin-bottom:11px}
+.lp .ui-sum li{font-size:.81rem; line-height:1.35; display:flex; gap:8px; align-items:flex-start; color:var(--ink)}
+.lp .ui-sum li .pill{margin-left:auto; flex:none}
+.lp .ui-sum li::before{content:'·'; color:var(--lilac-ink); font-weight:700}
+
+/* docs library */
+.lp .ui-docs{margin-top:14px; display:grid; grid-template-columns:repeat(3,1fr); gap:9px}
+.lp .doccard{border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); padding:11px 12px}
+.lp .doccard .fd{font-size:.67rem; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-3); font-weight:700; display:flex; gap:6px; align-items:center}
+.lp .doccard .fd svg{width:13px;height:13px}
+.lp .doccard .nm{margin-top:8px; font-size:.85rem; font-weight:550; line-height:1.25}
+.lp .doccard .by{margin-top:5px; font-size:.72rem; color:var(--ink-3)}
+
+/* activity log */
+.lp .ui-log{margin-top:12px; display:grid}
+.lp .logrow{display:flex; align-items:center; gap:11px; padding:9px 2px; border-bottom:1px solid var(--paper-3); font-size:.87rem}
+.lp .logrow:last-child{border-bottom:0}
+.lp .logrow .ts{font-family:var(--mono); font-size:.73rem; color:var(--ink-3); width:58px; flex:none}
+.lp .logrow .tx{min-width:0; line-height:1.3}
+.lp .logrow .tx b{font-weight:600}
+.lp .logrow .pill{margin-left:auto; flex:none}
+
+/* The rest of the kit, in one line instead of an eight-cell grid. By this point
+   the page has shown six real product screens in the dial and three more in the
+   modules — a catalogue would be proving something already proved. */
+.lp .mod__rest{margin-top:0; max-width:74ch; font-size:.98rem; line-height:1.62; color:var(--ink-2)}
+/* inline-flex + nowrap or the arrow orphans onto its own line */
+.lp .mod__rest a{
+  display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+  color:var(--ink); font-weight:600; text-decoration:none;
+  border-bottom:1.5px solid var(--line-2); padding-bottom:1px;
+}
+.lp .mod__rest a:hover{border-bottom-color:var(--ink)}
+.lp .mod__rest a svg{flex:none}
+
+/* ---------- 8. blueprint -------------------------------------------------- */
+/* The landing's own setup section is gone (its job moved to the CTA's first
+   step), but /for/<audience> still renders the blueprint card, so these stay. */
+.lp .bp{border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card); box-shadow:var(--sh-2); overflow:hidden; transition:opacity .26s var(--ease-out)}
+.lp .bp.is-swap{opacity:.18}
+.lp .bp__hd{padding:15px 18px; border-bottom:1.5px solid var(--line); background:var(--paper-2); display:flex; align-items:center; gap:11px; flex-wrap:wrap}
+.lp .bp__hd .k{font-family:var(--display); font-size:1.16rem; font-weight:600; letter-spacing:-.028em}
+.lp .bp__hd .sub{font-size:.8rem; color:var(--ink-3)}
+.lp .bp__sec{padding:14px 18px; border-bottom:1px solid var(--paper-3)}
+.lp .bp__sec:last-child{border-bottom:0}
+.lp .bp__t{font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:700}
+.lp .bp__chips{margin-top:10px; display:flex; flex-wrap:wrap; gap:6px}
+.lp .chip{display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border-radius:var(--r-pill); border:1.5px solid var(--line); background:var(--paper); font-size:.79rem; font-weight:550; color:var(--ink)}
+.lp .chip.off{opacity:.4; text-decoration:line-through; text-decoration-color:var(--line-2)}
+.lp .chip i.sw{width:9px;height:9px;border-radius:3px;background:var(--c,var(--line-2)); flex:none}
+.lp .bp__words{margin-top:10px; display:grid; gap:7px}
+.lp .wordrow{display:flex; align-items:center; gap:10px; font-size:.86rem}
+.lp .wordrow .from{font-family:var(--mono); font-size:.76rem; color:var(--ink-3)}
+.lp .wordrow .to{font-weight:650}
+.lp .seat{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--paper-3); font-size:.86rem}
+.lp .seat:last-child{border-bottom:0}
+.lp .seat .nm{font-weight:600}
+.lp .seat .ab{color:var(--ink-3); font-size:.79rem; min-width:0}
+.lp .seat .rk{font-family:var(--mono); font-size:.71rem; color:var(--ink-3); margin-left:auto; flex:none}
+
+/* ---------- 9. trust ------------------------------------------------------- */
+.lp .trust__head{text-align:center; max-width:700px; margin-inline:auto}
+
+.lp .guards{margin-top:clamp(44px,5vw,64px); display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
+.lp .guard{padding:26px; background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1)}
+.lp .guard__ic{width:46px;height:46px;border-radius:14px; display:grid; place-items:center; background:var(--g, var(--sky-soft)); border:1.5px solid var(--gb, #CCDFFB)}
+.lp .guard h4{margin-top:16px}
+.lp .guard p{margin-top:9px; font-size:.94rem; color:var(--ink-2); line-height:1.55}
+
+/* the way through to /trust — the three cards are the summary, that page is the
+   whole disclosure. Centred under the grid, link then caption. */
+.lp .trust__more{
+  margin-top:26px; display:flex; flex-wrap:wrap; gap:6px 16px;
+  align-items:center; justify-content:center; text-align:center;
+  font-size:.9rem; color:var(--ink-3);
+}
+.lp .trust__more a{
+  display:inline-flex; align-items:center; gap:8px;
+  color:var(--ink); font-weight:600; text-decoration:none;
+  padding:9px 17px; border-radius:var(--r-pill);
+  border:1.5px solid var(--line-2); background:var(--card);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .18s;
+}
+.lp .trust__more a:hover{
+  border-color:var(--ink); transform:translate(-1.5px,-1.5px);
+  box-shadow:3.5px 3.5px 0 var(--sky);
+}
+.lp .trust__more a svg{transition:transform .18s var(--ease-out)}
+.lp .trust__more a:hover svg{transform:translateX(2.5px)}
+
+/* ---------- 10. pricing ---------------------------------------------------- */
+/* Sits on bare paper like its neighbours, so the board carries the section. */
+.lp .price{
+  position:relative; overflow:hidden;
+  /* Three links point at #price (nav, hero fine print, CTA fine print) and the
+     nav is sticky, so the jump needs an offset. The other sections get away
+     without one only because .section's padding is larger than the bar —
+     .section--tight isn't, and at ≤860 it drops to 64px against a ~68px nav,
+     which lands the eyebrow underneath it. Mirrors --pub-nav-h. */
+  scroll-margin-top:76px;
+}
+
+/* the doodles, one drifting each way. The span carries the position and the
+   colour; the svg inside just fills it, and inherits `color` for its
+   currentColor stroke. */
+.lp .price__blob{position:absolute; display:block; pointer-events:none; z-index:0}
+.lp .price__blob svg{width:100%; height:auto}
+
+.lp .price > .wrap{position:relative; z-index:1}
+.lp .price__head{text-align:center; max-width:720px; margin-inline:auto}
+.lp .price__head .lede{max-width:54ch; margin-inline:auto}
+.lp .price__head em{font-style:normal; font-weight:650; color:var(--ink)}
+
+/* The highlighter's ::before is z-index:-1 — isolate the head so the mark
+   stays inside it rather than sinking behind the section. */
+.lp .price__head{isolation:isolate}
+
+/* the board: one ink-bordered card, headcount on the left, the price tag on
+   the right. --tint* is set inline from the band the slider lands on. */
+.lp .pboard{
+  position:relative; margin-top:clamp(34px,4vw,48px);
+  background:var(--card); border:1.5px solid var(--ink); border-radius:26px;
+  box-shadow:6px 6px 0 var(--lilac);
+  padding:clamp(22px,3.4vw,40px);
+  display:grid; grid-template-columns:minmax(0,1fr) 260px; gap:clamp(24px,4vw,48px); align-items:center;
+}
+.lp .pboard__hint{
+  position:absolute; right:-4px; top:-50px; display:flex; align-items:center; gap:8px;
+  font-family:var(--display); font-weight:600; font-size:.95rem; color:var(--lilac-ink);
+  transform:rotate(-3deg); pointer-events:none; white-space:nowrap;
+}
+.lp .pboard__hint svg{width:104px; stroke:var(--lilac-ink); transform:rotate(10deg) translateY(10px)}
+
+.lp .pboard__count{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+.lp .pboard__count label{font-weight:600}
+.lp .pboard__n{
+  font-family:var(--display); font-weight:600; font-size:1.6rem; letter-spacing:-.03em;
+  padding:0 10px; border-radius:10px; background:var(--tint-soft); color:var(--tint-ink);
+  transition:background .25s, color .25s;
+}
+.lp .pboard__people{margin-top:18px; display:grid; grid-template-columns:repeat(24,1fr); gap:5px}
+.lp .pboard__people i{
+  aspect-ratio:1; border-radius:50% 50% 45% 45%; background:var(--paper-2);
+  border:1.5px solid var(--line);
+  transition:background .2s, border-color .2s, transform .25s var(--ease-spring);
+}
+.lp .pboard__people i.on{background:var(--tint); border-color:var(--tint-ink); transform:scale(1.05)}
+.lp .pboard__over{height:1.4em; margin:6px 0 4px; font-size:.8rem; color:var(--tint-ink)}
+
+.lp .pboard__bands{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px}
+.lp .pband{
+  border:1.5px solid var(--line); border-radius:14px; padding:10px 12px 11px;
+  background:var(--paper); cursor:pointer; text-align:left;
+  transition:background .25s, border-color .25s, transform .25s var(--ease-spring), box-shadow .25s var(--ease-spring);
+}
+.lp .pband:hover{border-color:var(--line-2)}
+.lp .pband.is-on{background:var(--bs); border-color:var(--ink); transform:translateY(-3px); box-shadow:3px 3px 0 var(--bf)}
+.lp .pband__r{display:block; font-size:.74rem; color:var(--ink-3)}
+.lp .pband.is-on .pband__r{color:var(--bi)}
+.lp .pband__p{display:block; font-family:var(--display); font-weight:600; font-size:1.25rem; letter-spacing:-.03em; line-height:1.15}
+.lp .pband__p small{font-family:var(--sans); font-weight:500; font-size:.72rem; color:var(--ink-3); letter-spacing:0}
+
+.lp .pboard__range{
+  -webkit-appearance:none; appearance:none; width:100%; margin:18px 0 0; height:28px;
+  background:transparent; cursor:grab;
+}
+.lp .pboard__range:active{cursor:grabbing}
+.lp .pboard__range::-webkit-slider-runnable-track{
+  height:8px; border-radius:99px; border:1.5px solid var(--ink);
+  background:linear-gradient(90deg, var(--tint) var(--fill), var(--paper-2) var(--fill));
+}
+.lp .pboard__range::-moz-range-track{
+  height:8px; border-radius:99px; border:1.5px solid var(--ink);
+  background:linear-gradient(90deg, var(--tint) var(--fill), var(--paper-2) var(--fill));
+}
+.lp .pboard__range::-webkit-slider-thumb{
+  -webkit-appearance:none; width:28px; height:28px; margin-top:-11px; border-radius:50%;
+  background:var(--card); border:2px solid var(--ink); box-shadow:2px 2px 0 var(--ink);
+  transition:transform .18s var(--ease-spring);
+}
+.lp .pboard__range::-moz-range-thumb{
+  width:24px; height:24px; border-radius:50%; background:var(--card); border:2px solid var(--ink); box-shadow:2px 2px 0 var(--ink);
+}
+.lp .pboard__range:hover::-webkit-slider-thumb{transform:scale(1.1)}
+.lp .pboard__range:focus-visible{outline:2px dashed var(--lilac-ink); outline-offset:6px; border-radius:8px}
+
+/* the price tag: a taped sticky note in the band's colour */
+.lp .pboard__tag{
+  position:relative; text-align:center; padding:28px 20px 24px;
+  background:var(--tint); border-radius:6px 16px 8px 14px; box-shadow:var(--sh-2);
+  transform:rotate(1.6deg); transition:background .3s;
+}
+.lp .pboard__tag::after{
+  content:''; position:absolute; left:50%; top:-8px; width:58px; height:17px;
+  transform:translateX(-50%) rotate(-3deg); background:rgba(255,255,255,.55);
+  border-inline:1px dashed rgba(38,33,27,.16);
+}
+.lp .pboard__lbl{font-size:.72rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--tint-ink)}
+.lp .pboard__big{
+  font-family:var(--display); font-weight:700; letter-spacing:-.045em; line-height:1;
+  font-size:clamp(3.4rem,6vw,4.6rem); margin:8px 0 2px;
+  animation:lp-price-pop .35s var(--ease-spring);
+}
+.lp .pboard__big.is-quote{font-size:clamp(2.4rem,4.4vw,3.2rem)}
+@keyframes lp-price-pop{0%{transform:scale(.86) rotate(-3deg)}100%{transform:none}}
+.lp .pboard__per{font-size:.92rem; color:var(--ink-2)}
+.lp .pboard__each{
+  margin-top:14px; display:inline-block; font-size:.8rem; padding:4px 10px; border-radius:99px;
+  background:rgba(255,255,255,.6); color:var(--ink-2);
+}
+.lp .pboard__cta{display:flex; width:max-content; margin:18px auto 0; --btn-shadow:var(--card)}
+
+/* three promises as one-line pills */
+.lp .promises{display:flex; justify-content:center; flex-wrap:wrap; gap:12px 14px; margin-top:34px}
+.lp .promise{
+  display:inline-flex; align-items:center; gap:10px; padding:9px 16px 9px 10px;
+  background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-pill);
+  font-size:.92rem; font-weight:500;
+}
+.lp .promise__ic{
+  width:30px; height:30px; border-radius:50%; display:grid; place-items:center; flex:none;
+  background:var(--g); color:var(--gi);
+}
+
+/* way through to /pricing. Same shape as .trust__more one section up — the two
+   "there is a whole page about this" affordances should look identical. */
+.lp .price__more{
+  margin-top:clamp(30px,4vw,42px); display:flex; flex-wrap:wrap; gap:6px 16px;
+  align-items:center; justify-content:center; text-align:center;
+  font-size:.9rem; color:var(--ink-3);
+}
+.lp .price__more a{
+  display:inline-flex; align-items:center; gap:8px;
+  color:var(--ink); font-weight:600; text-decoration:none;
+  padding:9px 17px; border-radius:var(--r-pill);
+  border:1.5px solid var(--line-2); background:var(--card);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .18s;
+}
+.lp .price__more a:hover{
+  border-color:var(--ink); transform:translate(-1.5px,-1.5px);
+  box-shadow:3.5px 3.5px 0 var(--mint);
+}
+.lp .price__more a svg{transition:transform .18s var(--ease-out)}
+.lp .price__more a:hover svg{transform:translateX(2.5px)}
+
+/* ---------- 11. semester CTA ----------------------------------------------- */
+.lp .cta{padding:clamp(80px,10vw,150px) 0; position:relative; overflow:hidden}
+.lp .cta__card{
+  position:relative; z-index:2; text-align:center;
+  padding:clamp(38px,6vw,74px) clamp(24px,5vw,64px);
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-xl);
+  box-shadow:8px 8px 0 var(--lilac);
+}
+.lp .cta__count{display:inline-flex; align-items:baseline; gap:10px; padding:9px 20px; border-radius:var(--r-pill); background:var(--butter-soft); border:1.5px solid #F4DFA6; color:var(--butter-ink); font-weight:600; font-size:.92rem}
+.lp .cta__count .k{font-family:var(--mono); font-size:1.32rem; letter-spacing:-.04em}
+/* term() picks one of the two wordings. display:contents so the countdown's
+   four pieces stay direct flex children of .cta__count and keep their gap. */
+.lp .cta__count .t-soon{display:contents}
+.lp .cta__count .t-mid{display:none}
+.lp .cta__count.is-midterm .t-soon{display:none}
+.lp .cta__count.is-midterm .t-mid{display:inline}
+.lp .cta h2{margin-top:22px}
+.lp .cta__lede{margin-top:18px; max-width:56ch; margin-inline:auto}
+.lp .cta__actions{margin-top:32px; display:flex; flex-wrap:wrap; gap:12px; justify-content:center}
+.lp .plan{margin-top:44px; display:grid; grid-template-columns:repeat(3,1fr); gap:14px; text-align:left}
+.lp .plan__step{padding:20px; border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--paper); position:relative}
+.lp .plan__when{font-family:var(--mono); font-size:.76rem; font-weight:600; color:var(--st, var(--peach-ink)); text-transform:uppercase; letter-spacing:.05em}
+.lp .plan__step h4{margin-top:9px}
+.lp .plan__step p{margin-top:7px; font-size:.89rem; color:var(--ink-2); line-height:1.5}
+.lp .plan__arrow{position:absolute; right:-19px; top:50%; transform:translateY(-50%); width:26px; z-index:3}
+.lp .cta__fine{margin-top:26px; font-size:.85rem; color:var(--ink-3)}
+/* was inheriting the UA's default link blue on a warm cream card */
+.lp .cta__fine a{color:var(--ink-2); font-weight:600; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.lp .cta__fine a:hover{color:var(--ink); text-decoration-color:var(--mint-ink)}
+.lp .cta__blob{position:absolute; pointer-events:none; z-index:1}
+
+/* ---------- 12. footer ----------------------------------------------------- */
+.lp .foot{border-top:1.5px solid var(--line); padding:clamp(48px,6vw,76px) 0 40px; background:var(--paper-2)}
+.lp .foot__grid{display:grid; grid-template-columns:1.5fr repeat(3, 1fr); gap:34px}
+.lp .foot__blurb{margin-top:16px; font-size:.92rem; color:var(--ink-2); max-width:34ch; line-height:1.6}
+.lp .foot h5{font-size:.78rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600; margin-bottom:14px}
+.lp .foot ul{display:grid; gap:9px}
+.lp .foot a{color:var(--ink-2); text-decoration:none; font-size:.93rem}
+.lp .foot a:hover{color:var(--ink); text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.lp .foot__base{margin-top:44px; padding-top:22px; border-top:1.5px solid var(--line); display:flex; flex-wrap:wrap; gap:12px; align-items:center; font-size:.83rem; color:var(--ink-3)}
+.lp .foot__base .sp{margin-left:auto}
+
+/* ---------- 13. motion utilities ------------------------------------------ */
+.lp [data-reveal]{
+  opacity:0; transform:translate3d(0, var(--ry, 26px), 0);
+  transition:opacity .72s var(--ease-out) var(--d,0ms), transform .92s var(--ease-spring) var(--d,0ms);
+}
+.lp [data-reveal].is-in{opacity:1; transform:none}
+.lp [data-reveal="scale"]{transform:translate3d(0,34px,0) scale(.965)}
+.lp [data-reveal="left"]{transform:translate3d(-30px,0,0)}
+.lp [data-reveal="right"]{transform:translate3d(30px,0,0)}
+.lp [data-para]{will-change:transform}
+
+/* hero cold open. Same contract as [data-reveal] — hidden by default, forced
+   visible for no-js and reduced motion — but driven by a timeline from load
+   rather than an observer, because the hero is above the fold by definition.
+   The value of [data-hb] IS its delay in ms, so the sequence is retunable in
+   the markup without touching JS.
+
+   These never sit on a [data-para] node: the parallax engine owns inline
+   transform there, so the build hooks nest one level in (.sticky-note inside
+   .pile, .spotmini inside .hero__spot) per the motion contract above.
+
+   The rotate() is not decoration: .sticky-note carries its tilt in transform,
+   and [data-hb] wins on source order at equal specificity, so the build has to
+   compose the tilt back in or the notes land flat. --rot is unset (→ 0deg) on
+   everything inside the card. */
+.lp [data-hb]{
+  opacity:0; transform:translate3d(0, var(--hb-y, 10px), 0) rotate(var(--rot, 0deg));
+  transition:opacity .5s var(--ease-out), transform .62s var(--ease-spring);
+}
+.lp [data-hb].hb-in{opacity:1; transform:translate3d(0,0,0) rotate(var(--rot, 0deg))}
+
+.lp .counter{font-variant-numeric:tabular-nums}
+
+@media (prefers-reduced-motion: reduce){
+  html:has(.lp){scroll-behavior:auto}
+  .lp *,.lp *::before,.lp *::after{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important}
+  .lp [data-reveal]{opacity:1 !important; transform:none !important}
+  .lp [data-hb]{opacity:1 !important; transform:none !important}
+  .lp [data-para]{transform:none !important}
+  .lp .marquee__track{animation:none; transform:none}
+}
+
+/* ---------- responsive ----------------------------------------------------- */
+/* Below ~1320 the wrap loses its side margin, so anything hanging off the card
+   would get sliced by the viewport. Tuck it in instead. */
+@media (max-width: 1320px){
+  .lp .pile--sheet{left:-40px}
+  .lp .pile--chat{left:-32px}
+  /* no room left of the viewport edge to peek sideways — clear the card's top
+     right corner instead, mirroring the sheet on the left */
+  .lp .pile--receipt{top:-44px; right:-14px; width:164px}
+  .lp .hero__spot{right:-12px; bottom:-92px; width:288px}
+}
+@media (max-width: 1080px){
+  .lp .guards{grid-template-columns:1fr 1fr}
+  .lp .guards .guard:last-child{grid-column:span 2}
+  .lp .foot__grid{grid-template-columns:1fr 1fr 1fr}
+  .lp .foot__brand{grid-column:span 3}
+}
+@media (max-width: 900px){
+  .lp .nav__links{display:none}
+  /* The mock hid the ghost button here ("one CTA only — the bar is 390px
+     wide"), but the ghost is Sign in now, and a returning officer needs it on a
+     phone. Both stay; the primary drops to its short label instead. */
+  .lp .nav__long{display:none}
+  .lp .nav__short{display:inline}
+  .lp .nav__cta{gap:8px}
+  /* minmax(0,1fr), not 1fr: a single wide child (the eyebrow's tracked caps)
+     would otherwise stretch the column past the viewport */
+  .lp .hero__grid{grid-template-columns:minmax(0,1fr); gap:44px}
+  .lp .hero__stage{min-height:0; margin-top:8px}
+  .lp .pile--sheet{top:-30px; left:-8px; width:150px}
+  .lp .pile--chat{bottom:-24px; left:-14px; width:150px}
+  /* one column now — mirror the sheet across the top edge rather than sitting
+     the scrap on top of the spotlight */
+  .lp .pile--receipt{top:-26px; right:-8px; width:150px}
+  .lp .scene__in,.lp .dial__grid{grid-template-columns:minmax(0,1fr); gap:26px; align-items:start}
+  .lp .dial__side{margin-inline:auto}
+  .lp .scene__in{padding:0}
+  .lp .mod__grid{grid-template-columns:minmax(0,1fr) !important; gap:28px}
+  .lp .guards{grid-template-columns:minmax(0,1fr)}
+  .lp .guards .guard:last-child{grid-column:auto}
+  .lp .pboard{grid-template-columns:minmax(0,1fr)}
+  .lp .pboard__tag{max-width:320px; width:100%; margin-inline:auto}
+  .lp .pboard__hint{display:none}
+  .lp .plan{grid-template-columns:minmax(0,1fr)}
+  .lp .plan__arrow{display:none}
+  .lp .foot__grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .lp .foot__brand{grid-column:span 2}
+}
+@media (max-width: 860px){
+  /* Mobile motion budget: no pinning, no parallax, no inline transforms left
+     behind by a desktop→mobile resize. Reveals stay (short, one-handed-friendly). */
+  .lp .scene__rail{height:auto !important}
+  .lp .scene__stage{position:static; height:auto; overflow:visible; padding:8px 0 40px}
+  /* beats keep collapsing on mobile — an unplayed beat that reserved its full
+     height would leave a screen of empty cream to scroll through */
+  .lp .chat{height:auto; overflow:visible; -webkit-mask-image:none; mask-image:none; padding:0}
+  .lp .dialdeck{height:min(52vh, 400px)}
+  .lp [data-para]{transform:none !important}
+  .lp .pile,.lp .hero__card,.lp .hero__spot,.lp .mod__stage,.lp .dial__doodle,.lp .cta__blob{transform:none !important}
+  .lp .pile--sheet,.lp .pile--chat,.lp .pile--receipt{position:relative; inset:auto; width:auto}
+  .lp .hero__spot{position:relative; inset:auto; width:auto; margin-top:18px}
+  .lp .hero__piles{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; margin-top:24px}
+  .lp .hero__piles .pile--receipt{grid-column:span 2}
+  .lp .sticky-note b{overflow-wrap:anywhere}   /* dues_FALL_v4_FINAL.xlsx is one long token */
+  .lp .callout{position:static; max-width:none; margin-top:14px}
+  .lp .marquee{--dur:38s}
+  .lp .marquee__row:nth-child(2){display:none}
+  .lp .section{padding:64px 0}
+}
+/* The dial's own breakpoint, deliberately not the page's 860. Below ~600 a
+   labelled circle stops being legible at any radius that still fits, so the
+   shape is abandoned rather than shrunk: the marks become a time-chip row and
+   the deck becomes a native scroll-snap carousel. */
+@media (max-width: 600px){
+  .lp .dial{width:auto; aspect-ratio:auto; margin:22px 0 0}
+  /* .dial__ticks becomes a horizontal chip scroller below. A scroll container
+     still reports its contents as its min-content size, so the six chips
+     (~466px) floored every ancestor — and .dial__side can't absorb that,
+     because the `margin-inline:auto` it picks up at ≤900 opts it out of grid
+     stretch and makes it fit-content, i.e. never narrower than min-content.
+     The page bottomed out at 488px and gave <body> a horizontal scrollbar
+     under that. An explicit width beats fit-content and lets the chips scroll
+     inside the track instead of widening it. (Present in the v5 mock too.) */
+  .lp .dial__side{width:100%; min-width:0; margin-inline:0}
+  .lp .dial,.lp .dial__ticks{min-width:0}
+  .lp .dial__face,.lp .dial__hub,.lp .dial__quiet-l,.lp .dial__replay{display:none}
+  .lp .dial__ticks{position:static; display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; -webkit-overflow-scrolling:touch}
+  .lp .dial__ticks::-webkit-scrollbar{display:none}
+  .lp .dial__tick{position:static; transform:none !important; flex:none}
+  .lp .dialdeck{height:auto; display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; padding-bottom:4px}
+  .lp .dialdeck::-webkit-scrollbar{display:none}
+  .lp .dialcard{
+    position:static; inset:auto; display:block; flex:0 0 86%; scroll-snap-align:center;
+    opacity:1 !important; transform:none !important; pointer-events:auto;
+  }
+  .lp .dialcard__t{display:block}
+}
+@media (max-width: 640px){
+  .lp .ui-split,.lp .ui-docs{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width: 560px){
+  .lp{font-size:16px}
+  .lp .wrap,.lp .wrap--narrow{width:calc(100% - 32px)}
+  .lp .nav__in{gap:12px; justify-content:space-between}
+  .lp .nav__cta{gap:6px}
+  .lp .nav__cta .btn{padding-inline:10px}
+  .lp .hero__actions .btn{width:100%}
+  .lp .pboard__bands{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .lp .pboard__people{grid-template-columns:repeat(15,1fr); gap:4px}
+  .lp .pboard__people i:nth-child(n+91){display:none}
+  /* one column of centred copy is too narrow to have anything drifting behind
+     it, even at .26 — the CTA's blobs survive because that card is opaque */
+  .lp .price__blob{display:none}
+  .lp .ui-roll{grid-template-columns:1fr 1fr}
+  .lp .ui-meas{grid-template-columns:1fr 1fr}
+  .lp .ui-board{grid-template-columns:1fr 1fr}
+  .lp .ui-th,.lp .ui-tr{grid-template-columns:1.4fr .9fr}
+  .lp .ui-th span:nth-child(3),.lp .ui-tr .amt{display:none}  /* drop the balance col, keep its header honest */
+  .lp .ui-table--4 .ui-th,.lp .ui-table--4 .ui-tr{grid-template-columns:1.4fr .9fr}
+  .lp .ui-table--4 .ui-th span:nth-child(4),.lp .ui-table--4 .ui-tr .txt{display:none}
+  .lp .acard__hd{flex-wrap:wrap; row-gap:9px}
+  .lp .acard__hd .pill{margin-left:0 !important; order:3}
+  .lp .ui-brief{flex-wrap:wrap}
+  /* the shots' widest rows: let the trailing controls take their own line
+     rather than pinning a min-width the viewport can't honour */
+  .lp .ui-stat > span:last-child,.lp .ui-note > span:last-child{margin-left:0 !important; width:100%}
+  .lp .att{flex-wrap:wrap; row-gap:8px}
+  .lp .att__a{margin-left:auto}
+  .lp .logrow{flex-wrap:wrap; row-gap:4px}
+  .lp .logrow .pill{margin-left:auto}
+  .lp .shot__body{padding:15px 14px 16px}
+  .lp .seat{flex-wrap:wrap; row-gap:2px}
+  .lp .seat .ab{width:100%; order:3}
+  .lp .foot__grid{grid-template-columns:1fr}
+  .lp .foot__brand{grid-column:auto}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   The site's top bar: the landing page and every public page (/pricing, /blog,
+   /for, /help, /contact, /trust) render <SiteNav>, so the links, the buttons
+   and the motion can't drift apart. From _design/Landing Motion Mock.html.
+
+   Self-contained: its own tokens on .sn and its own class names (sn-brand,
+   sn-btn, sn-num where the mock said brand, btn, mono), because the public
+   pages sit inside landing.css's .lp scope, whose .nav/.brand/.btn/.mono would
+   otherwise style these too. Fixed, so it takes no room in the page; a page
+   that isn't built for that adds .sn-spacer under it.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.sn{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --teal-ink:#1F8A80;
+  --note-ink:#26211B; --note-filter:none; --mark-op:.85;
+  --av-ink:rgba(38,33,27,.72);
+  --dots:rgba(38,33,27,.09);
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sh-3:0 2px 4px rgba(38,33,27,.05), 0 26px 60px -18px rgba(38,33,27,.22);
+  --sans:var(--font-inter), 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:var(--font-bricolage), 'Bricolage Grotesque', var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --mono:var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --hand:var(--font-caveat), 'Caveat', 'Bricolage Grotesque', cursive;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+
+.sn{color:var(--ink); font-family:var(--sans); font-size:16px; line-height:1.55; letter-spacing:-.005em; -webkit-font-smoothing:antialiased}
+.sn *, .sn *::before, .sn *::after{box-sizing:border-box}
+.sn a{color:inherit; text-decoration:none}
+.sn button{font:inherit; color:inherit; cursor:pointer}
+.sn svg{display:block}
+.sn :focus-visible{outline:2px solid var(--lilac-ink); outline-offset:3px; border-radius:8px}
+.sn .sn-num{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+/* the bar's own height (12px inset + 56px), so a page's head starts below it */
+.sn-spacer{height:80px}
+
+.sn .sn-btn{
+  --bg:var(--ink); --fg:var(--paper); --hs:var(--lilac);
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  padding:11px 19px; border-radius:999px; border:1.5px solid var(--ink);
+  background:var(--bg); color:var(--fg); font-weight:600; font-size:.92rem; letter-spacing:-.01em;
+  box-shadow:3px 3px 0 var(--hs); white-space:nowrap;
+  transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring), background .25s, color .25s;
+}
+.sn .sn-btn:hover{transform:translate(-2px,-2px); box-shadow:5px 5px 0 var(--hs)}
+.sn .sn-btn:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--hs)}
+.sn .sn-btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--peach)}
+.sn .sn-btn--sm{padding:7px 14px; font-size:.84rem; box-shadow:2px 2px 0 var(--hs)}
+/* ── nav ─────────────────────────────────────────────────────────────────── */
+/* .lp header (landing.css) sets position:relative; z-index:1 on every header on the public pages */
+.sn, .lp .sn{position:fixed; inset:0 0 auto; z-index:80; padding:12px 16px; pointer-events:none}
+.sn .nav-in{
+  pointer-events:auto; margin-inline:auto; max-width:1320px; height:56px;
+  display:flex; align-items:center; gap:22px; padding:0 10px 0 14px;
+  border-radius:20px; border:1.5px solid transparent; background:transparent;
+  transition:max-width .6s var(--ease-spring), background .4s, border-color .4s, box-shadow .4s;
+}
+.sn.scrolled .nav-in{max-width:940px; background:color-mix(in srgb, var(--card) 82%, transparent);
+  border-color:var(--line); box-shadow:var(--sh-2); backdrop-filter:blur(14px) saturate(1.3)}
+.sn .sn-brand{display:flex; align-items:center; gap:10px; font-family:var(--display); font-weight:700; font-size:1.12rem; letter-spacing:-.03em}
+.sn .sn-brand .logo{width:32px; height:32px; flex:none; filter:var(--note-filter); transform:rotate(-4deg); transition:transform .4s var(--ease-spring)}
+.sn .sn-brand:hover .logo{transform:rotate(6deg) scale(1.06)}
+/* four links; a paper tab slides under whichever one you're on, a hand-drawn
+   squiggle marks the section you're reading, and each link carries its tone */
+.sn .nav-links{position:relative; display:flex; align-items:center; gap:2px; margin-inline:auto}
+.sn .nl{--c:var(--lilac); --ci:var(--lilac-ink);
+  position:relative; z-index:1; display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 13px; border-radius:11px;
+  font-size:.88rem; font-weight:500; letter-spacing:-.01em; color:var(--ink-2); white-space:nowrap; transition:color .25s}
+.sn .nl > i{width:7px; height:7px; border-radius:2px; background:var(--c); rotate:45deg; flex:none;
+  transition:scale .45s var(--ease-spring), rotate .45s var(--ease-spring), background .3s}
+.sn .nl:hover, .sn .nl.on{color:var(--ink)}
+.sn .nl:hover > i{scale:1.35; rotate:135deg}
+.sn .nl:hover > i, .sn .nl.on > i{background:var(--ci)}
+.sn .nl-u{position:absolute; left:12px; right:12px; bottom:2px; height:6px; width:calc(100% - 24px); overflow:visible; pointer-events:none}
+.sn .nl-u path{fill:none; stroke:var(--ci); stroke-width:2; stroke-linecap:round; stroke-dasharray:1; stroke-dashoffset:1; opacity:0; transition:stroke-dashoffset .7s var(--ease-out), opacity .2s .5s}
+.sn .nl.on .nl-u path{stroke-dashoffset:0; opacity:1; transition:stroke-dashoffset .7s var(--ease-out), opacity 0s}
+.sn .nl-tag{font-family:var(--hand); font-weight:700; font-size:1.02rem; line-height:1; padding:1px 6px 2px; margin-right:-4px; border-radius:6px;
+  color:var(--peach-ink); background:var(--peach-soft); border:1px solid var(--peach-bd); rotate:-7deg; transition:rotate .45s var(--ease-spring)}
+.sn .nl:hover .nl-tag{rotate:5deg}
+.sn .nl-ink{position:absolute; z-index:0; left:0; top:50%; height:36px; width:0; border-radius:11px; pointer-events:none;
+  background:var(--paper-2); border:1.5px solid var(--ink); box-shadow:2px 2px 0 var(--ink-c, var(--lilac));
+  opacity:0; transform:translate(var(--x,0), -50%);
+  transition:transform .5s var(--ease-spring), width .5s var(--ease-spring), box-shadow .3s, opacity .2s}
+.sn .nav-links.hov .nl-ink{opacity:1}
+.sn .nav-links:not(.hov) .nl-ink{transition:opacity .2s}
+
+/* phones: the four links fold into a sheet that drops out of the bar */
+.sn .nav-menu{display:none; width:40px; height:36px; border-radius:11px; border:1.5px solid var(--ink); background:var(--card); box-shadow:2px 2px 0 var(--butter);
+  place-items:center; padding:0; transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring)}
+.sn .nav-menu:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--butter)}
+.sn .nav-menu span{position:relative; display:block; width:16px; height:10px}
+.sn .nav-menu span::before, .sn .nav-menu span::after{content:''; position:absolute; left:0; right:0; height:2px; border-radius:2px; background:var(--ink);
+  transition:transform .45s var(--ease-spring), top .45s var(--ease-spring), width .45s var(--ease-spring)}
+.sn .nav-menu span::before{top:0} .sn .nav-menu span::after{top:8px; width:11px}
+.sn.open .nav-menu span::before{top:4px; transform:rotate(45deg)}
+.sn.open .nav-menu span::after{top:4px; width:16px; transform:rotate(-45deg)}
+.sn .nav-sheet{display:none}
+@media (max-width:860px){
+  .sn .nav-menu{display:grid}
+  .sn .nav-sheet{display:block; pointer-events:auto; margin:8px auto 0; max-width:1320px; padding:8px; border-radius:20px;
+    background:var(--card); border:1.5px solid var(--ink); box-shadow:5px 5px 0 var(--lilac), var(--sh-3);
+    transform-origin:50% 0; opacity:0; visibility:hidden; transform:translateY(-10px) scale(.97);
+    transition:opacity .25s var(--ease-out), transform .45s var(--ease-spring), visibility 0s .45s}
+  .sn.open .nav-sheet{opacity:1; visibility:visible; transform:none; transition:opacity .25s var(--ease-out), transform .45s var(--ease-spring)}
+  .sn.open .nav-in{background:color-mix(in srgb, var(--card) 92%, transparent); border-color:var(--line); box-shadow:var(--sh-2); backdrop-filter:blur(14px) saturate(1.3)}
+  .sn .ns-l{display:flex; align-items:center; gap:14px; padding:14px 12px; border-radius:14px; border-bottom:1.5px dashed var(--line-2);
+    opacity:0; transform:translateY(-6px); transition:opacity .3s var(--ease-out), transform .45s var(--ease-spring), background .2s}
+  .sn.open .ns-l{opacity:1; transform:none; transition-delay:calc(var(--i) * 45ms + 60ms), calc(var(--i) * 45ms + 60ms), 0s}
+  .sn .ns-l:last-of-type{border-bottom:0}
+  .sn .ns-l:active{background:var(--paper-2)}
+  .sn .ns-l .sn-num{font-size:.72rem; color:var(--ink-3); width:20px}
+  .sn .ns-l b{font-family:var(--display); font-weight:600; font-size:1.5rem; letter-spacing:-.03em; line-height:1.1; font-variation-settings:"opsz" 48}
+  .sn .ns-l > i{width:9px; height:9px; border-radius:2px; rotate:45deg; background:var(--c); margin-left:auto}
+  .sn .ns-l .nl-tag{font-size:1.1rem}
+  .sn .ns-f{display:flex; gap:10px; padding:10px 4px 4px}
+  .sn .ns-f .sn-btn{flex:1}
+}
+.sn .nav-r{display:flex; align-items:center; gap:8px}
+.sn .nav-login{font-size:.88rem; font-weight:500; color:var(--ink-2); padding:7px 10px}
+@media (max-width:860px){ .sn .nav-links, .sn .nav-login{display:none} .sn .nav-in{gap:10px} .sn .sn-brand{margin-right:auto} }
+@media (max-width:420px){ .sn .nav-r .sn-btn--sm{display:none} }
+
+/* ============================================================================
+   ChaptOS — /trust (Trust & privacy)
+
+   Same paper, ink, pastels and typefaces as the marketing landing page: this
+   file is scoped under `.lp .tp` and deliberately imports NOTHING of its own —
+   every token comes from landing.css, which the page also imports. Adding `.tp`
+   next to `.lp` therefore inherits the whole design system (wrap, btn, eyebrow,
+   pill, card, mono, foot, nav) and this file only adds the long-form reading
+   layout the landing page has no use for.
+
+   Two deliberate differences from the landing page:
+
+     1. NO MOTION. The landing page's reveal system leaves [data-reveal] nodes at
+        opacity:0 until LandingMotion (a client component) adds .is-in. This page
+        never mounts it, so it must never carry those hooks — nothing here fades,
+        pins, or parallaxes. That's also the brief: a page someone reads under
+        pressure should not animate.
+     2. THE NAV is the shared <PublicNav> (the landing page's <SiteNav>).
+
+   Structure
+     1. nav
+     2. hero + the short version
+     3. reading layout + sticky contents rail
+     4. prose (headings, paragraphs, lists, links)
+     5. blocks (callouts, tables, key/value rows, claim split, contact)
+     6. responsive
+   ========================================================================== */
+
+/* Height of the scrolled (stuck) nav. Drives both the contents rail's sticky offset
+   and every heading's scroll-margin, so an anchor jump can't land a heading
+   underneath the bar. */
+.lp.tp{--tp-nav-h:68px}
+
+/* ---------- 2. hero + the short version ----------------------------------- */
+.lp .tp__hero{padding:clamp(46px,6vw,84px) 0 0}
+.lp .tp__head{max-width:760px}
+.lp .tp__head h1{margin-top:18px; font-size:clamp(2.1rem,4.2vw,3.15rem)}
+.lp .tp__head .lede{margin-top:20px; max-width:60ch}
+
+/* Effective date / version strip. Mono for the date so it reads as a record.
+   The separator is a ::before on every item but the first, so a row that wraps
+   leads the new line with the bullet instead of orphaning one at the end of the
+   previous line. */
+.lp .tp__meta{
+  margin-top:26px; display:flex; flex-wrap:wrap; gap:8px 14px; align-items:baseline;
+  font-size:.86rem; color:var(--ink-3);
+}
+/* The bullet is an inline ::before inside the (blockified) flex item, so it sits
+   on the same line as that item's own text and travels with it when it wraps. */
+.lp .tp__meta > span + span::before{
+  content:'·'; margin-right:9px; color:var(--line-2); font-weight:700;
+}
+.lp .tp__meta .k{font-family:var(--mono); color:var(--ink-2); font-variant-numeric:tabular-nums}
+
+/* "The short version" — the five things a reader wants before they decide
+   whether to read the rest. Four across, then two, then one. */
+.lp .tp__tldr{
+  margin-top:clamp(34px,4.5vw,54px);
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px;
+}
+.lp .tldr{
+  padding:20px; background:var(--card); border:1.5px solid var(--line);
+  border-radius:var(--r-lg); box-shadow:var(--sh-1);
+}
+.lp .tldr__ic{
+  width:38px; height:38px; border-radius:12px; display:grid; place-items:center;
+  background:var(--g, var(--sky-soft)); border:1.5px solid var(--gb, #CCDFFB);
+}
+.lp .tldr h4{margin-top:13px}
+.lp .tldr p{margin-top:7px; font-size:.89rem; line-height:1.5; color:var(--ink-2)}
+
+/* ---------- 3. reading layout + contents rail ----------------------------- */
+.lp .tp__layout{
+  margin-top:clamp(48px,6vw,86px); padding-bottom:clamp(64px,8vw,120px);
+  display:grid; grid-template-columns:236px minmax(0,1fr); gap:clamp(32px,4.5vw,72px);
+  align-items:start;
+}
+
+.lp .tp__toc{position:sticky; top:calc(var(--tp-nav-h) + 20px)}
+.lp .tp__toc h5{
+  font-size:.74rem; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-3); font-weight:600; margin-bottom:12px;
+}
+.lp .tp__toc ol{display:grid; gap:1px; counter-reset:toc}
+.lp .tp__toc a{
+  display:flex; gap:10px; padding:7px 10px; border-radius:var(--r-sm);
+  text-decoration:none; color:var(--ink-2); font-size:.885rem; line-height:1.35;
+  transition:background .16s, color .16s;
+}
+.lp .tp__toc a::before{
+  counter-increment:toc; content:counter(toc);
+  font-family:var(--mono); font-size:.76rem; color:var(--ink-3);
+  flex:none; padding-top:.12em; font-variant-numeric:tabular-nums;
+}
+.lp .tp__toc a:hover{background:var(--paper-2); color:var(--ink)}
+
+/* The prose column. ~74ch is the widest a 17px line stays comfortable at.
+   min-width:0 because this is a grid item AND a grid container: without it the
+   automatic minimum size would be its content-based minimum, and the widest
+   thing inside is a table carrying min-width (see .tp__t) — which would push the
+   whole column past the viewport instead of scrolling inside its own box. */
+.lp .tp__body{max-width:74ch; min-width:0; display:grid; gap:clamp(44px,5vw,68px)}
+
+/* ---------- 4. prose ------------------------------------------------------ */
+/* min-width:0 for the same reason as .tp__body above — each section is a grid
+   item, and a table's min-width inside it must not become the section's floor. */
+.lp .tp__sec{min-width:0; scroll-margin-top:calc(var(--tp-nav-h) + 24px)}
+.lp .tp__sec > h2{
+  font-size:clamp(1.5rem,2.6vw,2.05rem); line-height:1.12;
+  display:flex; gap:14px; align-items:baseline;
+}
+/* Section number, mono, in the gutter on wide screens so the heading text keeps
+   a flush left edge with the body copy. */
+.lp .tp__sec > h2::before{
+  content:counter(sec); counter-increment:sec;
+  font-family:var(--mono); font-size:.82rem; font-weight:500;
+  color:var(--ink-3); letter-spacing:0; flex:none;
+  padding-top:.34em; min-width:1.6ch;
+}
+.lp .tp__body{counter-reset:sec}
+
+.lp .tp__sec h3{
+  margin-top:32px; font-size:1.12rem; letter-spacing:-.018em; line-height:1.3;
+  font-family:var(--display); font-weight:600;
+}
+.lp .tp__sec h4{margin-top:24px; font-size:.99rem}
+.lp .tp__sec p{margin-top:14px; color:var(--ink-2); line-height:1.68}
+.lp .tp__sec > p:first-of-type{margin-top:16px}
+/* Section standfirst — one plain-language line under the heading, before detail. */
+.lp .tp__sec .tp__lede{font-size:1.06rem; color:var(--ink); line-height:1.6; margin-top:16px}
+.lp .tp__sec strong,.lp .tp__sec b{color:var(--ink); font-weight:600}
+.lp .tp__sec a{
+  color:var(--sky-ink); text-decoration:underline;
+  text-decoration-color:#BBD3F5; text-underline-offset:2.5px;
+}
+.lp .tp__sec a:hover{text-decoration-color:var(--sky-ink)}
+.lp .tp__sec code{
+  font-family:var(--mono); font-size:.86em; padding:1.5px 5px;
+  background:var(--paper-3); border-radius:5px; color:var(--ink-2);
+  overflow-wrap:anywhere;
+}
+
+/* landing.css strips list styling globally under .lp, so bullets are rebuilt
+   here rather than inherited. The dash is a hand-drawn-feeling en rule. */
+.lp .tp__list{margin-top:14px; display:grid; gap:10px}
+.lp .tp__list > li{
+  position:relative; padding-left:20px; color:var(--ink-2); line-height:1.62;
+}
+.lp .tp__list > li::before{
+  content:''; position:absolute; left:0; top:.72em;
+  width:10px; height:2px; border-radius:2px; background:var(--line-2);
+}
+.lp .tp__list--check > li::before{
+  content:'✓'; width:auto; height:auto; background:none; top:0;
+  color:var(--mint-ink); font-size:.92em; font-weight:700;
+}
+.lp .tp__list--no > li::before{
+  content:'✕'; width:auto; height:auto; background:none; top:0;
+  color:var(--peach-ink); font-size:.86em; font-weight:700;
+}
+.lp .tp__list li > strong:first-child{color:var(--ink)}
+
+/* ---------- 5. blocks ----------------------------------------------------- */
+/* Callout. Default is the calm "in plain English" note; --warn is for a limit
+   or a caveat the reader must not skim past. */
+.lp .tp__note{
+  margin-top:22px; padding:18px 20px; border-radius:var(--r-md);
+  background:var(--n-bg, var(--sky-soft)); border:1.5px solid var(--n-bd, #CCDFFB);
+}
+.lp .tp__note h5{
+  font-size:.73rem; letter-spacing:.09em; text-transform:uppercase; font-weight:700;
+  color:var(--n-fg, var(--sky-ink)); margin-bottom:8px;
+}
+.lp .tp__note p{margin-top:0; color:var(--ink-2); font-size:.94rem; line-height:1.6}
+.lp .tp__note p + p{margin-top:10px}
+.lp .tp__note--warn{--n-bg:var(--butter-soft); --n-bd:#F4DFA6; --n-fg:var(--butter-ink)}
+.lp .tp__note--good{--n-bg:var(--mint-soft); --n-bd:#BDE7D2; --n-fg:var(--mint-ink)}
+.lp .tp__note--flag{--n-bg:var(--peach-soft); --n-bd:#F8D2C2; --n-fg:var(--peach-ink)}
+
+/* Tables. Wide ones scroll inside their own box — the page body never scrolls
+   sideways. */
+.lp .tp__tw{
+  margin-top:20px; overflow-x:auto; border:1.5px solid var(--line);
+  border-radius:var(--r-md); background:var(--card);
+}
+.lp .tp__t{width:100%; border-collapse:collapse; font-size:.9rem; min-width:520px}
+.lp .tp__t th,.lp .tp__t td{
+  text-align:left; padding:11px 14px; vertical-align:top; line-height:1.5;
+  border-bottom:1px solid var(--line);
+}
+.lp .tp__t thead th{
+  background:var(--paper-2); font-size:.73rem; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--ink-3); font-weight:600; white-space:nowrap;
+}
+.lp .tp__t tbody tr:last-child th,.lp .tp__t tbody tr:last-child td{border-bottom:0}
+.lp .tp__t tbody th{font-weight:600; color:var(--ink); white-space:nowrap}
+.lp .tp__t td{color:var(--ink-2)}
+.lp .tp__t code{font-size:.82em}
+/* A column of field names / cookie names reads better mono and left-locked. */
+.lp .tp__t .m{font-family:var(--mono); font-size:.83em; color:var(--ink-2); overflow-wrap:anywhere}
+
+/* Two facing columns: what we do claim vs what we don't. Colour does the
+   labelling work so the split survives being skimmed. */
+.lp .tp__split{margin-top:22px; display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.lp .tp__col{
+  padding:20px; border-radius:var(--r-md); border:1.5px solid var(--c-bd, var(--line));
+  background:var(--c-bg, var(--card));
+}
+.lp .tp__col--yes{--c-bg:var(--mint-soft); --c-bd:#BDE7D2}
+.lp .tp__col--no{--c-bg:var(--paper-2); --c-bd:var(--line-2)}
+.lp .tp__col h5{
+  font-size:.73rem; letter-spacing:.09em; text-transform:uppercase; font-weight:700;
+  margin-bottom:12px; color:var(--ink-2);
+}
+.lp .tp__col--yes h5{color:var(--mint-ink)}
+.lp .tp__col--no h5{color:var(--ink-3)}
+.lp .tp__col .tp__list{margin-top:0}
+.lp .tp__col .tp__list > li{font-size:.91rem; line-height:1.55}
+
+/* Contact / rights card — the page's one call to action. */
+.lp .tp__contact{
+  margin-top:26px; padding:clamp(24px,3.5vw,34px);
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-xl);
+  box-shadow:6px 6px 0 var(--lilac);
+}
+.lp .tp__contact h3{margin-top:0}
+.lp .tp__contact p{margin-top:12px}
+.lp .tp__contact .tp__rows{margin-top:20px; display:grid; gap:12px}
+.lp .tp__row{
+  display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline;
+  padding-top:12px; border-top:1px solid var(--line);
+}
+.lp .tp__row:first-child{padding-top:0; border-top:0}
+.lp .tp__row dt{
+  font-size:.74rem; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--ink-3); font-weight:600; min-width:132px;
+}
+.lp .tp__row dd{font-size:.95rem; color:var(--ink)}
+
+/* An unfilled placeholder (entity name, contact address). Deliberately loud:
+   this page must not ship with any of these still visible. */
+.lp .tp__todo{
+  font-family:var(--mono); font-size:.86em; padding:1.5px 6px; border-radius:5px;
+  background:var(--rose-soft); border:1px dashed var(--rose-ink); color:var(--rose-ink);
+}
+
+/* ---------- 6. responsive ------------------------------------------------- */
+@media (max-width: 1180px){
+  .lp .tp__tldr{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width: 1000px){
+  /* The rail stops being a rail: it becomes a contents card above the copy,
+     two columns wide so it doesn't push the first section off-screen. */
+  .lp .tp__layout{grid-template-columns:minmax(0,1fr); gap:36px}
+  .lp .tp__toc{
+    position:static; padding:20px; background:var(--paper-2);
+    border:1.5px solid var(--line); border-radius:var(--r-lg);
+  }
+  .lp .tp__toc ol{grid-template-columns:1fr 1fr; display:grid; gap:2px 18px}
+  .lp .tp__body{max-width:none}
+}
+@media (max-width: 760px){
+  .lp .tp__split{grid-template-columns:minmax(0,1fr)}
+  .lp .tp__toc ol{grid-template-columns:minmax(0,1fr)}
+  /* The number moves inline above 2 lines of heading rather than eating width. */
+  .lp .tp__sec > h2{gap:11px; font-size:1.42rem}
+}
+@media (max-width: 560px){
+  .lp .tp__tldr{grid-template-columns:minmax(0,1fr)}
+  .lp .tp__row dt{min-width:0; width:100%}
+  /* Tables still scroll rather than reflow (a two-column table of prose is worse
+     stacked), but a narrower floor means less of a swipe on a phone. */
+  .lp .tp__t{min-width:400px}
+  .lp .tp__t th,.lp .tp__t td{padding:10px 12px}
+}
+
+/* ===== mock-only: what /terms adds on top of trust.css ===== */
+/* next/font sets these in the app; outside Next an undefined var() would void the whole font stack. */
+:root{--font-bricolage:'Bricolage Grotesque'; --font-inter:'Inter'; --font-plex-mono:'IBM Plex Mono'; --font-caveat:'Caveat'}
+.lp .lede a{color:var(--sky-ink); text-decoration:underline; text-decoration-color:#BBD3F5; text-underline-offset:2.5px}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#FFFCF6}
+[hidden]{display:none!important}
+
+/* 25 entries is taller than a laptop viewport: the rail scrolls inside itself. */
+.lp .tp__toc{max-height:calc(100vh - var(--tp-nav-h) - 40px); overflow:auto; padding-right:4px; scrollbar-width:thin}
+@media (max-width:1000px){.lp .tp__toc{max-height:none; overflow:visible}}
+
+/* Numbered legal sub-lists (1. 2. 3.) — the dash bullet swapped for a mono counter. */
+.lp .tp__list--num{counter-reset:li}
+.lp .tp__list--num > li::before{
+  counter-increment:li; content:counter(li) "."; width:auto; height:auto; background:none;
+  top:0; font-family:var(--mono); font-size:.82em; color:var(--ink-3);
+}
+.lp .tp__list--num > li{padding-left:24px}
+
+/* Capitalized legal text must stay conspicuous, but bare caps are hard to read.
+   A ruled box with tighter caps keeps it obvious without shouting the page down. */
+.lp .tp__legal{
+  margin-top:18px; padding:18px 20px; border-radius:var(--r-md);
+  background:var(--paper-2); border:1.5px solid var(--line-2); border-left:4px solid var(--ink);
+}
+.lp .tp__legal p{margin-top:0; font-size:.84rem; letter-spacing:.012em; line-height:1.62; color:var(--ink)}
+.lp .tp__legal p + p{margin-top:12px}
+
+/* Section standfirst gets a quiet "In short" tag so it reads as a summary, not the clause. */
+.lp .tp__sec .tp__lede::before{
+  content:'In short'; display:inline-block; margin-right:9px; transform:translateY(-1px);
+  font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+  padding:2px 7px; border-radius:6px; background:var(--paper-3); color:var(--ink-3);
+}
+
+/* ===== "Where you agree" view ===== */
+.lp .ag{
+  margin-top:clamp(34px,4.5vw,54px); padding-bottom:clamp(64px,8vw,120px);
+  display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:clamp(22px,3vw,36px);
+}
+.lp .ag__cell{margin:0; display:grid; gap:16px; align-content:start; min-width:0}
+.lp .ag__cell--wide{grid-column:1 / -1}
+.lp .ag__cap{display:flex; gap:12px; align-items:flex-start}
+.lp .ag__cap b{display:block; font-family:var(--display); font-weight:600; font-size:1.06rem; letter-spacing:-.02em}
+.lp .ag__cap span:not(.ag__n){display:block; margin-top:4px; font-size:.9rem; line-height:1.55; color:var(--ink-2); max-width:62ch}
+.lp .ag__n{
+  flex:none; width:28px; height:28px; border-radius:50%; display:grid; place-items:center;
+  border:1.5px solid var(--ink); background:var(--butter-soft); font-family:var(--mono); font-size:.8rem; font-weight:600;
+}
+.lp .ag__stage{
+  position:relative; padding:clamp(22px,3.4vw,40px) clamp(16px,3vw,34px);
+  background:var(--paper-2); border:1.5px solid var(--line); border-radius:var(--r-xl);
+  display:grid; place-items:center; min-width:0;
+}
+.lp .ag__rec{display:flex; flex-wrap:wrap; gap:6px 10px; align-items:baseline; font-size:.84rem; color:var(--ink-2)}
+.lp .ag__rec dt{font-family:var(--mono); font-size:.68rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.lp .ag__rec dd{margin:0}
+.lp .ag__rec code{font-family:var(--mono); font-size:.8em; padding:1.5px 5px; background:var(--paper-3); border-radius:5px}
+
+/* The /create sign-in ticket, lifted from create-paper.css (.ocp → .lp). */
+.lp .ticket{position:relative; width:min(420px,100%); background:var(--card); border:1.5px solid var(--ink); border-radius:20px; box-shadow:6px 6px 0 var(--lilac); text-align:left}
+.lp .ticket.door{box-shadow:6px 6px 0 var(--sky)}
+.lp .tk-top{padding:26px 26px 20px; text-align:center}
+.lp .mark{
+  margin:0 auto; width:58px; height:58px; border-radius:16px; display:grid; place-items:center;
+  background:var(--av,var(--sky)); border:1.5px solid var(--ink); font-family:var(--display); font-weight:700; font-size:1.2rem;
+}
+.lp .ch-k{display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-3)}
+.lp .tk-top .ch-k{justify-content:center; margin-top:16px}
+.lp .tk-top h2{margin-top:8px; font-size:1.6rem; letter-spacing:-.034em; line-height:1.1; text-wrap:balance}
+.lp .tk-top p{margin-top:8px; font-size:.9rem; color:var(--ink-2)}
+.lp .perf{position:relative; height:0; border-top:2px dashed var(--line-2); margin:0 18px}
+.lp .perf::before,.lp .perf::after{content:''; position:absolute; top:-12px; width:22px; height:22px; border-radius:50%; background:var(--paper-2); border:1.5px solid var(--ink)}
+.lp .perf::before{left:-31px; clip-path:inset(0 0 0 50%)}
+.lp .perf::after{right:-31px; clip-path:inset(0 50% 0 0)}
+.lp .tk-b{padding:20px 24px 22px; display:grid; gap:12px}
+.lp .gbtn{
+  display:flex; align-items:center; justify-content:center; gap:11px; width:100%; padding:12px 18px; border-radius:999px;
+  border:1.5px solid var(--ink); background:#fff; color:#26211B; font:600 .95rem var(--sans); cursor:pointer;
+  box-shadow:3px 3px 0 var(--sky); transition:transform .18s, box-shadow .18s, opacity .18s;
+}
+.lp .gbtn:not(:disabled):hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--sky)}
+.lp .gbtn:disabled{opacity:.42; cursor:not-allowed; box-shadow:none}
+.lp .gbtn svg{width:18px; height:18px}
+.lp .fine{font-size:.76rem; color:var(--ink-3); text-align:center; line-height:1.5}
+.lp .fine a,.lp .bycont a,.lp .agree a,.lp .price a{color:var(--ink); text-decoration:underline; text-underline-offset:2px; text-decoration-color:var(--line-2)}
+.lp .price{display:grid; gap:4px; padding:11px 13px; border-radius:12px; background:var(--paper-2); border:1px solid var(--line); font-size:.78rem; color:var(--ink-2)}
+.lp .price b{margin-right:6px; color:var(--ink)}
+
+/* The founder's checkbox. Big hit area; the whole row toggles it. */
+.lp .agree{
+  display:flex; gap:11px; align-items:flex-start; padding:12px 13px; border-radius:12px; cursor:pointer;
+  background:var(--butter-soft); border:1.5px solid #F4DFA6; font-size:.83rem; line-height:1.5; color:var(--ink-2);
+  transition:background .16s, border-color .16s;
+}
+.lp .agree input{position:absolute; opacity:0; pointer-events:none}
+.lp .agree__box{
+  flex:none; width:20px; height:20px; margin-top:1px; border-radius:6px; border:1.5px solid var(--ink); background:#fff;
+  display:grid; place-items:center;
+}
+.lp .agree__box svg{width:13px; height:13px; fill:none; stroke:#fff; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; opacity:0}
+.lp .agree input:checked + .agree__box{background:var(--ink)}
+.lp .agree input:checked + .agree__box svg{opacity:1}
+.lp .agree input:focus-visible + .agree__box{outline:2px solid var(--sky-ink); outline-offset:2px}
+.lp .agree.is-on{background:var(--mint-soft); border-color:#BDE7D2}
+.lp .agree b{color:var(--ink)}
+.lp .bycont{font-size:.8rem; line-height:1.5; color:var(--ink-2); text-align:center}
+
+/* Updated-terms prompt over a sketched app shell. */
+.lp .ag__stage--app{place-items:stretch; padding:0; overflow:hidden; min-height:420px}
+.lp .app{display:grid; grid-template-columns:200px 1fr; height:100%; min-height:420px; filter:saturate(.6); opacity:.55}
+.lp .app__side{padding:18px 14px; border-right:1.5px solid var(--line); background:var(--card); display:grid; gap:10px; align-content:start}
+.lp .app__org{display:flex; gap:8px; align-items:center; font-weight:600; font-size:.86rem; margin-bottom:8px}
+.lp .app__org i{font-style:normal; width:26px; height:26px; border-radius:8px; display:grid; place-items:center; background:var(--sky); border:1.5px solid var(--ink); font-size:.66rem}
+.lp .app__nav{height:12px; border-radius:6px; background:var(--paper-3)}
+.lp .app__nav.is-on{background:var(--line-2)}
+.lp .app__main{padding:26px; display:grid; gap:18px; align-content:start}
+.lp .app__h{width:220px; height:22px; border-radius:8px; background:var(--line)}
+.lp .app__row{display:grid; grid-template-columns:repeat(3,1fr); gap:14px}
+.lp .app__row span,.lp .app__card{height:90px; border-radius:14px; background:var(--card); border:1.5px solid var(--line)}
+.lp .app__card{height:160px}
+.lp .upd{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(440px,calc(100% - 32px));
+  padding:24px 24px 20px; background:var(--card); border:1.5px solid var(--ink); border-radius:20px; box-shadow:6px 6px 0 var(--peach);
+}
+.lp .upd h3{margin-top:10px; font-size:1.3rem; letter-spacing:-.03em; line-height:1.18}
+.lp .upd h3 .mono{font-size:.92em}
+.lp .upd__lede{margin-top:8px; font-size:.88rem; color:var(--ink-2)}
+.lp .upd__list{margin-top:14px; display:grid; gap:8px}
+.lp .upd__list li{display:grid; grid-template-columns:96px 1fr; gap:10px; font-size:.84rem; line-height:1.45; color:var(--ink-2); padding-top:8px; border-top:1px solid var(--line)}
+.lp .upd__list li:first-child{border-top:0; padding-top:0}
+.lp .upd__list b{font-family:var(--mono); font-size:.76rem; font-weight:600; color:var(--ink)}
+.lp .upd__act{margin-top:18px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap}
+.lp .upd .fine{margin-top:12px; text-align:right}
+
+@media (max-width:860px){
+  .lp .ag{grid-template-columns:minmax(0,1fr)}
+  .lp .app{grid-template-columns:64px 1fr}
+  .lp .app__org{font-size:0}
+  .lp .ag__stage--app{min-height:520px}
+}
+@media (max-width:480px){
+  .lp .upd__list li{grid-template-columns:minmax(0,1fr); gap:2px}
+  .lp .upd .fine,.lp .upd__act{text-align:left; justify-content:stretch}
+  .lp .upd__act > *{flex:1; text-align:center}
+}
+
+/* ===== mock switcher ===== */
+.mk{
+  position:fixed; z-index:200; left:50%; bottom:18px; transform:translateX(-50%);
+  display:flex; align-items:center; gap:4px; padding:5px; border-radius:999px;
+  background:#26211B; box-shadow:0 10px 30px rgba(38,33,27,.28); font:600 .78rem 'Inter',system-ui,sans-serif;
+  max-width:calc(100vw - 32px);
+}
+.mk__tag{padding:0 10px 0 8px; font:600 .62rem 'IBM Plex Mono',ui-monospace,monospace; letter-spacing:.12em; color:#E9C46A}
+.mk button{border:0; cursor:pointer; padding:8px 14px; border-radius:999px; background:transparent; color:#D8CFC2; font:inherit; white-space:nowrap}
+.mk button[aria-pressed="true"]{background:#FFFCF6; color:#26211B}
+@media (max-width:420px){.mk__tag{display:none} .mk button{padding:8px 11px}}
+
+</style>
+</head>
+<body>
+<div class="lp tp"><svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-spark" viewBox="0 0 24 24"><path d="M12 2.6c.7 5.1 3.6 8 8.7 8.8-5.1.7-8 3.6-8.7 8.7-.7-5.1-3.6-8-8.7-8.7 5.1-.8 8-3.7 8.7-8.8Z" fill="currentColor"></path></symbol><symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-shield" viewBox="0 0 24 24"><path d="M12 2.8 4.6 5.7c-.3 6.6 1.6 12 7.4 15.5 5.8-3.5 7.7-8.9 7.4-15.5L12 2.8Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path><path d="M8.6 12.1 11 14.6l4.6-4.9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-receipt" viewBox="0 0 24 24"><path d="M6 2.9h12v18.4l-2.4-1.7-2.4 1.7-2.4-1.7-2.4 1.7L6 19.6V2.9Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path><path d="M9.4 8h5.2M9.4 12.2h5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-export" viewBox="0 0 24 24"><path d="M12 15.4V3.6m0 0L8.2 7.4M12 3.6l3.8 3.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4.4 14v5.2c0 .8.6 1.4 1.4 1.4h12.4c.8 0 1.4-.6 1.4-1.4V14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"></rect><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"></path><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></path></symbol><symbol id="d-hand" viewBox="0 0 24 24"><path d="M8.6 11V5.4a1.5 1.5 0 0 1 3 0V10m0-1.1a1.5 1.5 0 0 1 3 0v1.4m0-.7a1.5 1.5 0 0 1 3 0v4.6c0 3.4-2.4 6.1-5.8 6.1-3 0-4.6-1.5-6.2-4.2l-1.7-3a1.4 1.4 0 0 1 2.2-1.7l1.5 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"></circle><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-chat" viewBox="0 0 24 24"><path d="M20.6 11.6c0 4.2-3.9 7.6-8.6 7.6-1 0-2-.2-2.9-.5l-5 1.6 1.6-4a7 7 0 0 1-2.3-4.7C3.4 7.4 7.3 4 12 4s8.6 3.4 8.6 7.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path></symbol><symbol id="d-swirl" viewBox="0 0 120 46"><path d="M2 34c14-16 34-28 52-28 12 0 18 7 15 14-3 6-13 7-16 1-4-7 4-16 17-18 12-2 26 3 34 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path><path d="m97 8 8 7-9 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-star" viewBox="0 0 24 24"><path d="M12 3.4c.9 4.2 2.6 6 6.6 6.9-4 .9-5.7 2.7-6.6 6.9-.9-4.2-2.6-6-6.6-6.9 4-.9 5.7-2.7 6.6-6.9Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></symbol><symbol id="d-mug" viewBox="0 0 24 24"><path d="M4.2 7.4h12.2v7.4a5 5 0 0 1-5 5h-2.2a5 5 0 0 1-5-5V7.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path><path d="M16.6 9.4h1.8a2.6 2.6 0 0 1 0 5.2h-1.8" fill="none" stroke="currentColor" stroke-width="2.1"></path><path d="M8 4.4c.7-.9.7-1.5 0-2.2M11.8 4.4c.7-.9.7-1.5 0-2.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path></symbol><symbol id="d-plant" viewBox="0 0 24 24"><path d="M12 21v-8.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path><path d="M12 13.4C9 13.4 6.6 11 6.6 8c3 0 5.4 2.4 5.4 5.4ZM12 12.2c0-3 2.4-5.4 5.4-5.4 0 3-2.4 5.4-5.4 5.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path><path d="M8.4 21h7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-clip" viewBox="0 0 24 24"><rect x="4.4" y="4.2" width="15.2" height="16.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"></rect><path d="M9 4.2c0-1.2 1.3-2 3-2s3 .8 3 2" fill="none" stroke="currentColor" stroke-width="2.1"></path><path d="M8.4 11.4h7.2M8.4 15.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-loop" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path><path d="M20.4 3.2v4.4h-4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-pencil" viewBox="0 0 24 24"><path d="M4 20.2 4.9 16 16.4 4.5a2.1 2.1 0 0 1 3 3L7.9 19.1 4 20.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path><path d="M14.6 6.4 17.8 9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-folder" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path></symbol><symbol id="d-board" viewBox="0 0 24 24"><path d="M4.6 3.4v17.2M12 3.4v10.4M19.4 3.4v14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></symbol><symbol id="d-key" viewBox="0 0 24 24"><circle cx="8" cy="8.4" r="4.4" fill="none" stroke="currentColor" stroke-width="2.1"></circle><path d="m11.2 11.6 8.4 8.4M16.4 16.8l2-2M13.6 14l2-2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8" fill="none" stroke="currentColor" stroke-width="2.1"></circle><path d="M12 6.8V12l3.6 2.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-heart" viewBox="0 0 24 24"><path d="M12 20.4C6.4 16.8 3 13.6 3 9.8A4.6 4.6 0 0 1 7.6 5.2c1.8 0 3.4 1 4.4 2.6 1-1.6 2.6-2.6 4.4-2.6A4.6 4.6 0 0 1 21 9.8c0 3.8-3.4 7-9 10.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path></symbol><symbol id="d-link" viewBox="0 0 24 24"><path d="M10.2 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path><path d="M13.8 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.6-1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-phone" viewBox="0 0 24 24"><rect x="6.4" y="2.6" width="11.2" height="18.8" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"></rect><path d="M10.6 18.4h2.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-bars" viewBox="0 0 24 24"><path d="M5.4 20.4V12M12 20.4V4.4M18.6 20.4v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path></symbol><symbol id="d-camera" viewBox="0 0 24 24"><rect x="3.4" y="6.4" width="17.2" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2.1"></rect><circle cx="12" cy="13.4" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"></circle><path d="M8.6 6.4 10 3.6h4l1.4 2.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path></symbol><symbol id="d-note" viewBox="0 0 24 24"><path d="M9.4 18V5.2l9.4-2v12.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path><circle cx="7" cy="18.4" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"></circle><circle cx="16.4" cy="15.8" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"></circle></symbol><symbol id="d-flag" viewBox="0 0 24 24"><path d="M5.4 21V3.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><path d="M5.4 4.6h11.8l-2.2 3.8 2.2 3.8H5.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path></symbol><symbol id="d-envelope" viewBox="0 0 24 24"><rect x="3.2" y="5.4" width="17.6" height="13.2" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"></rect><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6.4 16-2.4-6.8L4 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path></symbol><symbol id="d-copy" viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="12" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"></rect><path d="M15.6 5.6V5c0-1.1-.9-2-2-2H5.2c-1.1 0-2 .9-2 2v8.4c0 1.1.9 2 2 2h.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-dots" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.9" fill="currentColor"></circle><circle cx="12" cy="12" r="1.9" fill="currentColor"></circle><circle cx="18.5" cy="12" r="1.9" fill="currentColor"></circle></symbol><symbol id="d-monitor" viewBox="0 0 24 24"><rect x="3" y="4.4" width="18" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"></rect><path d="M9 20.2h6M12 16.6v3.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"></rect><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-out" viewBox="0 0 24 24"><path d="M8 16 17.6 6.4M9.4 6h8.4v8.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-doc" viewBox="0 0 24 24"><path d="M6.2 2.9h8l4.6 4.7v12.2c0 .8-.6 1.4-1.4 1.4H6.2c-.8 0-1.4-.6-1.4-1.4V4.3c0-.8.6-1.4 1.4-1.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path><path d="M14 3.2v4.6h4.6M8.6 12.4h6.8M8.6 16h4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path></symbol></defs></svg><header class="sn caveat_bc64f5d6-module__OaDxfG__variable"><div class="nav-in"><a class="sn-brand" href="/"><svg class="logo" viewBox="0 0 40 40" aria-hidden="true"><rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="var(--butter)" stroke="var(--note-ink)" stroke-width="2.4"></rect><path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="var(--note-ink)" stroke-width="2.4" stroke-linecap="round"></path><circle cx="14.6" cy="16" r="1.9" fill="var(--note-ink)"></circle><circle cx="25.4" cy="16" r="1.9" fill="var(--note-ink)"></circle></svg>ChaptOS</a><nav class="nav-links" aria-label="Primary"><span class="nl-ink" aria-hidden="true"></span><a class="nl" href="/#how" style="--c:var(--sky);--ci:var(--sky-ink)"><i></i>How it works<svg class="nl-u" viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M1 4.2C9 1.6 15 5.4 23 3.4S38 1.2 45 3.6 55 4.6 59 2.4"></path></svg></a><a class="nl" href="/#fit" style="--c:var(--lilac);--ci:var(--lilac-ink)"><i></i>Features<svg class="nl-u" viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M1 4.2C9 1.6 15 5.4 23 3.4S38 1.2 45 3.6 55 4.6 59 2.4"></path></svg></a><a class="nl" href="/pricing" style="--c:var(--mint);--ci:var(--mint-ink)"><i></i>Pricing<svg class="nl-u" viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M1 4.2C9 1.6 15 5.4 23 3.4S38 1.2 45 3.6 55 4.6 59 2.4"></path></svg></a><a class="nl" href="/blog" style="--c:var(--peach);--ci:var(--peach-ink)"><i></i>Blog<b class="nl-tag">new</b><svg class="nl-u" viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M1 4.2C9 1.6 15 5.4 23 3.4S38 1.2 45 3.6 55 4.6 59 2.4"></path></svg></a></nav><div class="nav-r"><a class="nav-login" href="/login">Log in</a><a class="sn-btn sn-btn--sm" href="/create">Start your org</a><button class="nav-menu" aria-label="Menu" aria-expanded="false" aria-controls="navSheet"><span></span></button></div></div><nav class="nav-sheet" id="navSheet" aria-label="Primary (mobile)"><a class="ns-l" href="/#how" style="--c:var(--sky);--i:0"><span class="sn-num">01</span><b>How it works</b><i></i></a><a class="ns-l" href="/#fit" style="--c:var(--lilac);--i:1"><span class="sn-num">02</span><b>Features</b><i></i></a><a class="ns-l" href="/pricing" style="--c:var(--mint);--i:2"><span class="sn-num">03</span><b>Pricing</b><i></i></a><a class="ns-l" href="/blog" style="--c:var(--peach);--i:3"><span class="sn-num">04</span><b>Blog</b><b class="nl-tag">new</b><i></i></a><div class="ns-f"><a class="sn-btn sn-btn--ghost" href="/login">Log in</a><a class="sn-btn" href="/create">Start your org</a></div></nav><span hidden=""></span></header><div class="sn-spacer" aria-hidden="true"></div>
+<main id="top" data-view="page">
+  <section class="tp__hero">
+    <div class="wrap">
+      <div class="tp__head">
+        <span class="eyebrow" style="--eb:var(--peach)">Terms of service</span>
+        <h1>The deal between you, your org and ChaptOS, in plain English first.</h1>
+        <p class="lede">
+          These terms are the contract for using ChaptOS. Each section opens with a one-line summary
+          so you can see what it does before you read it. The summaries help you read; the full text
+          under each one is what applies. How we handle data lives on our
+          <a href="/trust">Trust &amp; privacy</a> page, and the two are written to agree.
+        </p>
+        <div class="tp__meta">
+          <span>Effective <span class="k">November 2, 2026</span></span>
+          <span>Operated by Thalha Thabish, doing business as ChaptOS</span>
+          <span>Applies to every account and organization workspace</span>
+        </div>
+      </div>
+
+      <div class="tp__tldr">
+        <div class="tldr">
+          <span class="tldr__ic" style="--g:var(--lilac-soft);--gb:#DCD2FB"><svg width="20" height="20" viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--lilac-ink)" aria-hidden="true"><use href="#d-board"></use></svg></span>
+          <h4>Your org owns its records, and their accuracy</h4>
+          <p>Organizations enter GPA, dues, attendance and service hours themselves. We don't check them against any school, so they aren't official records.</p>
+        </div>
+        <div class="tldr">
+          <span class="tldr__ic" style="--g:var(--mint-soft);--gb:#BDE7D2"><svg width="20" height="20" viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-wallet"></use></svg></span>
+          <h4>No money moves through us</h4>
+          <p>Treasury, dues and fundraisers are bookkeeping. The only payment we take is your subscription, through Stripe.</p>
+        </div>
+        <div class="tldr">
+          <span class="tldr__ic" style="--g:var(--butter-soft);--gb:#F4DFA6"><svg width="20" height="20" viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--butter-ink)" aria-hidden="true"><use href="#d-cal"></use></svg></span>
+          <h4>We keep the records, not the party</h4>
+          <p>ChaptOS doesn't plan, host or supervise events. Your org is responsible for what it runs, and hazing is banned outright.</p>
+        </div>
+        <div class="tldr">
+          <span class="tldr__ic" style="--g:var(--sky-soft);--gb:#CCDFFB"><svg width="20" height="20" viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--sky-ink)" aria-hidden="true"><use href="#d-flag"></use></svg></span>
+          <h4>Disputes go to arbitration, unless you opt out</h4>
+          <p>Talk to us first. Unresolved claims are settled one-on-one, not in class actions. You have 30 days to opt out by email.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap tp__layout">
+    <aside class="tp__toc">
+      <h5>Contents</h5>
+      <ol>
+        <li><a href="#agreement">Agreement</a></li>
+        <li><a href="#who">Who these terms cover</a></li>
+        <li><a href="#eligibility">Eligibility</a></li>
+        <li><a href="#account">Your account</a></li>
+        <li><a href="#joining">Joining, roles and permissions</a></li>
+        <li><a href="#org-data">Organization Data</a></li>
+        <li><a href="#use">Acceptable use</a></li>
+        <li><a href="#content">Your content</a></li>
+        <li><a href="#events">Events, parties and activities</a></li>
+        <li><a href="#money">Treasury, dues and fundraisers</a></li>
+        <li><a href="#ai">Ask Chapt and AI features</a></li>
+        <li><a href="#billing">Subscriptions and billing</a></li>
+        <li><a href="#free">Free plan and changes</a></li>
+        <li><a href="#privacy">Privacy</a></li>
+        <li><a href="#third">Third-party services</a></li>
+        <li><a href="#ours">Ownership of ChaptOS</a></li>
+        <li><a href="#termination">Suspension and termination</a></li>
+        <li><a href="#after">Data after you leave</a></li>
+        <li><a href="#disclaimers">Disclaimers</a></li>
+        <li><a href="#liability">Limitation of liability</a></li>
+        <li><a href="#indemnity">Indemnity</a></li>
+        <li><a href="#disputes">Disputes and arbitration</a></li>
+        <li><a href="#law">Governing law and venue</a></li>
+        <li><a href="#general">Changes and general terms</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ol>
+    </aside>
+
+    <div class="tp__body">
+      <section class="tp__sec" id="agreement">
+        <h2>Agreement</h2>
+        <p class="tp__lede">Using ChaptOS means agreeing to these terms.</p>
+        <p>These Terms of Service (<b>“Terms”</b>) are a contract between you and <b>Thalha Thabish, doing business as ChaptOS</b> (<b>“ChaptOS,” “we,” “us”</b>). They cover the ChaptOS website at chaptos.com, the web app, and any related services (together, the <b>“Service”</b>).</p>
+        <p>You accept these Terms when you check the box or click to agree, create an organization, request to join one, or use the Service. If you don't agree, don't use the Service.</p>
+        <div class="tp__note tp__note--flag">
+          <h5>Read section 22</h5>
+          <p>It contains an <b>arbitration agreement and a class-action waiver</b>, which change how disputes are resolved. You can opt out within 30 days.</p>
+        </div>
+      </section>
+
+      <section class="tp__sec" id="who">
+        <h2>Who these terms cover</h2>
+        <p class="tp__lede">Your organization is our customer. You're a user, and officers act on the organization's behalf.</p>
+        <ul class="tp__list">
+          <li><strong>Organizations.</strong> A chapter, club, team, council or similar group with a ChaptOS workspace (an <b>“Organization”</b>). The Organization is our customer, and pays for the Service under these Terms.</li>
+          <li><strong>Members.</strong> Each individual with an account (<b>“you”</b>), whether an officer, an administrator or a regular member of one or more Organizations.</li>
+        </ul>
+        <p>Some obligations fall on the Organization, some on you, and some on both. When you act as an officer or administrator, you act on behalf of your Organization.</p>
+        <p><strong>Authority to bind.</strong> If you create an Organization's workspace, manage its billing, or accept these Terms for an Organization, you confirm that you have authority to bind that Organization. If you don't, you are personally responsible for complying with these Terms.</p>
+      </section>
+
+      <section class="tp__sec" id="eligibility">
+        <h2>Eligibility</h2>
+        <p class="tp__lede">You must be 16 or older. Groups with younger members need to talk to us first.</p>
+        <ul class="tp__list">
+          <li>You must be <b>at least 16 years old</b> to create an account.</li>
+          <li>Organizations must not use the Service to collect information about children under 13.</li>
+          <li>If your organization includes members under 16, for example a high school group, contact us before setting it up. That use needs a separate written agreement, usually with the school.</li>
+          <li>You may not use the Service if the law bars you from it, or if we have terminated your account for violating these Terms.</li>
+        </ul>
+        <p>If you are under the age of majority where you live, you confirm that a parent or guardian has reviewed and agreed to these Terms with you.</p>
+      </section>
+
+      <section class="tp__sec" id="account">
+        <h2>Your account</h2>
+        <p class="tp__lede">One Google sign-in, any number of organizations. Keep it secure.</p>
+        <ul class="tp__list">
+          <li>You sign in through a third-party identity provider (currently Google). One account can belong to several Organizations.</li>
+          <li>Keep your sign-in secure. You are responsible for activity on your account. Tell us promptly at <a href="mailto:thalhat.011@gmail.com">thalhat.011@gmail.com</a> if you believe someone else has accessed it.</li>
+          <li>Give accurate information about yourself. Don't impersonate anyone or create accounts for other people.</li>
+          <li>You can delete your account from your profile settings. <a href="#after">Section 18</a> explains what happens to your data.</li>
+        </ul>
+      </section>
+
+      <section class="tp__sec" id="joining">
+        <h2>Joining, roles and permissions</h2>
+        <p class="tp__lede">Your organization decides who gets in and who sees what. We don't.</p>
+        <p><strong>Joining is reviewed.</strong> An invite link doesn't grant access by itself. Opening one sends a join request, and an officer with the right permission decides whether to approve it. We don't decide who belongs to any Organization, and we aren't responsible for its decision to approve, reject or remove anyone.</p>
+        <p><strong>Roles and permissions are set by the Organization.</strong> Each Organization decides who holds which role and what each role can see and change, including other members' GPA, dues balances, attendance and excuse reasons. Officers are responsible for granting permissions carefully and removing them when someone leaves a role.</p>
+        <p><strong>Officers' actions are the Organization's actions.</strong> When an officer approves a member, edits a record, records a payment, posts minutes or approves an Ask Chapt proposal, they do it for the Organization, not for ChaptOS.</p>
+        <p><strong>Plan limits.</strong> Paid plans may limit the number of members. An Organization at its limit can still receive join requests, but may need to upgrade or remove members before approving more.</p>
+      </section>
+
+      <section class="tp__sec" id="org-data">
+        <h2>Organization Data</h2>
+        <p class="tp__lede">Your organization is responsible for what it puts in ChaptOS. We don't verify grades, service hours or attendance.</p>
+        <p><b>“Organization Data”</b> means any information an Organization, its officers or its members submit to the Service: rosters and roles, GPA and other academic information, attendance and absence records, service hours, dues balances, treasury entries, meeting minutes, tasks, documents, event details and custom fields.</p>
+        <h3>(a) The Organization is responsible for its data</h3>
+        <p>Each Organization is solely responsible for the accuracy, completeness, legality and authorization of its Organization Data. That includes:</p>
+        <ol class="tp__list tp__list--num">
+          <li>having the right, and any consent it needs, to collect and enter the data, store it in the Service and show it to its members;</li>
+          <li>telling its members what it collects and why;</li>
+          <li>following the laws, school policies and national-organization policies that apply to the data; and</li>
+          <li>keeping the data current and correcting errors.</li>
+        </ol>
+        <h3>(b) ChaptOS doesn't verify records</h3>
+        <p>ChaptOS does not independently verify Organization Data. In particular, it does not verify <b>academic records</b> (such as GPA, grades, enrollment or academic standing) or <b>service records</b> (such as service hours, event participation or attendance). It does not get them from any school, registrar or other third party.</p>
+        <div class="tp__note tp__note--warn">
+          <h5>Not an official record</h5>
+          <p>Totals, standings, thresholds, reports, dashboards and Ask Chapt answers only reflect what was entered. ChaptOS records are not official transcripts or certified service records. Before using them for eligibility, scholarships, discipline, awards or reports to a school or national organization, check them against the original source.</p>
+        </div>
+        <h3>(c) Disputes about records</h3>
+        <p>If you think a record about you is wrong, raise it with your Organization, which controls the record. Disputes about the content of Organization Data are between you and the Organization. We may help where our tools allow, but we aren't responsible for settling them.</p>
+        <h3>(d) Our role</h3>
+        <p>For Organization Data, the Organization decides what is collected and why, and we process it on the Organization's behalf, as described on our <a href="/trust#roles">Trust &amp; privacy page</a>.</p>
+      </section>
+
+      <section class="tp__sec" id="use">
+        <h2>Acceptable use</h2>
+        <p class="tp__lede">No hazing, harassment, break-ins or abuse, and keep sensitive data out of it.</p>
+        <h3>Don't use the Service to</h3>
+        <ul class="tp__list tp__list--no">
+          <li>break any law, or any school, university or national-organization rule that applies to you;</li>
+          <li>plan, organize, record or conceal <b>hazing</b>, harassment, discrimination, threats or violence;</li>
+          <li>post content that is defamatory or obscene, or that invades someone's privacy, including private information about a member shared to embarrass or punish them;</li>
+          <li>upload content you don't have the right to share, or that infringes someone's copyright, trademark or other rights;</li>
+          <li>send spam, or use invite links to reach people who haven't asked to join;</li>
+          <li>get into another Organization's workspace, another person's account, or any part of the Service you aren't permitted to use;</li>
+          <li>probe, scan or test the Service's security, except under the good-faith reporting terms on our <a href="/trust#contact">Trust &amp; privacy page</a>;</li>
+          <li>interfere with the Service, overload it, or get around its limits or permission checks;</li>
+          <li>scrape the Service, or copy, resell or reverse-engineer it, except as the law expressly allows; or</li>
+          <li>use Ask Chapt or other features to generate unlawful content or content that violates these Terms.</li>
+        </ul>
+        <h3>Data you must not put in the Service</h3>
+        <p>Custom fields and free-text notes will hold anything typed into them. Don't use them to collect:</p>
+        <ul class="tp__list tp__list--no">
+          <li>health, medical or disability information, including allergies, medications or accommodations;</li>
+          <li>biometric data;</li>
+          <li>racial or ethnic origin, religious or philosophical beliefs, political opinions, union membership, sex life or sexual orientation;</li>
+          <li>government identifiers, such as Social Security, passport or driver's license numbers, or immigration status;</li>
+          <li>financial account details, such as card or bank account numbers;</li>
+          <li>precise geolocation, or anyone's home address as a tracked field; or</li>
+          <li>grades or student records obtained from a school, rather than reported by the member themselves.</li>
+        </ul>
+        <p>The Organization is responsible if this data is entered anyway. We may delete it when we find it.</p>
+      </section>
+
+      <section class="tp__sec" id="content">
+        <h2>Your content</h2>
+        <p class="tp__lede">You own what you upload. We only use it to run ChaptOS for you, never for ads or AI training.</p>
+        <p><strong>You keep ownership.</strong> You and your Organization own the content you submit, including Organization Data, documents, minutes, messages and images (<b>“Content”</b>).</p>
+        <p><strong>Our license to use it.</strong> You give us a worldwide, non-exclusive, royalty-free license to host, store, copy, process, transmit and display your Content, only as needed to run, secure and improve the Service for you and to comply with law. It includes sending Content to the service providers listed on our Trust &amp; privacy page. We don't sell your Content, use it for advertising, or use it to train AI models.</p>
+        <p><strong>Feedback.</strong> If you send us ideas or suggestions, we may use them without owing you anything.</p>
+        <p><strong>We don't review Content in advance,</strong> and we aren't responsible for Content that users post. We may remove Content, or restrict access to it, if we believe it violates these Terms or the law, or creates a risk for ChaptOS or other users.</p>
+        <h3>Copyright complaints</h3>
+        <p>If you believe Content on the Service infringes your copyright, send a notice to our designated agent (see <a href="#contact">Contact</a>). Include your contact details; the work you say is infringed; where the material is on the Service; a statement that you believe in good faith the use isn't authorized; a statement, under penalty of perjury, that your notice is accurate and that you're the owner or authorized to act for them; and your signature. We may terminate the accounts of repeat infringers.</p>
+      </section>
+
+      <section class="tp__sec" id="events">
+        <h2>Events, parties and activities</h2>
+        <p class="tp__lede">ChaptOS keeps records of events. It doesn't run them, and your organization is responsible for what it does.</p>
+        <p>ChaptOS is record-keeping and scheduling software. It is not an event organizer, host, venue, sponsor or supervisor.</p>
+        <ul class="tp__list">
+          <li><strong>We don't plan, host, approve or attend</strong> any meeting, party, social event, philanthropy event, service activity, recruitment event or trip. Features such as the Parties page, guest lists, wristband counts and check-in only record what the Organization chooses to record.</li>
+          <li><strong>The Organization and its members alone are responsible</strong> for every activity they run, whether or not it is recorded in ChaptOS. That includes guest safety, alcohol and other substances, transportation, venue rules, risk-management and insurance requirements, and following the policies of their school, national organization and governing councils.</li>
+          <li><strong>Hazing is prohibited</strong> (<a href="#use">section 7</a>). ChaptOS records are not evidence that an activity was safe, approved or compliant.</li>
+          <li>We don't monitor activities or Content for safety issues, and we have no duty to warn anyone about them.</li>
+        </ul>
+        <div class="tp__note tp__note--flag">
+          <h5>In an emergency</h5>
+          <p>Call <b>911</b> or local emergency services. ChaptOS is not a way to get help.</p>
+        </div>
+      </section>
+
+      <section class="tp__sec" id="money">
+        <h2>Treasury, dues and fundraisers</h2>
+        <p class="tp__lede">These pages are bookkeeping. No organization money passes through ChaptOS.</p>
+        <ul class="tp__list">
+          <li><strong>No money moves through ChaptOS for Organizations.</strong> We don't hold, collect, transfer or pay out funds for Organizations or members. We are not a bank, payment processor, money transmitter, escrow agent or fiduciary. Recording a payment doesn't make one happen, and recording a balance doesn't mean the money exists.</li>
+          <li><strong>No financial, accounting, tax or legal advice.</strong> Balances, standings, charts, overdue lists and reminders are calculated from what the Organization entered (<a href="#org-data">section 6</a>). The Organization is responsible for its real books, bank accounts, taxes, audits and any reports it owes its school or national organization.</li>
+          <li><strong>Fundraising compliance is the Organization's job.</strong> That includes charitable-solicitation and registration rules, raffle and gaming laws, tax-deductibility claims, and delivering funds to the cause promised.</li>
+          <li><strong>Dues disputes</strong> between a member and their Organization are between them (<a href="#org-data">section 6(c)</a>).</li>
+        </ul>
+        <p>Organizations pay ChaptOS for their subscription through Stripe. That billing is covered in <a href="#billing">section 12</a>.</p>
+      </section>
+
+      <section class="tp__sec" id="ai">
+        <h2>Ask Chapt and AI features</h2>
+        <p class="tp__lede">The assistant can be wrong. It proposes changes, and a person always approves them.</p>
+        <p>Some features use artificial intelligence, including Ask Chapt, meeting-notes summaries and digests (<b>“AI Features”</b>).</p>
+        <ul class="tp__list">
+          <li><strong>AI output can be wrong.</strong> It may be incomplete, out of date or inaccurate, even when it sounds certain, and it is only as good as the Organization Data it reads. Check anything important before relying on it.</li>
+          <li><strong>It proposes; people decide.</strong> When Ask Chapt suggests a change, such as a record update or a payment entry, nothing happens until a person with the right permission approves it. The person who approves an action, and their Organization, are responsible for it.</li>
+          <li><strong>No professional advice.</strong> AI output isn't legal, financial, tax, medical, academic or mental-health advice.</li>
+          <li><strong>Third-party AI providers.</strong> To answer, AI Features send relevant parts of your question and Organization Data to our AI provider, as described on our <a href="/trust#assistant">Trust &amp; privacy page</a>.</li>
+          <li><strong>Don't misuse AI Features</strong> to break these Terms, or to try to extract data you aren't permitted to see.</li>
+        </ul>
+        <p>We may change, limit or remove AI Features at any time.</p>
+      </section>
+
+      <section class="tp__sec" id="billing">
+        <h2>Subscriptions and billing</h2>
+        <p class="tp__lede">Organizations pay monthly, it renews automatically, and you can cancel online any time.</p>
+        <div class="tp__note tp__note--warn">
+          <h5>Automatic renewal</h5>
+          <p><b>Paid subscriptions renew automatically every month and charge the payment method on file until canceled.</b> At checkout we show the price, the billing frequency and how to cancel, and you agree to the recurring charge before you're billed.</p>
+        </div>
+        <div class="tp__tw">
+          <table class="tp__t">
+            <thead><tr><th scope="col">Topic</th><th scope="col">What applies</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Who pays</th><td>The Organization, not individual members. Whoever starts or manages a subscription confirms they're authorized to, and to use the payment method they provide.</td></tr>
+              <tr><th scope="row">Pricing</th><td>Shown on our <a href="/pricing">pricing page</a> and at checkout. US dollars, billed monthly, excluding taxes. A seat is one active member; archived members don't count.</td></tr>
+              <tr><th scope="row">Changes in size</th><td>Your price follows your active member count. Growing into a higher band may require moving to that band's price before approving more members. We show the new price before any change takes effect.</td></tr>
+              <tr><th scope="row">Cancel</th><td>Any time, online, from the Billing page. Takes effect at the end of the paid month; then the Organization drops to the free plan. Organization Data isn't deleted.</td></tr>
+              <tr><th scope="row">Refunds</th><td>Payments are non-refundable, and there are no credits for partial months, except where the law requires it or we agree otherwise in writing.</td></tr>
+              <tr><th scope="row">Price changes</th><td>At least <b>30 days'</b> email notice to the billing contact before a new price applies to a renewal. Cancel before it takes effect if you don't agree.</td></tr>
+              <tr><th scope="row">Failed payments</th><td>We may retry, notify the billing contact, and limit or downgrade paid features until payment is made. Downgrading doesn't delete data.</td></tr>
+              <tr><th scope="row">Processor</th><td>Stripe, under <a href="https://stripe.com/legal">Stripe's terms</a>. Card details are entered on Stripe's pages and never pass through our servers.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="tp__sec" id="free">
+        <h2>Free plan and changes to the Service</h2>
+        <p class="tp__lede">Small organizations can use ChaptOS free. Features will change as we build.</p>
+        <p>Some Organizations use the Service for free, for example below a member threshold. The free plan, its limits and which features are paid may change.</p>
+        <p>We improve the Service continually, so features may be added, changed or removed. If we remove a major feature an Organization is paying for, we will try to give reasonable notice.</p>
+      </section>
+
+      <section class="tp__sec" id="privacy">
+        <h2>Privacy</h2>
+        <p class="tp__lede">How we handle data is on the Trust &amp; privacy page. Where it overlaps with these terms, that page wins on personal data.</p>
+        <p>Our <a href="/trust">Trust &amp; privacy page</a> explains what data we hold, who can see it, where it is stored, which service providers process it, and how long we keep it. Read it with these Terms. If the two seem to conflict about how we handle personal data, the Trust &amp; privacy page controls.</p>
+        <p>Organizations are responsible for telling their members what they collect (<a href="#org-data">section 6</a>). We don't email your members or contact them on your behalf.</p>
+      </section>
+
+      <section class="tp__sec" id="third">
+        <h2>Third-party services</h2>
+        <p class="tp__lede">Google, Stripe and our infrastructure providers have their own terms. Treat shareable links like passwords.</p>
+        <p>The Service relies on, and may link to, services run by others, including Google for sign-in, Stripe for billing, our hosting and database providers, and our AI provider. Some features, such as calendar feeds or Instagram planning, connect to apps you use. Third-party services are governed by their own terms. We aren't responsible for them, their availability, or what they do with data you choose to send them.</p>
+        <p><strong>Shareable links.</strong> Some features create links that work without signing in, such as an Organization's calendar feed. Anyone with such a link can use it. Profile photos and organization logos are reachable at <a href="/trust#public">public URLs</a>.</p>
+      </section>
+
+      <section class="tp__sec" id="ours">
+        <h2>Ownership of ChaptOS</h2>
+        <p class="tp__lede">Your content is yours. The software, name and design are ours.</p>
+        <p><strong>Web only.</strong> ChaptOS is currently offered only through a web browser. If we release a mobile app, we'll update these Terms to cover it before it launches.</p>
+        <p><strong>Our property.</strong> Apart from your Content, we and our licensors own the Service, including its software, design, text, graphics and the ChaptOS name and logos. We give you a limited, revocable, non-transferable right to use the Service under these Terms. You get no other rights in it, and you may not use our name or logos without permission.</p>
+      </section>
+
+      <section class="tp__sec" id="termination">
+        <h2>Suspension and termination</h2>
+        <p class="tp__lede">You can leave any time. We can suspend accounts that break the rules or put people at risk.</p>
+        <p><strong>You or your Organization may stop at any time</strong> by leaving an Organization, deleting your account, or having an administrator delete the workspace.</p>
+        <p><strong>We may suspend or end access</strong> for an account or an Organization, with or without notice, if we reasonably believe that:</p>
+        <ul class="tp__list">
+          <li>these Terms have been violated, including the acceptable-use rules in <a href="#use">section 7</a>;</li>
+          <li>someone is at risk of harm, or the law, a court or a regulator requires it;</li>
+          <li>the use exposes ChaptOS, other users or third parties to risk or legal liability; or</li>
+          <li>the Organization hasn't paid (<a href="#billing">section 12</a>).</li>
+        </ul>
+        <p>Where it's reasonable and lawful, we'll tell the Organization's administrators first and give them a chance to fix the problem. We may also end the Service as a whole with at least <b>30 days'</b> notice, and refund any prepaid fees for the period after it ends.</p>
+      </section>
+
+      <section class="tp__sec" id="after">
+        <h2>Data after you leave</h2>
+        <p class="tp__lede">Deleting removes your records. Ledger totals and audit logs stay so the books still balance.</p>
+        <ul class="tp__list">
+          <li><strong>Deleting your account</strong> removes you from every Organization you belong to, along with your records in each, as described on our <a href="/trust#retention">Trust &amp; privacy page</a>. You can't delete your account while you're the last administrator of an Organization.</li>
+          <li><strong>Removal by an Organization</strong> erases that Organization's records about you. Records other Organizations hold about you are untouched.</li>
+          <li><strong>Some records are kept on purpose.</strong> Ledger entries stay in the books without your name. Audit, activity and approval logs keep the names and roles of the people involved. We may also keep data where the law requires it, to resolve disputes, or to enforce these Terms.</li>
+          <li><strong>Deleting an Organization</strong> permanently removes its workspace and Organization Data, and can't be undone once confirmed.</li>
+          <li><strong>Getting a copy.</strong> Before deleting an Organization or ending a subscription, administrators can export what our export tools cover, or ask us at <a href="mailto:thalhat.011@gmail.com">thalhat.011@gmail.com</a> for a copy. Deleted data may persist in backups for <span class="tp__todo">[backup retention]</span> before it is overwritten.</li>
+        </ul>
+        <p>Sections 6, 8, 9–11 and 18–24 survive the end of these Terms.</p>
+      </section>
+
+      <section class="tp__sec" id="disclaimers">
+        <h2>Disclaimers</h2>
+        <p class="tp__lede">ChaptOS is provided as is. Keep your own copies of records that matter.</p>
+        <div class="tp__legal">
+          <p>THE SERVICE IS PROVIDED “AS IS” AND “AS AVAILABLE.” TO THE FULLEST EXTENT THE LAW ALLOWS, CHAPTOS DISCLAIMS ALL WARRANTIES, WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT AND ACCURACY.</p>
+          <p>WE DON'T PROMISE THAT THE SERVICE WILL BE UNINTERRUPTED, SECURE OR ERROR-FREE, THAT DATA WILL NEVER BE LOST, OR THAT ANY CALCULATION, REPORT, REMINDER OR AI OUTPUT WILL BE ACCURATE OR COMPLETE. WE DON'T VERIFY ORGANIZATION DATA (SECTION 6), AND WE AREN'T RESPONSIBLE FOR THE CONDUCT OF ANY ORGANIZATION, OFFICER, MEMBER OR GUEST, ON OR OFF THE SERVICE.</p>
+        </div>
+      </section>
+
+      <section class="tp__sec" id="liability">
+        <h2>Limitation of liability</h2>
+        <p class="tp__lede">If something goes wrong, what we owe is capped at what your organization paid us in the last 12 months, or $100 if that's more.</p>
+        <div class="tp__legal">
+          <p>TO THE FULLEST EXTENT THE LAW ALLOWS:</p>
+          <p><b>(a) NO INDIRECT DAMAGES.</b> CHAPTOS AND ITS OWNERS, EMPLOYEES, CONTRACTORS AND SERVICE PROVIDERS WON'T BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY OR PUNITIVE DAMAGES, OR FOR LOST PROFITS, REVENUE, FUNDS, DATA, GOODWILL, SCHOLARSHIPS OR OPPORTUNITIES, OR FOR PERSONAL INJURY OR PROPERTY DAMAGE ARISING FROM ANY EVENT OR ACTIVITY.</p>
+          <p><b>(b) CAP.</b> OUR TOTAL LIABILITY FOR ALL CLAIMS RELATING TO THE SERVICE OR THESE TERMS IS LIMITED TO THE GREATER OF (1) THE AMOUNT THE ORGANIZATION PAID US IN THE 12 MONTHS BEFORE THE EVENT GIVING RISE TO THE CLAIM, OR (2) US $100.</p>
+          <p><b>(c) SCOPE.</b> THESE LIMITS APPLY TO EVERY THEORY OF LIABILITY, WHETHER CONTRACT, TORT (INCLUDING NEGLIGENCE), STATUTE OR ANYTHING ELSE, EVEN IF WE WERE TOLD SUCH DAMAGES WERE POSSIBLE AND EVEN IF A REMEDY FAILS OF ITS ESSENTIAL PURPOSE, INCLUDING CLAIMS ARISING FROM DECISIONS MADE ON THE BASIS OF ORGANIZATION DATA OR AI OUTPUT.</p>
+        </div>
+        <p>Some places don't allow certain warranties or damages to be excluded. There, these limits apply only as far as the law permits, and nothing in these Terms limits liability that can't legally be limited.</p>
+      </section>
+
+      <section class="tp__sec" id="indemnity">
+        <h2>Indemnity</h2>
+        <p class="tp__lede">If what your organization does gets us sued, the organization covers it.</p>
+        <p>To the fullest extent the law allows, <b>each Organization</b> will defend, indemnify and hold harmless ChaptOS and its owners, employees, contractors and service providers against third-party claims, damages, losses and costs, including reasonable attorneys' fees, arising from:</p>
+        <ol class="tp__list tp__list--num">
+          <li>its Organization Data or other Content, including its accuracy, legality and authorization (<a href="#org-data">section 6</a>);</li>
+          <li>any event, party, activity, fundraiser or financial matter of the Organization or its members (<a href="#events">sections 9–10</a>);</li>
+          <li>the actions of its officers and members, including decisions made using the Service; or</li>
+          <li>a breach of these Terms or of law by the Organization or its members.</li>
+        </ol>
+        <p><strong>You personally</strong> agree to the same for claims arising from your own Content, your own conduct, or your own breach of these Terms or the law.</p>
+        <p>We'll notify you of any such claim, and we may take part in the defense with our own lawyers. You may not settle a claim in a way that admits fault for us or binds us without our written consent.</p>
+      </section>
+
+      <section class="tp__sec" id="disputes">
+        <h2>Disputes, arbitration and class-action waiver</h2>
+        <p class="tp__lede">Talk to us first. If that fails, disputes go to individual arbitration, not court or class actions. You can opt out.</p>
+        <div class="tp__note tp__note--flag">
+          <h5>This affects your rights</h5>
+          <p>To opt out of arbitration, email <a href="mailto:thalhat.011@gmail.com">thalhat.011@gmail.com</a> within <b>30 days</b> of first accepting these Terms, with your name, the email you sign in with, and a clear statement that you opt out.</p>
+        </div>
+        <p><strong>(a) Talk to us first.</strong> Before filing any claim, send a written notice to <a href="mailto:thalhat.011@gmail.com">thalhat.011@gmail.com</a> describing the dispute and what you want. We'll do the same if we have a claim against you. Both sides will try in good faith to resolve it within <b>60 days</b>.</p>
+        <p><strong>(b) Binding arbitration.</strong> If it isn't resolved, you and ChaptOS agree that any dispute relating to the Service or these Terms will be decided by <b>binding individual arbitration</b>, not in court. The arbitration will be run by <span class="tp__todo">[AAA or JAMS]</span> under its consumer or commercial rules, whichever applies, and the Federal Arbitration Act governs this section. The arbitrator decides all issues, including whether a dispute must be arbitrated, except as noted in (d) and (e).</p>
+        <p><strong>(c) Class-action waiver.</strong> <b>Disputes will be resolved only on an individual basis.</b> Neither side may bring or join a class, collective, consolidated or representative action, and the arbitrator may not combine claims of different people.</p>
+        <p><strong>(d) Exceptions.</strong> Either side may bring an individual claim in small-claims court, or ask a court for an injunction to stop infringement or misuse of intellectual property or unauthorized access to the Service.</p>
+        <p><strong>(e) Mass filings.</strong> If 25 or more similar arbitration demands are filed by or with the help of the same lawyers or organizers, they will be handled in batches under the provider's mass-arbitration procedures. A court may enforce this paragraph.</p>
+        <p><strong>(f) Opt out within 30 days,</strong> as described in the box above. Opting out doesn't affect any other part of these Terms.</p>
+        <p><strong>(g) If (c) fails.</strong> If the class-action waiver is found unenforceable for a claim, that claim goes to court, not arbitration, and the rest of this section still applies to other claims.</p>
+      </section>
+
+      <section class="tp__sec" id="law">
+        <h2>Governing law and venue</h2>
+        <p class="tp__lede">New York law applies. Court cases, where allowed, are heard in Albany County.</p>
+        <p>These Terms are governed by the laws of the State of New York and US federal law, without regard to conflict-of-law rules. Any claim not subject to arbitration will be brought only in the state or federal courts in <b>Albany County, New York</b>, and you and ChaptOS consent to their jurisdiction. Any claim must be brought within <b>one year</b> after it arises, to the extent the law allows.</p>
+      </section>
+
+      <section class="tp__sec" id="general">
+        <h2>Changes and general terms</h2>
+        <p class="tp__lede">We'll give 30 days' notice before material changes, and ask you to accept the new version.</p>
+        <p><strong>Changes to these Terms.</strong> The effective date at the top shows the current version. For material changes we'll give at least <b>30 days'</b> notice in the Service or by email to administrators, and we may ask you to accept the new version before continuing. If you keep using the Service after a change takes effect, you accept it. Changes to <a href="#disputes">section 22</a> don't apply to disputes already notified to us.</p>
+        <ul class="tp__list">
+          <li><strong>Entire agreement.</strong> These Terms and the policies they reference are the whole agreement about the Service. A separate signed agreement with an Organization controls where it conflicts.</li>
+          <li><strong>Severability.</strong> If any part is unenforceable, the rest stays in effect.</li>
+          <li><strong>No waiver.</strong> Not enforcing a right right away doesn't waive it.</li>
+          <li><strong>Assignment.</strong> You may not transfer these Terms without our consent. We may transfer them in a merger, acquisition or sale of assets, or to a company formed to operate ChaptOS.</li>
+          <li><strong>Force majeure.</strong> We aren't liable for delays or failures caused by events beyond our reasonable control, including outages at our service providers.</li>
+          <li><strong>Independent parties.</strong> Nothing here creates a partnership, employment, agency or fiduciary relationship.</li>
+          <li><strong>Notices.</strong> We may send notices to the email on your account or in the Service. Send legal notices to the addresses in <a href="#contact">Contact</a>.</li>
+          <li><strong>Export and sanctions.</strong> You may not use the Service where US law prohibits it.</li>
+        </ul>
+      </section>
+
+      <section class="tp__sec" id="contact">
+        <h2>Contact</h2>
+        <p class="tp__lede">Legal notices, arbitration opt-outs and copyright complaints all go to the same person.</p>
+        <div class="tp__contact">
+          <h3>Where to send things</h3>
+          <p>Email is fastest. Mail is accepted for anything these Terms say must be in writing.</p>
+          <dl class="tp__rows">
+            <div class="tp__row"><dt>Operated by</dt><dd>Thalha Thabish, doing business as ChaptOS</dd></div>
+            <div class="tp__row"><dt>Legal notices</dt><dd><a href="mailto:thalhat.011@gmail.com">thalhat.011@gmail.com</a></dd></div>
+            <div class="tp__row"><dt>Mailing address</dt><dd>421 Hudson Ave, Albany, NY 12203</dd></div>
+            <div class="tp__row"><dt>Arbitration opt-out</dt><dd>Email within 30 days of accepting (<a href="#disputes">section 22(f)</a>)</dd></div>
+            <div class="tp__row"><dt>Copyright agent</dt><dd>Thalha Thabish, at the email and address above</dd></div>
+          </dl>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<main id="agree" data-view="agree" hidden>
+  <section class="tp__hero">
+    <div class="wrap">
+      <div class="tp__head">
+        <span class="eyebrow" style="--eb:var(--lilac)">Mock · where people agree</span>
+        <h1>Three moments, each one a clear yes.</h1>
+        <p class="lede">Terms only bind people who actively agreed. These are the three places ChaptOS asks, and what each one records so you can prove it later.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap ag">
+    <!-- 1 — /create: the founder binds the organization -->
+    <figure class="ag__cell">
+      <figcaption class="ag__cap">
+        <span class="ag__n">1</span>
+        <div><b>/create · founder</b><span>A checkbox, because this person signs for the whole organization (section 2, authority to bind). The Google button stays disabled until it's ticked.</span></div>
+      </figcaption>
+      <div class="ag__stage">
+        <div class="ticket">
+          <div class="tk-top">
+            <span class="mark" style="--av:var(--sky)">ΣΝ</span>
+            <p class="ch-k">Charter · ready to file</p>
+            <h2>Sign in to create Sigma Nu</h2>
+            <p>Your charter is saved. This just makes it yours.</p>
+          </div>
+          <div class="perf"></div>
+          <div class="tk-b">
+            <label class="agree" id="agreeBox">
+              <input type="checkbox" id="agreeChk">
+              <span class="agree__box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.4l3 2.9 6-6.6"/></svg></span>
+              <span class="agree__txt">I agree to the <a href="#top" data-go="page">Terms of Service</a> on behalf of <b>Sigma Nu</b>, and I'm authorized to. I've read how ChaptOS handles data on the <a href="#">Trust &amp; privacy</a> page.</span>
+            </label>
+            <button type="button" class="gbtn" id="gbtn" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              Continue with Google
+            </button>
+            <p class="fine">One account · one chapter to start · switch orgs any time</p>
+            <div class="price">
+              <div><b>Free</b>while there are 4 or fewer of you</div>
+              <div><b>$25/mo</b>from 5 members · no card today · <a href="/pricing">pricing</a></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <dl class="ag__rec">
+        <dt>Records</dt>
+        <dd><code>termsVersion</code> <code>acceptedAt</code> <code>acceptedFor: org</code> on the founder's account</dd>
+      </dl>
+    </figure>
+
+    <!-- 2 — /join: a member asks to join -->
+    <figure class="ag__cell">
+      <figcaption class="ag__cap">
+        <span class="ag__n">2</span>
+        <div><b>/join · new member</b><span>A "by continuing" line directly above the only button, with the terms linked. They're agreeing for themselves, so one tap is enough, and the age rule is said out loud.</span></div>
+      </figcaption>
+      <div class="ag__stage">
+        <div class="ticket door">
+          <div class="tk-top">
+            <span class="mark" style="--av:var(--sky)">ΣΝ</span>
+            <p class="ch-k">Invite · Sigma Nu · Beta Theta</p>
+            <h2>Ask to join Sigma Nu</h2>
+            <p>An officer reviews every request. You'll get in once they approve it.</p>
+          </div>
+          <div class="perf"></div>
+          <div class="tk-b">
+            <p class="bycont">By continuing, you agree to the <a href="#top" data-go="page">Terms of Service</a> and confirm you're 16 or older. See how your data is handled on <a href="#">Trust &amp; privacy</a>.</p>
+            <button type="button" class="gbtn">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              Continue with Google
+            </button>
+            <p class="fine">Sigma Nu sees your name, email and photo once you ask.</p>
+          </div>
+        </div>
+      </div>
+      <dl class="ag__rec">
+        <dt>Records</dt>
+        <dd><code>termsVersion</code> <code>acceptedAt</code> on the join request, copied to the account on approval</dd>
+      </dl>
+    </figure>
+
+    <!-- 3 — updated terms, inside the app -->
+    <figure class="ag__cell ag__cell--wide">
+      <figcaption class="ag__cap">
+        <span class="ag__n">3</span>
+        <div><b>Inside the app · terms changed</b><span>Shown once on the next visit after a material change, 30 days before it takes effect (section 24). It says what changed, not just that something did. Dismissing it is allowed until the effective date; after that, the app waits for "I agree".</span></div>
+      </figcaption>
+      <div class="ag__stage ag__stage--app">
+        <div class="app" aria-hidden="true">
+          <div class="app__side">
+            <span class="app__org"><i>ΣΝ</i>Sigma Nu</span>
+            <span class="app__nav is-on"></span><span class="app__nav"></span><span class="app__nav"></span><span class="app__nav"></span><span class="app__nav"></span><span class="app__nav"></span>
+          </div>
+          <div class="app__main">
+            <span class="app__h"></span>
+            <div class="app__row"><span></span><span></span><span></span></div>
+            <div class="app__card"></div>
+          </div>
+        </div>
+        <div class="upd" role="dialog" aria-labelledby="updH">
+          <p class="ch-k">Terms of service · updated</p>
+          <h3 id="updH">We're updating our terms on December 2, 2026</h3>
+          <p class="upd__lede">Three things change. Everything else stays the same.</p>
+          <ul class="upd__list">
+            <li><b>§12 Refunds</b> First monthly charge refundable within 14 days.</li>
+            <li><b>§18 Backups</b> Deleted data leaves backups after 30 days.</li>
+            <li><b>§22 Arbitration</b> Now run by JAMS. Your opt-out window restarts.</li>
+          </ul>
+          <div class="upd__act">
+            <a class="btn btn--ghost btn--sm" href="#top" data-go="page">Read the full terms</a>
+            <button type="button" class="btn btn--sm">I agree</button>
+          </div>
+          <p class="fine">Not ready? You can keep using ChaptOS until December 2.</p>
+        </div>
+      </div>
+      <dl class="ag__rec">
+        <dt>Records</dt>
+        <dd>a new <code>termsVersion</code> + <code>acceptedAt</code> row; the old one is kept, never overwritten</dd>
+      </dl>
+    </figure>
+  </div>
+</main>
+
+<footer class="foot"><div class="wrap"><div class="foot__grid"><div class="foot__brand"><a class="brand" href="/"><svg class="brand__mark" viewBox="0 0 40 40" aria-hidden="true"><rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="#FFE5A0" stroke="#26211B" stroke-width="2.4"></rect><path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="#26211B" stroke-width="2.4" stroke-linecap="round"></path><circle cx="14.6" cy="16" r="1.9" fill="#26211B"></circle><circle cx="25.4" cy="16" r="1.9" fill="#26211B"></circle></svg>ChaptOS</a><p class="foot__blurb">The operating system for student orgs. The roster, the money, the week and the record — in one place you can just ask.</p></div><div><h5>Product</h5><ul><li><a href="/#ask">Ask Chapt</a></li><li><a href="/#how">Treasury &amp; dues</a></li><li><a href="/#how">Roster &amp; standing</a></li><li><a href="/#how">Timeline &amp; meetings</a></li><li><a href="/#how">Docs &amp; activity</a></li></ul></div><div><h5>For</h5><ul><li><a href="/for/fraternities-sororities">Fraternities &amp; sororities</a></li><li><a href="/for/club-teams">Club &amp; intramural teams</a></li><li><a href="/for/service-orgs">Service &amp; volunteer orgs</a></li><li><a href="/for/performing-arts">Bands, choirs &amp; theatre</a></li><li><a href="/for/student-government">Student government</a></li><li><a href="/for/custom">Custom &amp; anything else</a></li></ul></div><div><h5>Company</h5><ul><li><a href="/trust">Trust &amp; privacy</a></li><li><a href="#top" data-go="page">Terms of service</a></li><li><a href="/pricing">Pricing</a></li><li><a href="/help">Help center</a></li><li><a href="/blog">Blog</a></li><li><a href="/contact">Talk to a human</a></li></ul></div></div><div class="foot__base"><span>© 2026 ChaptOS</span><span class="sp"></span><span>Made by people who ran the meeting, took the minutes, and chased the dues.</span></div></div></footer>
+</div>
+<div class="mk" role="group" aria-label="Mock views">
+  <span class="mk__tag">MOCK</span>
+  <button type="button" data-v="page" aria-pressed="true">/terms page</button>
+  <button type="button" data-v="agree" aria-pressed="false">Where you agree</button>
+</div>
+<script>
+const views = { page: document.querySelector('[data-view="page"]'), agree: document.querySelector('[data-view="agree"]') };
+const btns = document.querySelectorAll('.mk button');
+function show(v){
+  for (const [k, el] of Object.entries(views)) el.hidden = k !== v;
+  btns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+  try { localStorage.setItem('terms-mock-view', v); } catch {}
+  window.scrollTo(0, 0);
+}
+btns.forEach(b => b.addEventListener('click', () => show(b.dataset.v)));
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-go]');
+  if (a) { e.preventDefault(); show(a.dataset.go); }
+});
+const sn = document.querySelector('.sn');
+const onScroll = () => sn && sn.classList.toggle('scrolled', scrollY > 8);
+addEventListener('scroll', onScroll, { passive: true }); onScroll();
+let saved = 'page'; try { saved = localStorage.getItem('terms-mock-view') || 'page'; } catch {}
+show(new URLSearchParams(location.search).get('view') || saved);
+const chk = document.getElementById('agreeChk'), g = document.getElementById('gbtn'), box = document.getElementById('agreeBox');
+chk.addEventListener('change', () => { g.disabled = !chk.checked; box.classList.toggle('is-on', chk.checked); });
+</script>
+</body>
+</html>

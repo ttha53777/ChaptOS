@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>First Load Splash</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── First load splash ─────────────────────────────────────────────────────
+   1. The ChaptOS mark draws itself (outline → butter fill → eyes → smile →
+      blink) and the wordmark rises beside it.            "Signing you in"
+   2. /api/auth/me resolves, so now we know whose chapter this is. The face
+      folds away, the tile squares off, tilts -3° and swaps its lilac shadow
+      for peach: it becomes the org's logo tile, initials or uploaded logo
+      (the same two cases OrgLogo renders). ChaptOS gives way to the org name
+      and term.                                       "Opening Alpha Delta"
+   3. The chapter's data is in. The tile and the name fly to where the app
+      draws them (desktop: the sidebar org header; phone: the toolbar) and the
+      paper lifts.
+
+   The splash never holds the app back. The app mounts and fetches underneath
+   from the first frame (toggle "Peek under" to watch); the splash only covers
+   it, and leaves the moment the data is in and the tile has finished turning.
+   Everything here sits in .screen, a size container, so the same markup is
+   the desktop page or the phone screen inside the frame.
+   ────────────────────────────────────────────────────────────────────────── */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --card:#FFFFFF; --card-3:#F4ECDD; --ink:#26211B; --ink-soft:#544A3F;
+  --muted:#8A7F71; --line:#EBE1CF; --line-soft:#F4ECDD; --skel:rgba(38,33,27,.07);
+  --butter:#FFE5A0; --lilac:#E1D8FF; --peach:#FFD5C4; --sky:#CFE2FF; --mint:#C7EFDA; --rose:#FFD6E6;
+  --peach-ink:#C9542D; --mint-ink:#1B815B; --lilac-ink:#6244CC; --sky-ink:#2A66C7;
+  --shape-op:1; --ring-op:.5; --grain-op:.13; --dot-op:.09;
+  --note-ink:#26211B; --desk:#E7E0D3; --bezel:#1C1915;
+  --display:"Bricolage Grotesque", system-ui, sans-serif;
+  --ui:"Inter", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, monospace;
+  --spring:cubic-bezier(.16,.9,.3,1.02);
+}
+:root[data-theme="night"]{
+  --paper:#15110D; --paper-2:#1B1712; --card:#1E1913; --card-3:#241E18; --ink:#F2EADC; --ink-soft:#CDBFAB;
+  --muted:#948876; --line:#2E271F; --line-soft:#241E18; --skel:rgba(242,234,220,.06);
+  --butter:#E3BF66; --lilac:#A593EE; --peach:#E5A28A; --sky:#8DB2EC; --mint:#80CBA4; --rose:#E598B7;
+  --peach-ink:#FFB49A; --mint-ink:#8FDDB6; --lilac-ink:#C4B6FF; --sky-ink:#AACBFF;
+  --shape-op:.4; --ring-op:.32; --grain-op:.08; --dot-op:.1; --desk:#0B0907; --bezel:#2A251F;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--ui);overflow:hidden;-webkit-font-smoothing:antialiased}
+
+/* ── Device: the whole viewport on desktop, an iPhone in Safari when framed ── */
+.device{position:fixed;inset:0;display:flex;flex-direction:column}
+.ios-bar,.safari{display:none}
+.screen{position:relative;flex:1;min-height:0;container-type:size;overflow:hidden}
+body.framed{background:var(--desk)}
+body.framed .device{inset:auto;left:50%;top:calc(50% + 26px);width:410px;height:864px;border:10px solid var(--bezel);border-radius:60px;overflow:hidden;
+  background:var(--paper);transform:translate(-50%,-50%) scale(var(--k,1));box-shadow:0 40px 80px -30px rgba(38,33,27,.45),0 0 0 1.5px rgba(0,0,0,.25)}
+body.framed .ios-bar{display:flex;height:47px;flex:none;align-items:center;justify-content:space-between;padding:4px 30px 0 34px;
+  font-family:-apple-system,"SF Pro Text",var(--ui);font-weight:600;font-size:15px;color:var(--ink);background:var(--paper);position:relative;z-index:2}
+body.framed .ios-bar::after{content:"";position:absolute;left:50%;top:10px;width:120px;height:34px;border-radius:20px;background:#000;transform:translateX(-50%)}
+.ios-ic{display:flex;gap:6px;align-items:center}
+body.framed .safari{display:flex;flex-direction:column;gap:8px;height:78px;flex:none;padding:8px 14px 0;background:color-mix(in srgb,var(--paper-2) 92%,transparent);border-top:1px solid var(--line);position:relative;z-index:2}
+.url{height:40px;border-radius:12px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;gap:6px;
+  font-family:-apple-system,var(--ui);font-size:15px;color:var(--ink);box-shadow:0 2px 8px -4px rgba(38,33,27,.2)}
+.url small{position:absolute;left:28px;font-size:13px;color:var(--ink-soft)}
+.home-ind{width:134px;height:5px;border-radius:3px;background:var(--ink);opacity:.85;margin:auto auto 6px}
+
+/* a note on the desk beside the phone (mock only) */
+.desk-note{display:none}
+body.framed .desk-note{display:block;position:fixed;top:50%;left:calc(50% + 250px);transform:translateY(-50%) rotate(1.5deg);width:250px;
+  background:var(--butter);color:#26211B;border-radius:4px;padding:16px 18px 18px;font-size:13.5px;line-height:1.5;
+  box-shadow:0 1px 2px rgba(38,33,27,.08),0 14px 30px -14px rgba(38,33,27,.3)}
+.desk-note b{display:block;font-family:var(--display);font-size:16px;letter-spacing:-.02em;margin-bottom:6px}
+.desk-note::before{content:"";position:absolute;top:-10px;left:50%;width:84px;height:22px;transform:translateX(-50%) rotate(-3deg);background:rgba(255,255,255,.55);border:1px solid rgba(38,33,27,.06)}
+@media (max-width:1120px){ body.framed .desk-note{display:none} }
+
+/* ── The app underneath. It mounts and fetches from the first frame. ── */
+.app{position:absolute;inset:0;display:grid;grid-template-columns:248px minmax(0,1fr);background:var(--paper)}
+.sb{border-right:1.5px solid var(--line);display:flex;flex-direction:column;background:var(--paper-2);min-width:0}
+.sb-nav{padding:14px;display:flex;flex-direction:column;gap:4px}
+.sb-row{height:32px;border-radius:9px;display:flex;align-items:center;gap:10px;padding:0 10px;font-size:13.5px;font-weight:500;color:var(--ink-soft)}
+.sb-row svg{width:16px;height:16px;color:var(--muted)}
+.sb-row.on{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(38,33,27,.06)}
+.sb-row.on svg{color:var(--ink)}
+
+/* the real sidebar org header (OrgSwitcher .sb-org), paper rules */
+.sb-org{height:66px;display:flex;align-items:center;gap:11px;padding:0 12px 0 14px;border-bottom:1.5px solid var(--line);flex:none}
+.sb-logo{width:36px;height:36px;border-radius:11px;flex:none;display:grid;place-items:center;overflow:hidden;
+  background:var(--butter);border:2px solid var(--note-ink);color:var(--note-ink);
+  font-family:var(--display);font-weight:700;font-size:.82rem;letter-spacing:-.02em;
+  transform:rotate(-3deg);box-shadow:2px 2px 0 var(--peach)}
+.sb-logo img{width:100%;height:100%;object-fit:cover;display:block}
+.sb-logo.sm{width:30px;height:30px;border-radius:9px;font-size:.7rem}
+.sb-org-txt{display:flex;flex-direction:column;min-width:0;flex:1}
+.sb-org-name{font-family:var(--display);font-weight:600;font-size:1rem;letter-spacing:-.022em;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-org-term{font-size:.66rem;letter-spacing:.04em;color:var(--muted)}
+.sb-org-chev{width:15px;height:15px;color:var(--muted);flex:none}
+.landing .land{visibility:hidden}
+
+/* phone toolbar + tab bar (header.dash-toolbar, MobileTabBar); hidden on desktop */
+.ph-top,.ph-tabs{display:none}
+.tb-stack{display:grid;line-height:1.15;min-width:0;flex:1}
+.tb-org{font-size:.62rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.tb-title{font-family:var(--display);font-weight:600;font-size:1rem;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-me{flex:none;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--ink);background:var(--sky);box-shadow:2px 2px 0 var(--mint);
+  display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:.78rem;color:#26211B}
+.ph-tab{display:grid;justify-items:center;gap:2px;padding-top:4px;color:var(--muted);font-size:.66rem;font-weight:600}
+.ph-tab .ic{display:grid;place-items:center;width:44px;height:30px;border-radius:10px;border:1.5px solid transparent}
+.ph-tab svg{width:21px;height:21px}
+.ph-tab.on{color:var(--ink)}
+.ph-tab.on .ic{background:var(--butter);border-color:var(--ink);box-shadow:2px 2px 0 var(--peach);color:#26211B}
+.ph-tab.create .ic{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+/* dashboard body: skeleton until the chapter's data lands, then the real thing */
+.main{padding:34px 40px;display:flex;flex-direction:column;gap:18px;min-width:0;overflow:hidden}
+.kick{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.greet{font-family:var(--display);font-weight:600;font-size:32px;letter-spacing:-.03em;line-height:1.1;margin:0}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.card{position:relative;background:var(--card);border:1.5px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:8px;min-height:150px;overflow:hidden}
+.wide{grid-column:span 2}
+.card h4{margin:0;font-size:11px;font-family:var(--mono);font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.big{font-family:var(--display);font-weight:600;font-size:34px;letter-spacing:-.03em;line-height:1}
+.ttl{font-family:var(--display);font-weight:600;font-size:20px;letter-spacing:-.02em}
+.sub{font-size:13px;color:var(--ink-soft)}
+.meter{height:7px;border-radius:4px;background:var(--line-soft);overflow:hidden;margin-top:auto}
+.meter i{display:block;height:100%;width:82%;background:var(--mint);border-radius:4px}
+.row{display:flex;align-items:center;gap:10px;font-size:13.5px;padding:7px 0;border-top:1.5px solid var(--line-soft)}
+.row:first-of-type{border-top:0}
+.dot{width:9px;height:9px;border-radius:3px;flex:none}
+.pill{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--muted)}
+/* skeleton vs real: both live in the card; .ready swaps them */
+.real{display:contents}
+.app:not(.ready) .real{display:none}
+.app.ready .skel{display:none}
+.skel{display:contents}
+.sk{background:var(--skel);border-radius:8px}
+.app:not(.ready) .card,.app:not(.ready) .sk-line{position:relative;overflow:hidden}
+.app:not(.ready) .card::after,.app:not(.ready) .sk-line::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);animation:sh 1.6s infinite}
+:root[data-theme="night"] .app:not(.ready) .card::after{background:linear-gradient(90deg,transparent,rgba(255,255,255,.04),transparent)}
+@keyframes sh{to{transform:translateX(100%)}}
+.app.ready .real > *{animation:in .35s ease-out both}
+@keyframes in{from{opacity:0}}
+
+/* ── Splash ── */
+.splash{position:absolute;inset:0;z-index:10;display:grid;place-items:center;background:var(--paper);overflow:hidden;transition:opacity .3s}
+body.peek .splash{opacity:.22}
+/* plain cream paper with a faint dot grid, like a planner page */
+.dots{position:absolute;inset:0;pointer-events:none;opacity:var(--dot-op);
+  background-image:radial-gradient(circle, var(--ink) .9px, transparent 1.2px);background-size:22px 22px;background-position:center}
+/* Cut-paper shapes in the six pastels, tucked at the edges. Each is printed
+   like a riso: the flat colour, and a thin ink line that missed it by a hair.
+   Outer <i> = position, parallax (translate) and entrance/exit (transform);
+   inner <b> = the shape itself, drifting slowly on its own. */
+.shapes{position:absolute;inset:0;pointer-events:none}
+.shapes i{position:absolute;display:block;transform:rotate(var(--r,0deg));translate:var(--px,0px) var(--py,0px);will-change:transform}
+.shapes b{position:absolute;inset:0;border-radius:inherit;background:var(--c);opacity:var(--shape-op);
+  animation:drift var(--fd,11s) ease-in-out infinite alternate;animation-delay:var(--fdl,0s)}
+.shapes i.ring::after{content:"";position:absolute;inset:0;border-radius:inherit;border:1.5px solid var(--ink);opacity:var(--ring-op);
+  transform:translate(var(--ox,.8cqmin),var(--oy,-.6cqmin));animation:drift var(--fd,11s) ease-in-out infinite alternate;animation-delay:calc(var(--fdl,0s) - .8s)}
+@keyframes drift{from{translate:0 0}to{translate:var(--fx,0) var(--fy,-1.2cqmin)}}
+.sh-peach {--c:var(--peach); width:34cqmin;height:34cqmin;border-radius:50%;left:-10cqmin;top:-13cqmin;--fx:.8cqmin;--fy:1cqmin;--fd:13s}
+.sh-sky   {--c:var(--sky);   width:12cqmin;height:12cqmin;border-radius:3cqmin;right:10cqw;top:11cqh;--r:14deg;--fy:-1.4cqmin;--fd:9s;--fdl:-3s}
+.sh-mint  {--c:var(--mint);  width:28cqmin;height:14cqmin;border-radius:14cqmin 14cqmin 0 0;left:12cqw;bottom:-3px;--fy:0;--fx:.6cqmin;--fd:12s;--ox:1.1cqmin;--oy:0}
+.sh-lilac {--c:var(--lilac); width:26cqmin;height:8.5cqmin;border-radius:8.5cqmin;right:-6cqmin;bottom:15cqh;--r:-18deg;--fy:-1cqmin;--fd:10s;--fdl:-5s}
+.sh-rose  {--c:var(--rose);  width:4.4cqmin;height:4.4cqmin;border-radius:50%;right:24cqw;bottom:31cqh;--fy:-1.6cqmin;--fd:7s;--fdl:-2s}
+.sh-butter{--c:var(--butter);width:3.2cqmin;height:3.2cqmin;border-radius:.9cqmin;left:22cqw;top:25cqh;--r:22deg;--fy:1.2cqmin;--fd:8s;--fdl:-4s}
+.sh-o     {--c:transparent;  width:6.5cqmin;height:6.5cqmin;border-radius:50%;left:30cqw;bottom:20cqh;--fd:10s;--fdl:-6s}
+.sh-mint::after{border-bottom:0 !important}
+.sh-o b{border:1.5px solid var(--ink);opacity:var(--ring-op)}
+
+/* paper grain over everything on the splash */
+.grain{position:absolute;inset:0;pointer-events:none;opacity:var(--grain-op);mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .15 0 0 0 0 .13 0 0 0 0 .1 0 0 0 .6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+:root[data-theme="night"] .grain{mix-blend-mode:screen;filter:invert(1)}
+
+.stage{position:relative;display:flex;flex-direction:column;align-items:center;gap:30px}
+.lockup{--s:1;display:flex;align-items:center;gap:calc(24px*var(--s))}
+.mark{width:calc(116px*var(--s));height:calc(116px*var(--s));flex:none;overflow:visible}
+.mark text{font-family:var(--display);font-weight:700;letter-spacing:-.02em}
+/* ChaptOS and the org name share one cell so the lockup doesn't jump */
+.words{display:grid;align-items:center;min-width:calc(290px*var(--s))}
+.words > *{grid-area:1/1}
+.word{font-family:var(--display);font-weight:700;letter-spacing:-.035em;font-size:calc(64px*var(--s));line-height:1;display:flex;color:var(--ink);white-space:nowrap}
+.word span{display:inline-block}
+.word .os{position:relative;margin-left:.02em;padding:0 .08em;isolation:isolate}
+.word .os::before{content:"";position:absolute;z-index:-1;left:0;right:0;top:.14em;bottom:.04em;
+  background:var(--butter);border-radius:.32em .44em .3em .5em;transform:rotate(-1.4deg) scaleX(var(--hx,1));transform-origin:left center}
+.org{display:flex;flex-direction:column;gap:calc(8px*var(--s));opacity:0}
+.org-name{font-family:var(--display);font-weight:600;letter-spacing:-.03em;font-size:calc(56px*var(--s));line-height:1.02;white-space:nowrap;transform-origin:left top}
+.org-term{font-family:var(--ui);font-size:calc(17px*var(--s));letter-spacing:.04em;color:var(--muted);transform-origin:left top}
+
+.status{font-family:var(--mono);font-size:12.5px;letter-spacing:.02em;color:var(--muted);height:18px;display:flex;align-items:center;gap:10px}
+.ticks{display:flex;gap:4px}
+.ticks i{width:2px;height:12px;border-radius:2px;transform-origin:bottom;transform:scaleY(.25);opacity:.35}
+.ticks i:nth-child(1){background:var(--peach-ink)}.ticks i:nth-child(2){background:var(--mint-ink)}.ticks i:nth-child(3){background:var(--lilac-ink)}
+.ticks i.on{animation:tick 1.1s var(--spring) infinite}
+.ticks i:nth-child(2).on{animation-delay:.12s}.ticks i:nth-child(3).on{animation-delay:.24s}
+@keyframes tick{0%,100%{transform:scaleY(.3);opacity:.35}35%{transform:scaleY(1);opacity:1}}
+.status .msg{display:inline-block;transition:opacity .2s, transform .25s var(--spring)}
+.status .msg.out{opacity:0;transform:translateY(-5px)}
+
+/* ── Phone layout (any screen under 768px wide, framed or real) ── */
+@container (max-width:767px){
+  .app{display:flex;flex-direction:column}
+  .sb{display:none}
+  .ph-top{display:flex;height:56px;flex:none;align-items:center;gap:11px;padding:0 16px;border-bottom:1.5px solid var(--line);
+    background:color-mix(in srgb,var(--paper) 86%,transparent)}
+  .ph-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));height:60px;flex:none;padding:6px 8px 0;border-top:1.5px solid var(--line);background:var(--paper)}
+  .main{flex:1;padding:18px 16px;gap:14px}
+  .greet{font-size:28px}
+  .grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+  .wide{grid-column:span 2}
+  .card{min-height:0;padding:14px;border-radius:14px}
+  .big{font-size:28px}
+  .lockup{--s:.6}
+  .org-term{font-size:12px}
+  .stage{gap:24px}
+}
+
+/* ── Mock controls (not part of the design) ── */
+.ctl{position:fixed;z-index:40;right:16px;bottom:16px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;
+  font-family:var(--mono);font-size:11.5px;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:6px;
+  box-shadow:0 10px 26px -8px rgba(38,33,27,.18);max-width:calc(100vw - 32px)}
+.ctl button{font:inherit;color:var(--ink-soft);background:transparent;border:0;border-radius:8px;padding:6px 9px;cursor:pointer}
+.ctl button:hover{background:var(--line-soft)}
+.ctl button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.ctl .sep{width:1px;height:18px;background:var(--line)}
+.ctl .lbl{color:var(--muted);padding:0 4px 0 6px}
+body.framed .ctl{left:50%;right:auto;transform:translateX(-50%);bottom:auto;top:12px;width:max-content;max-width:calc(100vw - 24px)}
+@media (max-width:720px){ .ctl{left:12px;right:12px;bottom:12px;justify-content:center} .ctl .view{display:none} }
+</style>
+</head>
+<body>
+
+<div class="device" id="device">
+  <div class="ios-bar"><span>9:41</span><span class="ios-ic">
+    <svg width="18" height="11" viewBox="0 0 18 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="6" rx="1"/><rect x="10" y="2.5" width="3" height="8.5" rx="1"/><rect x="15" y="0" width="3" height="11" rx="1"/></svg>
+    <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor"><path d="M8 2.2c2.2 0 4.2.9 5.7 2.3l1.1-1.1A9.6 9.6 0 0 0 8 .6 9.6 9.6 0 0 0 1.2 3.4l1.1 1.1A8 8 0 0 1 8 2.2zm0 3.2c1.3 0 2.5.5 3.4 1.4l1.1-1.1A6.4 6.4 0 0 0 8 3.8c-1.8 0-3.4.7-4.5 1.9l1.1 1.1c.9-.9 2.1-1.4 3.4-1.4zM8 8.5 6.3 10.2 8 11.9l1.7-1.7z"/></svg>
+    <svg width="26" height="12" viewBox="0 0 26 12"><rect x=".5" y=".5" width="22" height="11" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="17" height="8" rx="2" fill="currentColor"/><rect x="24" y="4" width="1.6" height="4" rx=".8" fill="currentColor" opacity=".4"/></svg>
+  </span></div>
+
+  <div class="screen" id="screen">
+    <!-- The app, mounting and fetching underneath from the first frame -->
+    <div class="app" id="app" aria-hidden="true">
+      <aside class="sb">
+        <div class="sb-org landing" id="sbOrg">
+          <span class="sb-logo land" id="sbLogo"></span>
+          <span class="sb-org-txt land"><span class="sb-org-name" id="sbName"></span><span class="sb-org-term" id="sbTerm"></span></span>
+          <svg class="sb-org-chev land" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9l4-4 4 4M16 15l-4 4-4-4"/></svg>
+        </div>
+        <nav class="sb-nav">
+          <div class="sb-row on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Dashboard</div>
+          <div class="sb-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Timeline</div>
+          <div class="sb-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.8.8 3 2.6 3.5 5.2"/></svg>Brothers</div>
+          <div class="sb-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg>Treasury</div>
+          <div class="sb-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3h8l3 3v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M9 11h6M9 15h4"/></svg>Docs</div>
+          <div class="sb-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12l4 4L19 7"/></svg>Tasks</div>
+        </nav>
+      </aside>
+
+      <!-- phone toolbar: the org tile here is NEW (today the toolbar shows only the name) -->
+      <header class="ph-top landing" id="phTop">
+        <span class="sb-logo sm land" id="phLogo"></span>
+        <span class="tb-stack land"><span class="tb-org">Dashboard</span><span class="tb-title" id="phName"></span></span>
+        <span class="tb-me">SR</span>
+      </header>
+
+      <main class="main">
+        <div class="skel"><div class="sk sk-line" style="width:120px;height:11px"></div><div class="sk sk-line" style="width:min(320px,80%);height:30px;border-radius:10px"></div></div>
+        <div class="real"><div class="kick">Tuesday, Nov 17</div><h1 class="greet">Good evening, Sam.</h1></div>
+        <div class="grid">
+          <div class="card wide">
+            <div class="skel"><div class="sk" style="width:30%;height:10px"></div><div class="sk" style="width:62%;height:22px"></div><div class="sk" style="width:45%;height:10px"></div></div>
+            <div class="real"><h4>Up next</h4><div class="ttl">Chapter meeting</div><div class="sub">Sunday · 7:00 PM · Room 204</div></div>
+          </div>
+          <div class="card">
+            <div class="skel"><div class="sk" style="width:55%;height:10px"></div><div class="sk" style="width:45%;height:30px"></div></div>
+            <div class="real"><h4>Dues</h4><div class="big">82%</div><div class="sub">41 of 50 paid</div><div class="meter"><i></i></div></div>
+          </div>
+          <div class="card">
+            <div class="skel"><div class="sk" style="width:50%;height:10px"></div><div class="sk" style="width:85%;height:10px"></div><div class="sk" style="width:70%;height:10px"></div></div>
+            <div class="real"><h4>On your plate</h4>
+              <div class="row"><span class="dot" style="background:var(--peach)"></span>2 join requests</div>
+              <div class="row"><span class="dot" style="background:var(--sky)"></span>Minutes to file</div></div>
+          </div>
+          <div class="card wide">
+            <div class="skel"><div class="sk" style="width:28%;height:10px"></div><div class="sk" style="width:88%;height:10px"></div><div class="sk" style="width:72%;height:10px"></div></div>
+            <div class="real"><h4>This week</h4>
+              <div class="row"><span class="dot" style="background:var(--mint)"></span>Car wash fundraiser<span class="pill">Sat 10 AM</span></div>
+              <div class="row"><span class="dot" style="background:var(--lilac)"></span>Exec meeting<span class="pill">Thu 8 PM</span></div></div>
+          </div>
+        </div>
+      </main>
+
+      <nav class="ph-tabs" aria-label="Tabs">
+        <span class="ph-tab on"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span>Home</span>
+        <span class="ph-tab"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>Timeline</span>
+        <span class="ph-tab create"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>Create</span>
+        <span class="ph-tab"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.8.8 3 2.6 3.5 5.2"/></svg></span>Brothers</span>
+        <span class="ph-tab"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></span>More</span>
+      </nav>
+    </div>
+
+    <!-- The splash: covers the app, never blocks it -->
+    <div class="splash" id="splash" role="status" aria-live="polite">
+      <div class="dots"></div>
+      <div class="shapes" aria-hidden="true">
+        <i class="sh-peach ring" data-d="14"><b></b></i><i class="sh-sky ring" data-d="26"><b></b></i>
+        <i class="sh-mint ring" data-d="10"><b></b></i><i class="sh-lilac ring" data-d="20"><b></b></i>
+        <i class="sh-rose" data-d="34"><b></b></i><i class="sh-butter" data-d="40"><b></b></i><i class="sh-o" data-d="30"><b></b></i>
+      </div>
+      <div class="grain"></div>
+      <div class="stage">
+        <div class="lockup" id="lockup">
+          <svg class="mark" id="mark" viewBox="0 0 40 40" aria-label="ChaptOS">
+            <defs><clipPath id="body"><rect class="tile" x="2.5" y="4.5" width="35" height="31" rx="9"/></clipPath></defs>
+            <g id="tilt" style="transform-origin:20px 20px">
+            <g id="squash" style="transform-origin:20px 35.5px">
+              <rect id="shadow" class="tile" x="2.5" y="4.5" width="35" height="31" rx="9"/>
+              <g clip-path="url(#body)">
+                <rect x="0" y="0" width="40" height="40" fill="var(--paper)"/>
+                <g id="fill"><path id="wave" fill="var(--butter)"
+                  d="M-40 4 q5 -2.4 10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0 V44 H-40 Z"/></g>
+                <image id="orgImg" x="2" y="2" width="36" height="36" preserveAspectRatio="xMidYMid slice" opacity="0"/>
+              </g>
+              <rect id="outline" class="tile" x="2.5" y="4.5" width="35" height="31" rx="9" fill="none" stroke="var(--note-ink)" stroke-width="2.4" pathLength="1"/>
+              <g id="face">
+                <g id="eyes" style="transform-origin:20px 16px">
+                  <circle id="eyeL" cx="14.6" cy="16" r="1.9" fill="var(--note-ink)"/>
+                  <circle id="eyeR" cx="25.4" cy="16" r="1.9" fill="var(--note-ink)"/>
+                </g>
+                <path id="smile" d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="var(--note-ink)" stroke-width="2.4" stroke-linecap="round" pathLength="1"/>
+              </g>
+              <text id="orgInit" x="20" y="20.6" text-anchor="middle" dominant-baseline="central" font-size="14.4" fill="var(--note-ink)" opacity="0" style="transform-origin:20px 20px"></text>
+            </g>
+            </g>
+          </svg>
+          <div class="words">
+            <div class="word" id="word" aria-hidden="true"><span>C</span><span>h</span><span>a</span><span>p</span><span>t</span><span class="os">OS</span></div>
+            <div class="org" id="org"><span class="org-name" id="orgName"></span><span class="org-term" id="orgTerm"></span></div>
+          </div>
+        </div>
+        <div class="status"><span class="ticks"><i></i><i></i><i></i></span><span class="msg" id="msg">Signing you in</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="safari"><div class="url"><small>AA</small>🔒 chaptos.com</div><div class="home-ind"></div></div>
+</div>
+
+<div class="desk-note"><b>One new thing on phones</b>
+  Today the phone toolbar shows only “Dashboard” and the org name. Here it also carries the org’s small logo tile, so the splash has somewhere to land. Desktop needs no change: the tile lands on the sidebar header that's already there.</div>
+
+<div class="ctl" role="toolbar" aria-label="Mock controls">
+  <button id="replay">↻ Replay</button>
+  <span class="sep view"></span>
+  <button class="view" data-view="desktop" aria-pressed="true">Desktop</button>
+  <button class="view" data-view="phone" aria-pressed="false">Phone</button>
+  <span class="sep"></span>
+  <button data-org="initials" aria-pressed="true">Initials</button>
+  <button data-org="logo" aria-pressed="false">Logo</button>
+  <span class="sep"></span>
+  <button data-net="fast" aria-pressed="true">Fast</button>
+  <button data-net="slow" aria-pressed="false">Slow</button>
+  <button data-net="instant" aria-pressed="false">Cached</button>
+  <span class="sep"></span>
+  <button id="peek" aria-pressed="false">Peek under</button>
+  <button data-theme-btn="day" aria-pressed="true">Day</button>
+  <button data-theme-btn="night" aria-pressed="false">Night</button>
+</div>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const SPRING = "cubic-bezier(.16,.9,.3,1.02)", OUT = "cubic-bezier(.22,1,.36,1)", INOUT = "cubic-bezier(.65,0,.35,1)";
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+/* The org, as /api/auth/me would describe it. The "uploaded" logo is a
+   placeholder crest, standing in for whatever file the org uploaded. */
+const CREST = "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36">
+<rect width="36" height="36" fill="#1F3A5F"/><path d="M18 6l9 3.4v7.4c0 6-4 10.4-9 12.6-5-2.2-9-6.6-9-12.6V9.4z" fill="#F3E3B5"/>
+<path d="M18 9.6l6 2.3v5c0 4.3-2.7 7.5-6 9.2-3.3-1.7-6-4.9-6-9.2v-5z" fill="#1F3A5F"/>
+<text x="18" y="20.4" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="8.5" fill="#F3E3B5">ΑΔ</text></svg>`);
+const ORG = { name: "Alpha Delta", term: "Fall 2026" };
+const initials = n => n.trim().split(/\s+/).slice(0, 2).map(w => w[0].toUpperCase()).join("") || "Org";
+
+let net = "fast", orgMode = "initials", run = 0, anims = [], timers = [], idling = false;
+const A = (el, kf, o) => { const a = el.animate(kf, { fill: "both", easing: OUT, ...o }); anims.push(a); return a; };
+const later = (ms, fn) => { const id = setTimeout(fn, ms); timers.push(id); };
+const wait = ms => new Promise(r => later(ms, r));
+const dash = (from, to) => [{ strokeDasharray: "1 2", strokeDashoffset: from }, { strokeDasharray: "1 2", strokeDashoffset: to }];
+const isPhone = () => $("#screen").clientWidth < 768;
+/* the framed phone is scaled to fit; FLIP deltas are measured on screen, applied in local px */
+const scale = () => $("#screen").getBoundingClientRect().width / $("#screen").offsetWidth || 1;
+
+function setMsg(text){
+  const m = $("#msg"); m.classList.add("out");
+  later(180, () => { m.textContent = text; m.classList.remove("out"); });
+}
+function ticks(on){ $$(".ticks i").forEach(i => i.classList.toggle("on", on)); }
+
+function reset(){
+  anims.forEach(a => a.cancel()); anims = []; timers.forEach(clearTimeout); timers = []; idling = false;
+  $("#splash").style.display = ""; ticks(false);
+  $("#msg").textContent = "Signing you in"; $("#msg").classList.remove("out");
+  $("#app").classList.remove("ready");
+  $("#sbOrg").classList.add("landing"); $("#phTop").classList.add("landing");
+  const logo = orgMode === "logo" ? CREST : null;
+  for (const id of ["#sbLogo", "#phLogo"]) $(id).innerHTML = logo ? `<img src="${logo}" alt="">` : initials(ORG.name);
+  $("#sbName").textContent = ORG.name; $("#sbTerm").textContent = ORG.term; $("#phName").textContent = ORG.name;
+  $("#orgName").textContent = ORG.name; $("#orgTerm").textContent = ORG.term;
+  $("#orgInit").textContent = initials(ORG.name);
+  if (logo) $("#orgImg").setAttribute("href", logo); else $("#orgImg").removeAttribute("href");
+  $("#shadow").style.fill = css("--lilac");
+}
+
+/* 1. ChaptOS: outline → fill → eyes → smile → blink+settle → wordmark */
+function intro(){
+  // fill "backwards": once drawn, the dash pattern drops off, so no seam where the stroke meets itself
+  A($("#outline"), dash(1, 0), { duration: 720, delay: 80, easing: INOUT, fill: "backwards" });
+  A($("#fill"), [{ transform: "translate(0px, 34px)" }, { transform: "translate(0px, 0px)" }], { duration: 760, delay: 520 });
+  A($("#wave"), [{ transform: "translateX(0)" }, { transform: "translateX(20px)" }], { duration: 1400, delay: 520, easing: "linear" });
+  A($("#shadow"), [{ transform: "translate(0,0)", opacity: 0 }, { transform: "translate(2.2px,2.2px)", opacity: 1 }],
+    { duration: 420, delay: 1420, easing: SPRING });
+  [["#eyeL", "14.6px 16px"], ["#eyeR", "25.4px 16px"]].forEach(([s, o], i) => {
+    $(s).style.transformOrigin = o;
+    A($(s), [{ transform: "scale(0)" }, { transform: "scale(1.35)", offset: .6 }, { transform: "scale(1)" }],
+      { duration: 380, delay: 960 + i * 90, easing: SPRING });
+  });
+  A($("#smile"), dash(1, 0), { duration: 420, delay: 1140, fill: "backwards" });
+  A($("#squash"), [{ transform: "scale(1,1)" }, { transform: "scale(1.06,.93)", offset: .3 },
+    { transform: "scale(.97,1.04)", offset: .65 }, { transform: "scale(1,1)" }],
+    { duration: 520, delay: 1380, easing: "ease-out", fill: "none" });
+  blink(1560);
+  // the mark draws dead-centre, then steps aside for the wordmark
+  const shift = ($("#word").getBoundingClientRect().right - $("#mark").getBoundingClientRect().right) / 2 / scale();
+  A($("#lockup"), [{ transform: `translateX(${shift}px)` }, { transform: "translateX(0)" }], { duration: 620, delay: 1400, easing: SPRING });
+  $$("#word span").forEach((sp, i) => A(sp, [
+    { transform: "translateY(.5em)", opacity: 0, filter: "blur(4px)" },
+    { transform: "translateY(0)", opacity: 1, filter: "blur(0)" }],
+    { duration: 520, delay: 1460 + i * 45, easing: SPRING }));
+  highlighter(1800);
+  // the shapes settle onto the page as the face lands
+  $$(".shapes i").forEach((el, i) => {
+    const r = getComputedStyle(el).getPropertyValue("--r").trim() || "0deg";
+    A(el, [{ transform: `rotate(${r}) scale(0) rotate(-40deg)` }, { transform: `rotate(${r}) scale(1) rotate(0deg)` }],
+      { duration: 700, delay: 1300 + i * 70, easing: SPRING });
+  });
+  A($(".status"), [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: 400, delay: 1700 });
+  later(1750, () => ticks(true));
+  return 2000;
+}
+function highlighter(at){
+  const os = $("#word .os"); os.style.setProperty("--hx", 0);
+  later(at, () => {
+    const t0 = performance.now(), my = run;
+    const step = t => { if (my !== run) return;
+      const p = Math.min(1, (t - t0) / 380);
+      os.style.setProperty("--hx", (1 - Math.pow(1 - p, 3)).toFixed(3)); if (p < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
+}
+function blink(at){
+  A($("#eyes"), [{ transform: "scaleY(1)" }, { transform: "scaleY(.12)", offset: .45 }, { transform: "scaleY(1)" }],
+    { duration: 220, delay: at, easing: "ease-in-out", fill: "none" });
+}
+/* Session is slow: the mark stays alive, glancing and blinking */
+function idle(from){
+  const my = run; idling = true;
+  const loop = t => later(t, () => {
+    if (my !== run || !idling) return;
+    const dir = Math.random() < .5 ? -1 : 1;
+    A($("#face"), [{ transform: "translateX(0)" }, { transform: `translateX(${dir * 1.6}px)`, offset: .2 },
+      { transform: `translateX(${dir * 1.6}px)`, offset: .75 }, { transform: "translateX(0)" }],
+      { duration: 1300, easing: "ease-in-out", fill: "none" });
+    blink(560); loop(2600);
+  });
+  loop(from);
+}
+
+/* 2. We know the org: the mark becomes their tile */
+function becomeOrg(){
+  idling = false;
+  const logo = orgMode === "logo";
+  // the face folds away: a last blink that doesn't reopen, the smile rolls up
+  A($("#eyes"), [{ transform: "scaleY(1)" }, { transform: "scaleY(.1)", offset: .5 }, { transform: "scale(0,.1)" }],
+    { duration: 300, easing: "ease-in" });
+  A($("#smile"), [{ strokeDasharray: "1 2", strokeDashoffset: 0, opacity: 1 }, { strokeDasharray: "1 2", strokeDashoffset: -.85, opacity: 1, offset: .8 },
+    { strokeDasharray: "1 2", strokeDashoffset: -1, opacity: 0 }], { duration: 300, delay: 40, easing: "ease-in" });
+  // the tile squares off to the logo-tile proportions (36 × 36, r 11 at 40 units ≈ 34 × 34, r 10)
+  $$(".tile").forEach(r => A(r, [
+    { x: "2.5px", y: "4.5px", width: "35px", height: "31px", rx: "9px" },
+    { x: "3px", y: "3px", width: "34px", height: "34px", rx: "10px" }],
+    { duration: 560, delay: 220, easing: SPRING }));
+  A($("#tilt"), [{ transform: "rotate(0) scale(1)" }, { transform: "rotate(4deg) scale(.9)", offset: .35 },
+    { transform: "rotate(-3deg) scale(1)" }], { duration: 620, delay: 220, easing: SPRING });
+  A($("#shadow"), [{ fill: css("--lilac") }, { fill: css("--peach") }], { duration: 400, delay: 260 });
+  if (logo){
+    $("#orgImg").style.transformOrigin = "20px 20px";
+    A($("#orgImg"), [{ opacity: 0, transform: "scale(1.25)" }, { opacity: 1, transform: "scale(1)" }], { duration: 460, delay: 520, easing: SPRING });
+  } else {
+    A($("#orgInit"), [{ opacity: 0, transform: "scale(.4) rotate(-8deg)" }, { opacity: 1, transform: "scale(1.12) rotate(2deg)", offset: .6 },
+      { opacity: 1, transform: "scale(1) rotate(0)" }], { duration: 480, delay: 520, easing: SPRING });
+  }
+  // the page gives a little hop as their mark lands
+  $$(".shapes b").forEach((b, i) => A(b, [{ transform: "translateY(0)" }, { transform: "translateY(-1.6cqmin)", offset: .4 }, { transform: "translateY(0)" }],
+    { duration: 520, delay: 600 + i * 45, easing: "cubic-bezier(.3,1.4,.5,1)", fill: "none" }));
+  $$("#word span").forEach((sp, i) => A(sp, [
+    { transform: "translateY(0)", opacity: 1, filter: "blur(0)" },
+    { transform: "translateY(-.4em)", opacity: 0, filter: "blur(4px)" }],
+    { duration: 320, delay: 120 + i * 30, easing: "ease-in" }));
+  A($("#org"), [{ opacity: 0 }, { opacity: 1 }], { duration: 1, delay: 420 });
+  A($("#orgName"), [{ transform: "translateY(.4em)", opacity: 0, filter: "blur(4px)" }, { transform: "none", opacity: 1, filter: "blur(0)" }],
+    { duration: 520, delay: 420, easing: SPRING });
+  A($("#orgTerm"), [{ transform: "translateY(.6em)", opacity: 0 }, { transform: "none", opacity: 1 }],
+    { duration: 480, delay: 540, easing: SPRING });
+  return 1040;
+}
+
+/* the shapes slide off the page, each outward from the centre */
+function scatter(){
+  const R = $("#screen").getBoundingClientRect(), k = scale();
+  const cx = R.left + R.width / 2, cy = R.top + R.height / 2, far = 0.45 * Math.max(R.width, R.height) / k;
+  $$(".shapes i").forEach((el, i) => {
+    const r = getComputedStyle(el).getPropertyValue("--r").trim() || "0deg", bb = el.getBoundingClientRect();
+    const vx = bb.left + bb.width / 2 - cx, vy = bb.top + bb.height / 2 - cy, len = Math.hypot(vx, vy) || 1;
+    A(el, [{ transform: `rotate(${r}) scale(1)`, opacity: 1 },
+           { transform: `translate(${vx / len * far}px, ${vy / len * far}px) rotate(${r}) rotate(${vx > 0 ? 25 : -25}deg) scale(.85)`, opacity: 0 }],
+      { duration: reduce ? 1 : 820, delay: i * 25, easing: "cubic-bezier(.6,0,.25,1)" });
+  });
+}
+/* depth: shapes lean away from the pointer, nearer ones (higher data-d) more.
+   Pointer only: phones have none, so nothing runs there. */
+(() => {
+  if (reduce || !matchMedia("(pointer: fine)").matches) return;
+  let tx = 0, ty = 0, x = 0, y = 0;
+  addEventListener("pointermove", e => { const R = $("#screen").getBoundingClientRect();
+    tx = (e.clientX - R.left) / R.width - .5; ty = (e.clientY - R.top) / R.height - .5; });
+  const els = $$(".shapes i").map(el => [el, +el.dataset.d]);
+  const tick = () => {
+    if ($("#splash").style.display !== "none"){
+      x += (tx - x) * .06; y += (ty - y) * .06;
+      for (const [el, d] of els){ el.style.setProperty("--px", (-x * d).toFixed(2) + "px"); el.style.setProperty("--py", (-y * d).toFixed(2) + "px"); }
+    }
+    requestAnimationFrame(tick);
+  };
+  tick();
+})();
+
+/* 3. Ready: tile and name fly to where the app draws them */
+function flip(el, target, origin, ms){
+  const a = el.getBoundingClientRect(), b = target.getBoundingClientRect(), k = scale();
+  el.style.transformOrigin = origin;
+  const s = b.height / a.height;
+  const [ox, oy] = origin === "center" ? [a.width / 2, a.height / 2] : [0, 0];
+  const bx = origin === "center" ? b.left + b.width / 2 : b.left, by = origin === "center" ? b.top + b.height / 2 : b.top;
+  const dx = (bx - (a.left + ox)) / k, dy = (by - (a.top + oy)) / k;
+  return A(el, [{ transform: "translate(0,0) scale(1)" }, { transform: `translate(${dx}px,${dy}px) scale(${s})` }],
+    { duration: ms, easing: "cubic-bezier(.7,0,.2,1)", composite: "add" });
+}
+async function handoff(){
+  ticks(false);
+  const ms = reduce ? 1 : 760, phone = isPhone();
+  A($(".status"), [{ opacity: 1 }, { opacity: 0 }], { duration: 180 });
+  // the svg's tile is inset 3/40 inside its box; flip the box so the tile lands on the logo tile
+  const logo = $(phone ? "#phLogo" : "#sbLogo").getBoundingClientRect(), pad = logo.width * 3 / 34;
+  const ghost = Object.assign(document.createElement("div"), { style:
+    `position:fixed;left:${logo.left - pad}px;top:${logo.top - pad}px;width:${logo.width + 2 * pad}px;height:${logo.height + 2 * pad}px` });
+  document.body.append(ghost);
+  const fly = flip($("#mark"), ghost, "center", ms);
+  ghost.remove();
+  flip($("#orgName"), $(phone ? "#phName" : "#sbName"), "left top", ms);
+  if (phone) A($("#orgTerm"), [{ opacity: 1 }, { opacity: 0 }], { duration: 200 });   // the phone toolbar shows "Dashboard", not the term
+  else flip($("#orgTerm"), $("#sbTerm"), "left top", ms);
+  A($("#splash"), [{ backgroundColor: css("--paper") }, { backgroundColor: "transparent" }],
+    { duration: reduce ? 200 : 560, delay: reduce ? 0 : 260, easing: "ease-out" });
+  scatter();
+  $$(".dots, .grain").forEach(w => A(w, [{ opacity: getComputedStyle(w).opacity }, { opacity: 0 }], { duration: 420, delay: 120 }));
+  await fly.finished.catch(() => {});
+  $("#sbOrg").classList.remove("landing"); $("#phTop").classList.remove("landing");
+  $("#splash").style.display = "none";
+}
+
+/* What the app waits on. The app fetches these itself, underneath, from t=0;
+   the splash only listens. */
+async function play(){
+  const my = ++run; reset();
+  const sessionAt = net === "slow" ? 4400 : net === "instant" ? 0 : 900;
+  const chapterAt = net === "slow" ? 8200 : net === "instant" ? 300 : 2600;
+  later(chapterAt, () => $("#app").classList.add("ready"));   // the dashboard fills in under the paper
+
+  if (net === "instant" || reduce){
+    // cached session: ChaptOS is already drawn; go straight to their tile
+    intro(); anims.forEach(a => a.finish()); $("#word .os").style.setProperty("--hx", 1); ticks(false);
+    setMsg(`Opening ${ORG.name}`);
+    if (reduce){ becomeOrg(); anims.forEach(a => a.finish()); await wait(Math.max(400, chapterAt)); }
+    else await wait(becomeOrg() + 150);
+    if (my === run) handoff();
+    return;
+  }
+  const introEnd = intro();
+  if (net === "slow") idle(introEnd + 400);
+  const orgAt = Math.max(introEnd + 250, sessionAt);
+  await wait(orgAt);
+  if (my !== run) return;
+  setMsg(`Opening ${ORG.name}`);
+  const orgEnd = becomeOrg();
+  // leave as soon as both are true: the data is in, and the tile has finished turning
+  await wait(Math.max(orgEnd + 150, chapterAt - orgAt));
+  if (my !== run) return;
+  handoff();
+}
+
+/* framed phone: fit the 864px device into the window */
+function fit(){
+  const k = Math.min(1, (innerHeight - 84) / 864, (innerWidth - 32) / 410);
+  document.body.style.setProperty("--k", k.toFixed(3));
+}
+addEventListener("resize", fit); fit();
+
+$("#replay").onclick = play;
+$$("[data-view]").forEach(b => b.onclick = () => {
+  document.body.classList.toggle("framed", b.dataset.view === "phone");
+  $$("[data-view]").forEach(x => x.setAttribute("aria-pressed", x === b)); fit(); play();
+});
+$$("[data-net]").forEach(b => b.onclick = () => {
+  net = b.dataset.net; $$("[data-net]").forEach(x => x.setAttribute("aria-pressed", x === b)); play();
+});
+$$("[data-org]").forEach(b => b.onclick = () => {
+  orgMode = b.dataset.org; $$("[data-org]").forEach(x => x.setAttribute("aria-pressed", x === b)); play();
+});
+$("#peek").onclick = () => { const on = document.body.classList.toggle("peek"); $("#peek").setAttribute("aria-pressed", on); };
+$$("[data-theme-btn]").forEach(b => b.onclick = () => {
+  document.documentElement.dataset.theme = b.dataset.themeBtn;
+  $$("[data-theme-btn]").forEach(x => x.setAttribute("aria-pressed", x === b));
+});
+if (new URLSearchParams(location.search).has("phone") && innerWidth > 720){ document.body.classList.add("framed");
+  $$("[data-view]").forEach(x => x.setAttribute("aria-pressed", x.dataset.view === "phone")); fit(); }
+document.fonts.ready.then(play);
+</script>
+</body>
+</html>

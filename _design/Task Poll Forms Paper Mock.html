@@ -75,7 +75,7 @@ body.sheet .bg{opacity:.55; filter:blur(1.5px); pointer-events:none; user-select
 .bg-head .btn{margin-left:auto}
 .pile{border:1.5px solid var(--ink); border-radius:22px; background:var(--card); overflow:hidden; box-shadow:4px 4px 0 var(--pc)}
 .pile + .pile{margin-top:22px}
-.pile[data-p="over"]{--pc:var(--rose); --ps:var(--rose-soft); --pi:var(--rose-ink)}
+.pile[data-p="over"]{--pc:var(--peach); --ps:var(--peach-soft); --pi:var(--peach-ink)}
 .pile[data-p="up"]{--pc:var(--sky); --ps:var(--sky-soft); --pi:var(--ink)}
 .pile-h{display:flex; align-items:center; gap:10px; padding:12px 18px; background:var(--ps); border-bottom:1.5px solid var(--ink)}
 .pile-h h2{font-family:var(--display); font-weight:600; font-size:1.08rem; letter-spacing:-.02em; color:var(--pi)}
@@ -90,8 +90,8 @@ body.sheet .bg{opacity:.55; filter:blur(1.5px); pointer-events:none; user-select
 .tk .meta{display:flex; align-items:center; gap:6px; margin-top:4px; flex-wrap:wrap}
 .tk .stub{width:44px}
 .tk .stub b{font-size:1.15rem}
-.pile[data-p="over"] .tk .stub{--sc:var(--rose)}
-.pile[data-p="over"] .tk .late{font-family:var(--mono); font-size:.66rem; font-weight:600; color:var(--rose-ink)}
+.pile[data-p="over"] .tk .stub{--sc:var(--peach)}
+.pile[data-p="over"] .tk .late{font-family:var(--mono); font-size:.66rem; font-weight:600; color:var(--peach-ink)}
 /* the incoming row: a gap opens, the card flies in, then it gets inked */
 .tk.landed{animation:landbg 2.6s var(--ease-out)}
 @keyframes landbg{0%,35%{background:var(--butter-soft)} 100%{background:var(--card)}}

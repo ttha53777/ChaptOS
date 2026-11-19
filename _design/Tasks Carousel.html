@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tasks Carousel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Instagram carousel (8 × 1080×1350) on Tasks. Same paper system as _design/Timeline Carousel.html.
+     People are the blog demos' fictional chapter (app/blog/demos/roster.ts); "today" is Thu Nov 19,
+     the week of the Timeline carousel's Fall formal. One story throughout: the formal bus, from loose ask to booked.
+     Sam + Marcus are the Social chairs (Sam is the viewer); bus due Fri Nov 20; formal Sat Nov 21; 48 members.
+     Features shown all ship in app/org/[slug]/tasks (person/role/everyone targets, roles resolve live,
+     each/any, urgency bands + due rail, anonymous polls) and the dashboard's On your plate.
+     Preview: open the file. Export: node _design/tasks-carousel-export.mjs → _design/tasks-carousel/*.png -->
+<style>
+:root{
+  --paper:#FFFCF6;--paper2:#FBF5EA;--card:#fff;--ink:#26211B;--soft:#544A3F;--muted:#776D60;--faint:#A89E90;
+  --line:#EBE1CF;--line2:#DCD0B9;
+  --sky:#CFE2FF;--sky-ink:#2A66C7;--sky-bd:#CCDFFB;--sky-soft:#EAF2FF;
+  --mint:#C7EFDA;--mint-ink:#1B815B;--mint-bd:#BDE7D2;--mint-soft:#E6F8EF;
+  --butter:#FFE5A0;--butter-ink:#9C6B08;--butter-bd:#F4DFA6;--butter-soft:#FFF6DC;
+  --lilac:#E1D8FF;--lilac-ink:#6244CC;--lilac-bd:#DCD2FB;--lilac-soft:#F1EDFF;
+  --rose:#FFD6E6;--rose-ink:#C23C77;--rose-bd:#F8CEE0;--rose-soft:#FFEDF4;
+  --peach:#FFD5C4;--peach-ink:#C9542D;--peach-bd:#F8D2C2;--peach-soft:#FFEDE5;
+  /* urgency bands (lib/tasks/urgency.ts) */
+  --b-over:#c14a37;--b-urg:var(--rose-ink);--b-up:var(--sky-ink);--b-none:var(--line2);
+  /* role colours */
+  --r-pres:#F59E0B;--r-treas:#10B981;--r-social:#EC4899;
+  --display:'Bricolage Grotesque',sans-serif;--serif:'Fraunces',serif;--sans:'Inter',sans-serif;--mono:'IBM Plex Mono',monospace;
+  --z:.46;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#EFE7D8;color:var(--ink);font:400 30px/1.45 var(--sans);letter-spacing:-.012em;-webkit-font-smoothing:antialiased}
+.deck{zoom:var(--z);display:flex;flex-wrap:wrap;gap:48px;padding:64px;justify-content:center}
+svg{flex:none}
+
+/* ── the slide ── */
+.slide{--a:var(--peach);--a-ink:var(--peach-ink);--a-soft:var(--peach-soft);
+  position:relative;width:1080px;height:1350px;overflow:hidden;background:var(--paper);
+  display:flex;flex-direction:column;padding:92px 92px 0}
+.slide::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.6;
+  background:radial-gradient(620px 520px at 104% -4%,var(--a) 0%,transparent 70%),
+             radial-gradient(560px 480px at -10% 108%,var(--a-soft) 0%,transparent 70%)}
+.slide>*{position:relative}
+.s-butter{--a:var(--butter);--a-ink:var(--butter-ink);--a-soft:var(--butter-soft)}
+.s-mint{--a:var(--mint);--a-ink:var(--mint-ink);--a-soft:var(--mint-soft)}
+.s-sky{--a:var(--sky);--a-ink:var(--sky-ink);--a-soft:var(--sky-soft)}
+.s-lilac{--a:var(--lilac);--a-ink:var(--lilac-ink);--a-soft:var(--lilac-soft)}
+.s-rose{--a:var(--rose);--a-ink:var(--rose-ink);--a-soft:var(--rose-soft)}
+
+.eyebrow{display:flex;align-items:center;gap:16px;font:600 21px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--a-ink)}
+.eyebrow::before{content:"";width:40px;height:3px;border-radius:2px;background:currentColor}
+h1{margin:30px 0 0;font:600 98px/.98 var(--display);letter-spacing:-.036em;text-wrap:balance}
+h1.xl{font-size:116px;line-height:.95;letter-spacing:-.034em}
+.hi{position:relative;white-space:nowrap;z-index:0}
+.hi::before{content:"";position:absolute;z-index:-1;left:-.08em;right:-.1em;top:.52em;bottom:.02em;background:var(--a);
+  border-radius:.14em .3em .18em .34em;transform:rotate(-1.2deg);opacity:.95}
+.lede{margin:28px 0 0;font-size:33px;line-height:1.42;color:var(--soft);max-width:860px}
+.lede b{color:var(--ink);font-weight:600}
+.stage{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+
+.foot{height:132px;flex:none;display:flex;align-items:center;justify-content:space-between;border-top:2px dashed var(--line2);margin:0 -4px}
+.brand{display:flex;align-items:center;gap:14px;font:700 31px var(--display);letter-spacing:-.03em}
+.brand svg{width:46px;height:46px}
+.pager{display:flex;align-items:center;gap:22px;font:500 21px var(--mono);letter-spacing:.1em;color:var(--muted)}
+.dots{display:flex;gap:9px}.dots i{width:11px;height:11px;border-radius:50%;background:var(--line2)}
+.dots i.on{width:34px;border-radius:6px;background:var(--ink)}
+.swipe{display:inline-flex;align-items:center;gap:10px;color:var(--ink);font-weight:600}
+
+/* ── shared paper objects ── */
+.tape{position:absolute;width:140px;height:38px;background:color-mix(in srgb,var(--butter) 78%,transparent);border-inline:1.5px dashed rgba(38,33,27,.16);z-index:3}
+.stamp{position:absolute;font:700 26px var(--mono);letter-spacing:.16em;text-transform:uppercase;padding:9px 18px;border:3px solid currentColor;border-radius:10px;
+  background:color-mix(in srgb,currentColor 7%,transparent);mix-blend-mode:multiply;white-space:nowrap;z-index:4}
+.stamp::after{content:"";position:absolute;inset:4px;border:1.5px solid currentColor;border-radius:6px;opacity:.5}
+.win{width:100%;border:2.5px solid var(--ink);border-radius:30px;background:var(--paper2);box-shadow:12px 12px 0 var(--sky);overflow:hidden}
+.win .chrome{display:flex;align-items:center;gap:10px;padding:16px 22px;border-bottom:2px solid var(--line2)}
+.win .chrome i{width:15px;height:15px;border-radius:50%;border:2px solid rgba(38,33,27,.25)}
+.win .chrome i:nth-child(1){background:var(--peach)}.win .chrome i:nth-child(2){background:var(--butter)}.win .chrome i:nth-child(3){background:var(--mint)}
+.win .url{margin-left:18px;flex:1;display:flex;align-items:center;gap:10px;padding:7px 16px;border-radius:12px;background:var(--card);border:2px solid var(--line);font:500 19px var(--mono);color:var(--muted)}
+.win .url b{color:var(--ink);font-weight:600}
+.win .url svg{width:22px;height:22px}
+.av{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;font:600 17px var(--sans);border:3px solid var(--card);color:var(--ink);flex:none}
+.card{background:var(--card);border:2.5px solid var(--ink);border-radius:30px;overflow:hidden}
+
+/* assignee chips, as on the real task row */
+.chip{display:inline-flex;align-items:center;gap:8px;padding:4px 13px 4px 5px;border-radius:999px;font:600 20px var(--sans);letter-spacing:-.01em;white-space:nowrap;
+  background:var(--paper2);border:2px solid var(--line)}
+.chip .av{width:30px;height:30px;font-size:11px;border:0}
+.chip.role{padding-left:12px;color:var(--rc);background:color-mix(in srgb,var(--rc) 9%,var(--card));border-color:color-mix(in srgb,var(--rc) 30%,transparent)}
+.chip.role::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--rc)}
+.chip.all{padding-left:12px;color:var(--mint-ink);background:var(--mint-soft);border-color:var(--mint-bd)}
+.chip.all svg{width:22px;height:22px}
+.chip.all small{font:600 16px var(--mono);letter-spacing:.04em;color:var(--soft)}
+.box{width:38px;height:38px;flex:none;border-radius:11px;border:2.5px solid var(--line2);background:var(--card);display:grid;place-items:center}
+.box svg{width:24px;height:24px;color:var(--card)}
+.box.on{background:var(--mint-ink);border-color:var(--mint-ink)}
+
+/* ── 1 · hook: the ask nobody took ── */
+.s1 .tagline{margin:26px 0 0;font:italic 500 44px/1.2 var(--serif);letter-spacing:-.02em;color:var(--soft)}
+.s1 .tagline b{font-style:normal;font-weight:600;color:var(--peach-ink)}
+.s1 .scene{position:relative;width:100%;height:700px}
+.msg{position:absolute;left:0;top:40px;width:560px;transform:rotate(-2.2deg);background:var(--card);border:2.5px solid var(--ink);border-radius:30px;box-shadow:14px 14px 0 var(--peach);padding:30px 32px 26px}
+.msg .tape{left:50%;top:-20px;transform:translateX(-50%) rotate(-3deg)}
+.msg .from{display:flex;align-items:center;gap:14px}
+.msg .from b{font:600 26px var(--sans);letter-spacing:-.02em}
+.msg .from small{display:block;font:500 18px var(--mono);color:var(--muted);letter-spacing:.04em}
+.msg p{margin:20px 0 0;font:500 40px/1.2 var(--sans);letter-spacing:-.025em}
+.reacts{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
+.reacts span{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;background:var(--paper2);border:2px solid var(--line);font:600 20px var(--mono);color:var(--soft)}
+.reacts svg{width:22px;height:22px;color:var(--peach-ink)}
+.reacts .zero{border-style:dashed;color:var(--rose-ink);border-color:var(--rose-bd);background:var(--rose-soft)}
+.msg .seen{margin-top:18px;padding-top:16px;border-top:2px dashed var(--line2);font:500 19px var(--mono);color:var(--muted);letter-spacing:.04em}
+.sticky{position:absolute;width:300px;padding:26px 26px 30px;background:var(--c);border:2.5px solid var(--ink);border-radius:6px 6px 22px 6px;box-shadow:8px 8px 0 rgba(38,33,27,.12);
+  font:italic 500 33px/1.18 var(--serif);letter-spacing:-.02em}
+.sticky small{display:block;margin-top:14px;font:600 17px var(--mono);font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:var(--soft)}
+.sticky.a{--c:var(--butter);left:596px;top:0;transform:rotate(5deg)}
+.sticky.b{--c:var(--sky);left:610px;top:236px;transform:rotate(-4deg)}
+.sticky.c{--c:var(--mint);left:586px;top:462px;transform:rotate(6deg)}
+.s1 .stamp{left:150px;top:520px;color:var(--rose-ink);transform:rotate(-8deg);font-size:30px}
+
+/* ── 2 · ownership problem ── */
+.s2 .places{display:grid;grid-template-columns:1fr 1fr;gap:34px;width:100%}
+.place{position:relative;background:var(--card);border:2.5px solid var(--ink);border-radius:26px;padding:30px 30px 28px;box-shadow:9px 9px 0 var(--c);min-height:250px;display:flex;flex-direction:column}
+.place:nth-child(1){--c:var(--peach);transform:rotate(-1.4deg)}
+.place:nth-child(2){--c:var(--sky);transform:rotate(1deg) translateY(14px)}
+.place:nth-child(3){--c:var(--lilac);transform:rotate(.6deg)}
+.place:nth-child(4){--c:var(--mint);transform:rotate(-1deg) translateY(14px)}
+.place .ic{width:72px;height:72px;border-radius:18px;background:var(--c);display:grid;place-items:center}
+.place .ic svg{width:40px;height:40px}
+.place p{margin:22px 0 0;font:600 40px/1.05 var(--display);letter-spacing:-.035em}
+.place small{display:block;margin-top:auto;padding-top:16px;font:500 20px var(--mono);letter-spacing:.04em;color:var(--muted)}
+.place .stamp{right:22px;top:26px;font-size:18px;padding:6px 12px;transform:rotate(8deg);color:var(--peach-ink)}
+.s2 .after{margin:60px 0 0;font:italic 500 36px/1.3 var(--serif);color:var(--soft);text-align:center;letter-spacing:-.015em}
+
+/* ── 3 · the board, drawn like app/paper-tasks.css at ~2× ── */
+.band-overdue{--bd:var(--peach-ink);--bf:var(--peach);--bs:var(--peach-soft)}
+.band-urgent{--bd:var(--rose-ink);--bf:var(--rose);--bs:var(--rose-soft)}
+.band-upcoming{--bd:var(--sky-ink);--bf:var(--sky);--bs:var(--sky-soft)}
+.band-none{--bd:var(--muted);--bf:var(--line2);--bs:var(--paper2)}
+.s3 .stage{flex-direction:column;align-items:stretch;justify-content:center;padding-bottom:6px}
+.sheet{position:relative;background:var(--card);border:2.5px solid var(--ink);border-radius:32px;box-shadow:12px 12px 0 var(--sky);padding:20px 28px 22px}
+.ann{display:inline-flex;align-items:center;gap:8px;font:italic 500 29px/1 var(--serif);letter-spacing:-.02em;color:var(--sky-ink);white-space:nowrap}
+.ann svg{width:44px;height:22px;color:var(--sky-ink)}
+.pwrap{display:flex;align-items:center;gap:12px}
+.sheet .top{display:flex;align-items:center;gap:14px;padding:0 4px 4px}
+.sheet .top h3{margin:0;font:600 40px var(--serif);letter-spacing:-.03em;flex:1}
+.tabs{display:flex;gap:6px;padding:5px;border-radius:999px;background:var(--paper2);border:2px solid var(--line)}
+.tabs span{padding:8px 18px;border-radius:999px;font:600 20px var(--sans);letter-spacing:-.01em;color:var(--muted);white-space:nowrap}
+.tabs span i{font:600 17px var(--mono);font-style:normal;margin-left:6px;color:var(--faint)}
+.tabs span.on{background:var(--card);color:var(--ink);box-shadow:0 0 0 2px var(--ink)}
+.tabs span.on i{color:var(--ink)}
+.gh{display:flex;align-items:baseline;gap:14px;margin:14px 4px 2px}
+.gh .dot{width:18px;height:18px;border-radius:50%;background:var(--bf);border:3px solid var(--bd);align-self:center;flex:none}
+.gh h4{margin:0;font:600 30px var(--serif);letter-spacing:-.028em}
+.gh .sub{font-size:21px;color:var(--muted)}
+.gh .rule{flex:1;border-top:2.5px dashed var(--line2);transform:translateY(-6px);min-width:20px}
+.gh .cnt{font:500 19px var(--mono);color:var(--muted)}
+.row{position:relative;display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:20px;align-items:center;margin-top:10px;
+  padding:11px 22px 11px 34px;background:var(--card);border:2px solid var(--line);border-radius:24px;box-shadow:0 2px 0 rgba(38,33,27,.04),0 14px 26px -18px rgba(38,33,27,.3)}
+.row::before{content:"";position:absolute;left:-2px;top:-2px;bottom:-2px;width:13px;border-radius:24px 0 0 24px;background:var(--bf);border:2px solid var(--bd);border-right:0}
+.row .ck{width:46px;height:46px;border-radius:50%;border:3px solid var(--faint);background:var(--card)}
+.row .t{display:block;font:600 30px/1.15 var(--sans);letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .meta{display:flex;align-items:center;gap:10px;margin-top:8px}
+.pc{display:inline-flex;align-items:center;gap:8px;padding:3px 14px 3px 5px;border-radius:999px;border:2px solid var(--line2);background:var(--paper);
+  font:600 20px var(--sans);letter-spacing:-.01em;color:var(--soft);white-space:nowrap}
+.pc .av{width:30px;height:30px;font-size:11px;border:0}
+.pc.role{padding-left:12px}
+.pc.role .pip{width:14px;height:14px;border-radius:50%;background:var(--rc);box-shadow:0 0 0 1.5px rgba(38,33,27,.25)}
+.pc.all{padding-left:11px}
+.pc.all svg{width:22px;height:22px}
+.pc.you{border-color:var(--ink);color:var(--ink)}
+.mprog{display:inline-flex;align-items:center;gap:10px;font:500 18px var(--mono);color:var(--muted);white-space:nowrap}
+.mprog i{position:relative;width:84px;height:11px;border-radius:6px;background:var(--paper2);border:1.5px solid var(--line);overflow:hidden}
+.mprog i::before{content:"";position:absolute;inset:0 auto 0 0;width:65%;background:var(--mint-ink)}
+.pw{font:600 20px var(--mono);white-space:nowrap;padding:6px 16px;border-radius:999px;background:var(--bs);color:var(--bd);border:2px solid color-mix(in srgb,var(--bd) 30%,transparent)}
+.row.me{border-color:var(--ink);box-shadow:6px 6px 0 var(--rose)}
+.row.me::before{border-color:var(--ink)}
+
+/* ── 4 · three ways to hand it out ── */
+.s4 .stage{flex-direction:column;align-items:stretch;gap:0}
+.s4 .lab{display:flex;align-items:center;gap:12px;margin:0 6px 22px;font:600 19px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.s4 .lab svg{width:26px;height:26px}
+.s4 .lab .rule{flex:1;border-top:2.5px dashed var(--line2)}
+.ways{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.way{position:relative;display:flex;flex-direction:column;background:var(--card);border:2.5px solid var(--ink);border-radius:28px;box-shadow:9px 9px 0 var(--c);overflow:hidden}
+.way:nth-child(1){--c:var(--rose)}.way:nth-child(2){--c:var(--lilac)}.way:nth-child(3){--c:var(--mint)}
+.way .pill{align-self:flex-start;margin:22px 0 0 22px;padding:8px 20px;border-radius:999px;background:var(--ink);color:var(--paper);font:600 21px var(--sans);letter-spacing:-.01em}
+.way .vis{position:relative;height:250px;display:grid;place-items:center}
+.way .who{padding:0 24px;text-align:left}
+.way .who b{display:block;font:600 38px/1.02 var(--display);letter-spacing:-.04em}
+.way .who small{display:block;margin-top:10px;font:400 21px/1.35 var(--sans);color:var(--soft)}
+.mini{margin:auto 0 0;padding:18px 20px 20px;border-top:2.5px dashed var(--line2);background:var(--paper2);display:flex;gap:14px;align-items:flex-start}
+.mini .ck{width:34px;height:34px;flex:none;border-radius:50%;border:3px solid var(--faint);background:var(--card);margin-top:2px}
+.mini p{margin:0;font:600 23px/1.15 var(--sans);letter-spacing:-.02em}
+.mini .pw{display:inline-block;margin-top:9px;font-size:16px;padding:4px 12px}
+.way .gap{height:26px}
+/* person */
+.solo{position:relative}
+.solo .av{width:150px;height:150px;font-size:44px;border:0;box-shadow:0 0 0 5px var(--card),0 0 0 8.5px var(--ink)}
+.solo .ok{position:absolute;right:-2px;bottom:6px;width:46px;height:46px;border-radius:50%;background:var(--mint-ink);border:4px solid var(--card);display:grid;place-items:center}
+.solo .ok svg{width:24px;height:24px;color:#fff}
+/* role */
+.fan{position:relative;width:230px;height:200px}
+.fan .pc{position:absolute;left:50%;top:0;transform:translateX(-50%);font-size:24px;padding:7px 18px 7px 14px;box-shadow:4px 4px 0 var(--lilac);border-color:var(--ink);color:var(--ink);background:var(--card)}
+.fan svg.ln{position:absolute;left:0;top:44px;width:230px;height:80px;color:var(--lilac-ink)}
+.fan .av{position:absolute;top:116px;width:84px;height:84px;font-size:24px;border:0;box-shadow:0 0 0 4px var(--card),0 0 0 6.5px var(--line2)}
+.fan .av.l{left:14px}.fan .av.r{right:14px}
+/* everyone */
+.crowd{display:grid;grid-template-columns:repeat(7,24px);gap:8px}
+.crowd i{width:24px;height:24px;border-radius:50%;background:var(--c2,var(--sky))}
+.crowd i.new{background:transparent;border:2.5px dashed var(--mint-ink)}
+.s4 .after{margin:40px 0 0;font:italic 500 32px/1.3 var(--serif);color:var(--soft);text-align:center;letter-spacing:-.015em}
+.s4 .after b{font-style:normal;font-weight:600;color:var(--ink)}
+
+.land{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:42px;padding:0 6px}
+.land p{margin:0;font:italic 500 32px/1.25 var(--serif);color:var(--soft);letter-spacing:-.015em}
+.btn{display:inline-flex;align-items:center;gap:14px;padding:20px 34px;border-radius:999px;background:var(--ink);color:var(--paper);font:600 30px var(--display);letter-spacing:-.02em;box-shadow:7px 7px 0 var(--mint);white-space:nowrap}
+.btn svg{width:28px;height:28px}
+
+/* ── 5 · roles ── */
+.s5 .stage{flex-direction:column;gap:34px}
+.hand{position:relative;display:flex;align-items:center;justify-content:space-between;width:100%;padding:26px 34px;background:var(--card);border:2.5px solid var(--ink);border-radius:30px;box-shadow:12px 12px 0 var(--lilac)}
+.hand .holder{display:flex;align-items:center;gap:16px}
+.hand .holder .av{width:76px;height:76px;font-size:24px;border:0}
+.hand .holder b{display:block;font:600 30px var(--sans);letter-spacing:-.02em}
+.hand .holder small{display:block;font:500 18px var(--mono);letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.hand .holder.was{opacity:.5}
+.hand .holder.was b{text-decoration:line-through;text-decoration-thickness:2.5px}
+.hand .mid{display:flex;flex-direction:column;align-items:center;gap:10px}
+.hand .mid .chip.role{font-size:24px;padding:7px 18px 7px 14px}
+.hand .mid svg.go{width:120px;height:26px;color:var(--lilac-ink)}
+.seat{width:100%;box-shadow:12px 12px 0 var(--lilac)}
+.seat .hd{display:flex;align-items:center;gap:18px;padding:22px 30px;border-bottom:2px solid var(--line)}
+.seat .hd .pc.role{font-size:28px;padding:8px 22px 8px 16px;border-color:var(--ink);color:var(--ink);background:var(--card);box-shadow:4px 4px 0 color-mix(in srgb,var(--rc) 35%,transparent)}
+.seat .hd .pc.role .pip{width:16px;height:16px}
+.seat .held{margin-left:auto;display:flex;align-items:center;gap:12px;font:500 22px var(--sans);color:var(--soft)}
+.seat .held b{color:var(--ink);font-weight:600}
+.seat .held .stk{display:flex}.seat .held .av{width:48px;height:48px;font-size:15px;border:3px solid var(--card)}
+.seat .held .av+.av{margin-left:-12px}
+.seat .cols{display:grid;grid-template-columns:5fr 7fr}
+.seat .col{padding:20px 30px 24px}
+.seat .col+.col{border-left:2px dashed var(--line2)}
+.seat .k{font:600 17px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.pw-l{display:grid;gap:10px}
+.pw-l span{display:flex;align-items:center;gap:12px;font:600 25px var(--sans);letter-spacing:-.02em}
+.pw-l svg{width:30px;height:30px;padding:5px;border-radius:9px;background:var(--lilac-soft);color:var(--lilac-ink);border:2px solid var(--lilac-bd)}
+.owes{display:grid;gap:10px}
+.owes .o{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:16px;background:var(--paper);border:2px solid var(--line)}
+.owes .o .ck{width:28px;height:28px;flex:none;border-radius:50%;border:2.5px solid var(--faint);background:var(--card)}
+.owes .o p{margin:0;flex:1;min-width:0;font:600 22px/1.15 var(--sans);letter-spacing:-.02em}
+.owes .o .pw{font-size:15px;padding:3px 10px}
+.hand{box-shadow:12px 12px 0 var(--butter)}
+.s5 .also{margin:0;font:italic 500 30px/1.3 var(--serif);color:var(--soft);text-align:center;letter-spacing:-.015em}
+
+/* ── 6 · everyone: each vs any ── */
+.s6 .stage{flex-direction:column;gap:30px}
+.mode{position:relative;width:100%;padding:28px 32px 28px;box-shadow:12px 12px 0 var(--c)}
+.mode .k{display:flex;align-items:center;gap:12px;font:600 18px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ci)}
+.mode .k::before{content:"";width:14px;height:14px;border-radius:50%;border:3px solid var(--ci);background:radial-gradient(circle,var(--ci) 40%,transparent 45%)}
+.mode h3{margin:12px 0 0;font:600 44px/1.05 var(--display);letter-spacing:-.04em}
+.mode .hint{margin:8px 0 0;font:400 23px/1.35 var(--sans);color:var(--soft)}
+.mode.each{--c:var(--rose);--ci:var(--rose-ink)}
+.mode.any{--c:var(--mint);--ci:var(--mint-ink)}
+.prog{display:flex;align-items:center;gap:24px;margin-top:22px}
+.prog .n{font:600 56px/1 var(--display);letter-spacing:-.04em;white-space:nowrap}
+.prog .n small{font:500 26px var(--sans);color:var(--muted);letter-spacing:-.01em}
+.prog .bar{flex:1;height:18px;border-radius:999px;background:var(--paper2);border:2px solid var(--line);overflow:hidden}
+.prog .bar i{display:block;height:100%;width:65%;background:var(--rose-ink);border-radius:999px}
+.mine{display:flex;align-items:center;gap:14px;margin-top:18px;padding:13px 18px;border-radius:16px;background:var(--rose-soft);border:2px solid var(--rose-bd);font:600 23px var(--sans);letter-spacing:-.015em}
+.mine small{margin-left:auto;font:500 17px var(--mono);color:var(--muted);letter-spacing:.04em}
+.got{display:flex;align-items:center;gap:16px;margin-top:20px;padding:14px 18px;border-radius:16px;background:var(--mint-soft);border:2px solid var(--mint-bd);font:500 23px var(--sans);letter-spacing:-.015em}
+.got .av{width:46px;height:46px;font-size:15px;border:0}
+.got b{font-weight:600}
+.got small{margin-left:auto;font:500 17px var(--mono);color:var(--muted);letter-spacing:.04em;white-space:nowrap}
+.mode.any h3 s{text-decoration-thickness:3px;text-decoration-color:var(--mint-ink)}
+.s6 .later{display:flex;align-items:center;justify-content:center;gap:14px;margin:4px 0 0;font:italic 500 30px/1.3 var(--serif);color:var(--soft);letter-spacing:-.015em}
+.s6 .later .av{width:46px;height:46px;font:600 15px var(--sans);font-style:normal;border:0}
+
+/* ── 7 · polls ── */
+.s7 .stage{flex-direction:column;gap:0}
+.ballot{width:100%;box-shadow:12px 12px 0 var(--butter);position:relative}
+.ballot .top{padding:26px 34px 20px;border-bottom:2px solid var(--line)}
+.ballot .kick{font:600 17px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--butter-ink)}
+.ballot h3{margin:10px 0 0;font:600 48px/1.05 var(--display);letter-spacing:-.04em}
+.ballot .opts{padding:16px 34px 8px}
+.op{position:relative;display:flex;align-items:center;gap:18px;padding:15px 0;border-top:2px dashed var(--line2)}
+.op:first-child{border-top:0}
+.op .bx{width:44px;height:44px;flex:none;border:2.5px solid var(--ink);border-radius:8px;background:var(--card);display:grid;place-items:center}
+.op .bx svg{width:30px;height:30px;color:var(--butter-ink)}
+.op .ln{flex:1;min-width:0}
+.op .ln b{display:flex;justify-content:space-between;font:600 27px var(--sans);letter-spacing:-.02em}
+.op .ln b span{font:600 22px var(--mono);color:var(--soft);letter-spacing:0}
+.op .tr{height:12px;margin-top:9px;border-radius:999px;background:var(--paper2);overflow:hidden}
+.op .tr i{display:block;height:100%;border-radius:999px;background:var(--butter-ink);opacity:.35}
+.op.lead .tr i{opacity:1}
+.ballot .bot{display:flex;align-items:center;justify-content:space-between;padding:18px 34px 22px;background:var(--paper2);border-top:2px solid var(--line);font:500 20px var(--mono);color:var(--muted);letter-spacing:.03em}
+.ballot .bot b{color:var(--ink);font-weight:600}
+.ballot .bot .lnk{color:var(--butter-ink);font-weight:600}
+.ballot .stamp{right:30px;top:24px;color:var(--butter-ink);transform:rotate(7deg);font-size:20px}
+.s7 .land{margin-top:44px}
+.s7 .land .btn{box-shadow:7px 7px 0 var(--butter)}
+
+/* ── 8 · on your plate + cta ── */
+.s8 .stage{flex-direction:column;gap:0}
+.plate{width:100%;box-shadow:12px 12px 0 var(--peach)}
+.plate .hd{display:flex;align-items:center;gap:14px;padding:22px 30px;border-bottom:2px solid var(--line)}
+.plate .hd b{font:600 34px var(--display);letter-spacing:-.035em;flex:1}
+.plate .hd span{font:600 17px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.plate .hd .av{width:46px;height:46px;font-size:15px;border:0}
+.pr{display:flex;align-items:center;gap:20px;padding:18px 30px;border-top:2px solid var(--line)}
+.pr:first-of-type{border-top:0}
+.pr .tile{width:58px;height:58px;flex:none;border-radius:16px;background:var(--c);display:grid;place-items:center;border:2px solid color-mix(in srgb,var(--ci) 30%,transparent)}
+.pr .tile svg{width:30px;height:30px;color:var(--ci)}
+.pr .x{flex:1;min-width:0}
+.pr .x p{margin:0;font:600 28px/1.15 var(--sans);letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .x small{display:block;margin-top:4px;font:500 18px var(--mono);color:var(--muted);letter-spacing:.03em}
+.pr .x small em{font-style:normal;color:var(--ci);font-weight:600}
+.pr .why{font:600 16px var(--mono);letter-spacing:.1em;text-transform:uppercase;padding:5px 12px;border-radius:999px;border:2px solid var(--line);color:var(--soft);white-space:nowrap}
+.pr .why.role{color:var(--r-social);border-color:color-mix(in srgb,var(--r-social) 30%,transparent);background:color-mix(in srgb,var(--r-social) 8%,var(--card))}
+.cta{display:flex;align-items:center;justify-content:space-between;gap:30px;width:100%;margin-top:60px}
+.cta p{margin:0;font:600 46px/1.05 var(--display);letter-spacing:-.04em}
+.cta p small{display:block;margin-top:10px;font:400 25px var(--sans);letter-spacing:-.01em;color:var(--soft)}
+.cta a{display:inline-flex;align-items:center;gap:14px;padding:22px 32px;border-radius:999px;background:var(--ink);color:var(--paper);text-decoration:none;flex:none;
+  font:600 30px var(--display);letter-spacing:-.02em;box-shadow:7px 7px 0 var(--peach)}
+.cta a svg{width:28px;height:28px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="brand" viewBox="0 0 40 40">
+    <rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="#FFE5A0" stroke="#26211B" stroke-width="2.4"/>
+    <path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="#26211B" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="14.6" cy="16" r="1.9" fill="#26211B"/><circle cx="25.4" cy="16" r="1.9" fill="#26211B"/>
+  </symbol>
+  <symbol id="scrawl-l" viewBox="0 0 44 22"><path d="M42 14C30 20 18 18 6 10M6 10l10-1M6 10l4 9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="scrawl-r" viewBox="0 0 44 22"><path d="M2 14C14 20 26 18 38 10M38 10l-10-1M38 10l-4 9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="arr" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></symbol>
+  <symbol id="thumb" viewBox="0 0 24 24"><path d="M7 10v10H4V10zM7 10l4-7c1.6 0 2.6 1.2 2.3 2.8L12.8 9H19a2 2 0 012 2.3l-1.2 7A2 2 0 0117.8 20H7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="hand" viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 013 0V11m0-1.5V4a1.5 1.5 0 013 0v6m0-4.5a1.5 1.5 0 013 0V12m0-3a1.5 1.5 0 013 0v5.5c0 4-2.7 7-6.5 7-2.6 0-4.3-1.2-5.8-3.3L5 14.7a1.5 1.5 0 012.4-1.8L8 13.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="bubble" viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 012 2v8a2 2 0 01-2 2h-7l-5 4v-4H5a2 2 0 01-2-2V7a2 2 0 012-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 10h8M8 13h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="table" viewBox="0 0 24 24"><path d="M4 9h16M6 9v10M18 9v10M3 9l3-4h12l3 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="board" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 21l4-4 4 4M7 9h6M7 12h9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="cap" viewBox="0 0 24 24"><path d="M2.5 9.5L12 5l9.5 4.5L12 14z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M6.5 11.5V16c1.4 1.4 3.3 2 5.5 2s4.1-.6 5.5-2v-4.5M21.5 9.5V15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="people" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.5 19.5c1-3.2 3.4-4.8 6.5-4.8s5.5 1.6 6.5 4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15.5 5.2a3.5 3.5 0 010 6.6M18 15c1.7.6 2.9 2 3.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="go" viewBox="0 0 120 26"><path d="M4 13h104" stroke="currentColor" stroke-width="3" stroke-dasharray="2 9" stroke-linecap="round"/><path d="M100 4l12 9-12 9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="vote" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10V4h8v6M10 7h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="bus" viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 10.5h16M7 17.5v3M17 17.5v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="8" cy="14" r="1.2" fill="currentColor"/><circle cx="16" cy="14" r="1.2" fill="currentColor"/></symbol>
+  <symbol id="cam" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2.5h7L17 8h3v11H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+</svg>
+
+<main class="deck">
+
+<!-- ═══ 1 · HOOK ═══ -->
+<section class="slide s1">
+  <div class="eyebrow">Ask your exec</div>
+  <h1 class="xl">Who’s booking the <span class="hi">bus</span>?</h1>
+  <p class="tagline">Everyone thought <b>someone else</b> was.</p>
+  <div class="stage">
+    <div class="scene">
+      <div class="msg"><span class="tape"></span>
+        <div class="from"><span class="av" style="background:var(--butter)">JR</span><div><b>Jordan Reyes</b><small>EXEC CHAT · 3 WEEKS AGO</small></div></div>
+        <p>Can someone book the bus for formal?</p>
+        <div class="reacts"><span><svg><use href="#thumb"/></svg>12</span><span><svg><use href="#hand"/></svg>4</span><span class="zero">0 takers</span></div>
+        <div class="seen">Seen by 14</div>
+      </div>
+      <div class="sticky a">“Isn’t that Social’s thing?”<small>Andre · Treasurer</small></div>
+      <div class="sticky b">“I thought the treasurer books vendors.”<small>Sam · Social</small></div>
+      <div class="sticky c">“I’ll do it after midterms.”<small>Marcus · Social</small></div>
+      <span class="stamp">Nobody booked it</span>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><span class="swipe">Swipe <svg width="26" height="26"><use href="#arr"/></svg></span></div>
+  </div>
+</section>
+
+<!-- ═══ 2 · OWNERSHIP PROBLEM ═══ -->
+<section class="slide s2 s-butter">
+  <div class="eyebrow">The real problem</div>
+  <h1>Nobody’s lazy. Nobody’s <span class="hi">name</span> is on it.</h1>
+  <div class="stage">
+    <div>
+      <div class="places">
+        <div class="place"><span class="ic"><svg><use href="#bubble"/></svg></span><p>“Can someone…” in the chat</p><small>12 likes, 0 takers</small></div>
+        <div class="place"><span class="ic"><svg><use href="#table"/></svg></span><p>“We’ll figure it out”</p><small>Said at exec, written nowhere</small></div>
+        <div class="place"><span class="ic"><svg><use href="#board"/></svg></span><p>The house whiteboard</p><small>Erased by Tuesday</small></div>
+        <div class="place"><span class="ic"><svg><use href="#cap"/></svg></span><p>Last year’s social chair</p><small>Graduated with the bus company’s number</small><span class="stamp">Handed off?</span></div>
+      </div>
+      <p class="after">Everyone agrees it matters.<br>So everyone assumes it’s handled.</p>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 3 · THE BOARD ═══ -->
+<section class="slide s3 s-sky">
+  <div class="eyebrow">Meet Tasks</div>
+  <h1>Every to-do gets an <span class="hi">owner</span>.</h1>
+  <div class="stage">
+    <div class="sheet">
+      <div class="top"><h3>Tasks</h3><div class="tabs"><span class="on">All tasks<i>5</i></span><span>Assigned to me<i>3</i></span></div></div>
+      <div class="band-overdue">
+        <div class="gh"><span class="dot"></span><h4>Overdue</h4><span class="sub">past their date</span><span class="rule"></span><span class="cnt">1</span></div>
+        <div class="row"><span class="ck"></span><div><span class="t">Submit the risk form</span><div class="meta"><span class="pc role" style="--rc:var(--r-pres)"><span class="pip"></span>President</span><span class="ann"><svg><use href="#scrawl-l"/></svg>who’s on it</span></div></div><span class="pw">2d late</span></div>
+      </div>
+      <div class="band-urgent">
+        <div class="gh"><span class="dot"></span><h4>Urgent</h4><span class="sub">due today or tomorrow</span><span class="rule"></span><span class="cnt">2</span></div>
+        <div class="row me"><span class="ck"></span><div><span class="t">Book the bus for formal</span><div class="meta"><span class="pc role you" style="--rc:var(--r-social)"><span class="pip"></span>Social</span></div></div><span class="pw">Due tomorrow</span></div>
+        <div class="row"><span class="ck"></span><div><span class="t">Sign the bus waiver</span><div class="meta"><span class="pc all"><svg><use href="#people"/></svg>Everyone</span><span class="mprog"><i></i>31/48 done</span></div></div><span class="pw">Due tomorrow</span></div>
+      </div>
+      <div class="band-upcoming">
+        <div class="gh"><span class="dot"></span><h4>Upcoming</h4><span class="sub">later this term</span><span class="rule"></span><span class="cnt">2</span></div>
+        <div class="row"><span class="ck"></span><div><span class="t">Collect formal dues</span><div class="meta"><span class="pc role" style="--rc:var(--r-treas)"><span class="pip"></span>Treasurer</span></div></div><span class="pwrap"><span class="ann">when it’s due<svg><use href="#scrawl-r"/></svg></span><span class="pw">Due in 2d</span></span></div>
+        <div class="row"><span class="ck"></span><div><span class="t">Hang the formal decorations</span><div class="meta"><span class="pc role you" style="--rc:var(--r-social)"><span class="pip"></span>Social</span></div></div><span class="pw">Due in 2d</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 4 · HAND IT OUT ═══ -->
+<section class="slide s4 s-mint">
+  <div class="eyebrow">Tasks · New task</div>
+  <h1>A person, a role, or <span class="hi">everyone</span>.</h1>
+  <div class="stage">
+    <div>
+      <div class="lab"><svg><use href="#people"/></svg>Who’s on it<span class="rule"></span></div>
+      <div class="ways">
+        <div class="way">
+          <span class="pill">Individuals</span>
+          <div class="vis"><div class="solo"><span class="av" style="background:var(--sky)">PN</span><span class="ok"><svg><use href="#check"/></svg></span></div></div>
+          <div class="who"><b>Priya</b><small>One name. No “can someone…”</small></div>
+          <div class="gap"></div>
+          <div class="mini band-urgent"><span class="ck"></span><div><p>Send the formal reminder</p><span class="pw">Due today</span></div></div>
+        </div>
+        <div class="way">
+          <span class="pill">Roles</span>
+          <div class="vis"><div class="fan"><span class="pc role" style="--rc:var(--r-social)"><span class="pip"></span>Social</span>
+            <svg class="ln" viewBox="0 0 230 80" fill="none"><path d="M115 4C115 40 56 40 56 76M115 4C115 40 174 40 174 76" stroke="currentColor" stroke-width="3" stroke-dasharray="3 8" stroke-linecap="round"/></svg>
+            <span class="av l" style="background:var(--rose)">SO</span><span class="av r" style="background:var(--peach)">MB</span></div></div>
+          <div class="who"><b>Whoever holds it</b><small>Both social chairs, this term and next.</small></div>
+          <div class="gap"></div>
+          <div class="mini band-urgent"><span class="ck"></span><div><p>Book the bus for formal</p><span class="pw">Due tomorrow</span></div></div>
+        </div>
+        <div class="way">
+          <span class="pill">Everyone</span>
+          <div class="vis"><div class="crowd" id="crowd"></div></div>
+          <div class="who"><b>All 48</b><small>Plus anyone who joins later.</small></div>
+          <div class="gap"></div>
+          <div class="mini band-urgent"><span class="ck"></span><div><p>Sign the bus waiver</p><span class="pw">Due tomorrow</span></div></div>
+        </div>
+      </div>
+      <p class="after">Give it a date and it lands on the <b>Timeline</b> too.</p>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 5 · ROLES ═══ -->
+<section class="slide s5 s-lilac">
+  <div class="eyebrow">Tasks · Roles</div>
+  <h1>A role is a <span class="hi">seat</span>, not a person.</h1>
+  <p class="lede">Social comes with its own powers and its own to-do list. Whoever sits in it gets both.</p>
+  <div class="stage">
+    <div class="card seat">
+      <div class="hd"><span class="pc role" style="--rc:var(--r-social)"><span class="pip"></span>Social</span>
+        <span class="held"><span class="stk"><span class="av" style="background:var(--rose)">SO</span><span class="av" style="background:var(--peach)">MB</span></span>Held by <b>Sam &amp; Marcus</b></span></div>
+      <div class="cols">
+        <div class="col"><div class="k">Can manage</div>
+          <div class="pw-l"><span><svg><use href="#check"/></svg>Events</span><span><svg><use href="#check"/></svg>Parties</span><span><svg><use href="#check"/></svg>Tasks</span></div></div>
+        <div class="col"><div class="k">Its open tasks</div>
+          <div class="owes">
+            <div class="o band-urgent"><span class="ck"></span><p>Book the bus for formal</p><span class="pw">Due tomorrow</span></div>
+            <div class="o band-upcoming"><span class="ck"></span><p>Hang the decorations</p><span class="pw">Due in 2d</span></div>
+          </div></div>
+      </div>
+    </div>
+    <div class="hand">
+      <div class="holder was"><span class="av" style="background:var(--peach)">MB</span><div><b>Marcus</b><small>Graduates in May</small></div></div>
+      <div class="mid"><span class="chip role" style="--rc:var(--r-social)">Social</span><svg class="go"><use href="#go"/></svg></div>
+      <div class="holder"><span class="av" style="background:var(--sky)">NK</span><div><b>Noah</b><small>Next term</small></div></div>
+    </div>
+    <p class="also">Noah gets the powers and the open tasks the day he sits down.</p>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 6 · POLLS ═══ -->
+<section class="slide s7 s-butter">
+  <div class="eyebrow">Tasks · Polls</div>
+  <h1>Settle it with a <span class="hi">vote</span>.</h1>
+  <p class="lede">Before booking, the chapter picked the bus company. Anonymous ballots, no 200&#8209;message debate.</p>
+  <div class="stage">
+    <div class="card ballot">
+      <div class="top">
+        <div class="kick">Final results · Everyone · Anonymous</div>
+        <h3>Which bus company?</h3>
+      </div>
+      <div class="opts">
+        <div class="op lead"><span class="bx"><svg><use href="#x"/></svg></span><div class="ln"><b>Campus Coach · $640<span>26</span></b><div class="tr"><i style="width:59%"></i></div></div></div>
+        <div class="op"><span class="bx"></span><div class="ln"><b>Metro Charter · $580<span>14</span></b><div class="tr"><i style="width:32%"></i></div></div></div>
+        <div class="op"><span class="bx"></span><div class="ln"><b>Two vans and a prayer<span>4</span></b><div class="tr"><i style="width:9%"></i></div></div></div>
+      </div>
+      <div class="bot"><span><b>44 of 48</b> voted · closed Monday</span><span class="lnk">Campus Coach won</span></div>
+      <span class="stamp">Decided</span>
+    </div>
+    <div class="land">
+      <p>Now the Social chairs know<br>exactly what to book.</p>
+      <span class="btn">New poll <svg><use href="#arr"/></svg></span>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 7 · EVERYONE ═══ -->
+<section class="slide s6 s-rose">
+  <div class="eyebrow">Tasks · Everyone</div>
+  <h1>Every member, or <span class="hi">any</span> member.</h1>
+  <div class="stage">
+    <div class="card mode each">
+      <div class="k">Every member does it</div>
+      <h3>Sign the bus waiver</h3>
+      <p class="hint">Each person ticks off their own. It’s done when everyone has.</p>
+      <div class="prog"><span class="n">31 <small>of 48</small></span><span class="bar"><i></i></span></div>
+      <div class="mine"><span class="box on"><svg><use href="#check"/></svg></span>Your part is done<small>17 TO GO</small></div>
+    </div>
+    <div class="card mode any">
+      <div class="k">One person does it</div>
+      <h3><s>Pick up ice for the bus</s></h3>
+      <p class="hint">Anyone can grab it. The first to finish ticks it off for the chapter.</p>
+      <div class="got"><span class="av" style="background:var(--lilac)">TB</span><span><b>Tyler</b> got it for everyone</span><small>2 MIN AGO</small></div>
+    </div>
+    <p class="later"><span class="av" style="background:var(--butter)">EL</span>Joined this week? The waiver’s on your list too.</p>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 8 · ON YOUR PLATE + CTA ═══ -->
+<section class="slide s8">
+  <div class="eyebrow">Dashboard · On your plate</div>
+  <h1>Everyone knows what’s <span class="hi">theirs</span>.</h1>
+  <p class="lede">Sam opens ChaptOS. Both things waiting on him came with his seat.</p>
+  <div class="stage">
+    <div class="card plate">
+      <div class="hd"><span class="av" style="background:var(--rose)">SO</span><b>On your plate</b><span>2 things</span></div>
+      <div class="pr" style="--c:var(--rose-soft);--ci:var(--rose-ink)"><span class="tile"><svg><use href="#bus"/></svg></span><div class="x"><p>Book the bus for formal</p><small><em>Due tomorrow</em> · Campus Coach won</small></div><span class="why role">As Social</span></div>
+      <div class="pr" style="--c:var(--sky-soft);--ci:var(--sky-ink)"><span class="tile"><svg><use href="#people"/></svg></span><div class="x"><p>Hang the formal decorations</p><small><em>Saturday</em> · with Marcus</small></div><span class="why role">As Social</span></div>
+    </div>
+    <div class="cta">
+      <p>The bus got booked.<small>Tasks, roles, polls and On your plate.</small></p>
+      <a href="https://chaptos.com">chaptos.com <svg><use href="#arr"/></svg></a>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+</main>
+<script>
+const cr=document.getElementById("crowd");if(cr){const cs=["--sky","--rose","--butter","--mint","--lilac","--peach"];cr.innerHTML=Array.from({length:49},(_,i)=>i===48?'<i class="new"></i>':`<i style="--c2:var(${cs[(i*7)%6]})"></i>`).join("")}
+const all=[...document.querySelectorAll(".slide")];
+all.forEach((sl,i)=>{sl.dataset.n=i+1;const d=sl.querySelector(".dots");if(d)d.innerHTML=all.map((_,j)=>`<i${j===i?' class="on"':''}></i>`).join("")});
+</script>
+</body>
+</html>

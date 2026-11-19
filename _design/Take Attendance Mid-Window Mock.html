@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Take Attendance Fix</title>
+<!--
+  Take attendance during an open check-in window — today vs. the fix.
+
+  Two scenarios, replayed step by step on both sides from the same event log:
+    A. Late arrivals — members tap "I'm here" while the officer's sheet is open.
+    B. Opened too early — the sheet opens before anyone has checked in.
+
+  Engine is a pure function of (scenario, step): every render replays the
+  event log from zero, so scrubbing backwards is exact. Names are synthetic.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;
+  --wash-op:.55;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+    --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+    --line:#2F271E; --line-2:#43382B;
+    --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A;
+    --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;
+    --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;
+    --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;
+    --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF;
+    --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;
+    --wash-op:.9;
+    --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+    --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A;
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF;
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;
+  --wash-op:.9;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased; overflow-x:clip; min-height:100vh;
+}
+body::before{
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:var(--wash-op);
+  background:
+    radial-gradient(40vw 30vw at 8% 4%, var(--peach-soft), transparent 70%),
+    radial-gradient(36vw 30vw at 96% 10%, var(--lilac-soft), transparent 70%),
+    radial-gradient(40vw 34vw at 90% 92%, var(--mint-soft), transparent 70%),
+    radial-gradient(30vw 26vw at 6% 88%, var(--butter-soft), transparent 70%);
+}
+button{font:inherit; color:inherit; cursor:pointer}
+.wrap{max-width:1240px; margin:0 auto; padding:44px 24px 90px}
+
+/* ── Header ─────────────────────────────────────────────── */
+.eyebrow{display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:11.5px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--rose-ink)}
+.eyebrow::before{content:""; width:22px; height:2px; background:currentColor; border-radius:2px}
+h1{font-family:var(--display); font-weight:600; font-size:clamp(32px,4.6vw,52px); letter-spacing:-.035em; line-height:1.02; margin:14px 0 14px; max-width:16ch}
+.hi{position:relative; white-space:nowrap}
+.hi::before{content:""; position:absolute; inset:.08em -.12em .02em; z-index:-1; background:var(--butter); border-radius:.3em .5em .35em .45em; transform:rotate(-.8deg); opacity:.85}
+.lede{max-width:62ch; color:var(--ink-2); font-size:16.5px; margin:0}
+.lede b{color:var(--ink); font-weight:600}
+
+/* ── Controls ───────────────────────────────────────────── */
+.controls{margin-top:34px; display:grid; gap:16px}
+.tabs{display:flex; flex-wrap:wrap; gap:10px}
+.tab{
+  display:flex; align-items:center; gap:10px; padding:10px 16px 10px 12px; border-radius:14px;
+  border:1.5px solid var(--line); background:var(--card); box-shadow:var(--sh-1); text-align:left;
+  transition:transform .25s var(--ease-spring), box-shadow .25s, border-color .2s;
+}
+.tab:hover{transform:translateY(-1px)}
+.tab[aria-selected="true"]{border-color:var(--ink); box-shadow:3px 3px 0 var(--lilac)}
+.tab .k{display:grid; place-items:center; width:26px; height:26px; border-radius:8px; background:var(--lilac-soft); color:var(--lilac-ink); font-family:var(--mono); font-weight:600; font-size:12px}
+.tab b{display:block; font-weight:600; font-size:14px}
+.tab small{display:block; color:var(--ink-3); font-size:12px; line-height:1.3}
+
+.rail{
+  display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:14px;
+  padding:12px 14px; border:1.5px solid var(--line); border-radius:18px; background:var(--card); box-shadow:var(--sh-1);
+}
+.play{display:flex; gap:6px}
+.ibtn{
+  display:grid; place-items:center; width:38px; height:38px; border-radius:11px; border:1.5px solid var(--line-2); background:var(--paper);
+  transition:transform .2s var(--ease-spring), background .2s;
+}
+.ibtn:hover{transform:translateY(-1px); background:var(--paper-2)}
+.ibtn.main{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+.ibtn svg{width:16px; height:16px}
+.ibtn:disabled{opacity:.35; cursor:default; transform:none}
+.steps{display:flex; gap:4px; min-width:0; overflow-x:auto; scrollbar-width:none; padding:2px}
+.steps::-webkit-scrollbar{display:none}
+.st{
+  flex:1 0 auto; min-width:92px; display:grid; gap:2px; padding:7px 10px; border-radius:10px; border:1.5px solid transparent;
+  background:transparent; text-align:left; position:relative;
+}
+.st .tm{font-family:var(--mono); font-size:11px; color:var(--ink-3)}
+.st .lb{font-size:12.5px; font-weight:500; color:var(--ink-2); white-space:nowrap}
+.st::after{content:""; position:absolute; left:10px; right:10px; bottom:3px; height:3px; border-radius:2px; background:var(--line)}
+.st.past::after{background:var(--ink-3)}
+.st.on{background:var(--paper-2); border-color:var(--line-2)}
+.st.on::after{background:var(--ink)}
+.st.on .lb{color:var(--ink); font-weight:600}
+.clock{font-family:var(--display); font-weight:600; font-size:26px; letter-spacing:-.03em; padding:0 6px; font-variant-numeric:tabular-nums}
+.clock small{font-family:var(--mono); font-size:11px; color:var(--ink-3); font-weight:500; letter-spacing:0; margin-left:4px}
+
+/* ── The room ───────────────────────────────────────────── */
+.room{
+  margin-top:20px; display:grid; grid-template-columns:minmax(0,260px) minmax(0,1fr); gap:20px; align-items:center;
+  padding:18px 20px; border-radius:20px; border:1.5px dashed var(--line-2); background:color-mix(in srgb, var(--paper-2) 70%, transparent);
+}
+.room-h .kick{font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.room-h p{margin:4px 0 0; font-family:var(--display); font-size:19px; font-weight:600; letter-spacing:-.02em; line-height:1.2}
+.people{display:flex; flex-wrap:wrap; gap:10px 8px}
+.pp{display:grid; justify-items:center; gap:4px; width:54px; position:relative; transition:opacity .35s}
+.pp .av{
+  width:40px; height:40px; border-radius:50%; display:grid; place-items:center; font-weight:600; font-size:13px;
+  color:rgba(38,33,27,.75); border:1.5px solid transparent; position:relative; transition:transform .35s var(--ease-spring)
+}
+.pp .nm{font-size:11px; color:var(--ink-2); white-space:nowrap}
+.pp.away{opacity:.32}
+.pp.away .av{filter:grayscale(1)}
+.pp.in .av::after{
+  content:"✓"; position:absolute; right:-4px; bottom:-3px; width:17px; height:17px; border-radius:50%;
+  background:var(--mint-ink); color:var(--card); font-size:10px; display:grid; place-items:center; border:2px solid var(--paper);
+}
+.pp.nophone .av::after{
+  content:"✎"; position:absolute; right:-4px; bottom:-3px; width:17px; height:17px; border-radius:50%;
+  background:var(--lilac-ink); color:var(--card); font-size:9px; display:grid; place-items:center; border:2px solid var(--paper);
+}
+.pp.tapnow .av{transform:scale(1.12); border-color:var(--ink)}
+.pp .bub{
+  position:absolute; top:-26px; left:50%; transform:translateX(-50%); white-space:nowrap; padding:2px 8px; border-radius:8px;
+  background:var(--ink); color:var(--paper); font-size:10.5px; font-weight:600; animation:bub .5s var(--ease-spring) both; z-index:2
+}
+.pp .bub::after{content:""; position:absolute; left:50%; bottom:-4px; width:8px; height:8px; background:var(--ink); transform:translateX(-50%) rotate(45deg); z-index:-1}
+@keyframes bub{from{opacity:0; transform:translate(-50%,6px) scale(.8)}}
+.pp.exc .av{filter:grayscale(.3); border:1.5px dashed var(--butter-ink); background:var(--butter-soft) !important}
+
+/* ── Compare columns ────────────────────────────────────── */
+.say{margin:26px 0 0; text-align:center; font-family:var(--display); font-size:clamp(19px,2vw,23px); font-weight:600; letter-spacing:-.02em; min-height:2.4em}
+.say span{color:var(--ink-3); font-family:var(--mono); font-size:12px; font-weight:500; letter-spacing:0; display:block; margin-bottom:2px}
+.cols{margin-top:18px; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:26px}
+.col{min-width:0; display:grid; gap:16px; align-content:start}
+.col-h{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+.pill{display:inline-flex; align-items:center; gap:7px; padding:4px 11px; border-radius:999px; font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase}
+.col.today .pill{background:var(--rose-soft); color:var(--rose-ink); border:1.5px solid var(--rose)}
+.col.fixed .pill{background:var(--mint-soft); color:var(--mint-ink); border:1.5px solid var(--mint)}
+.col-h .cap{flex:1 1 220px; color:var(--ink-2); font-size:14px; min-height:2.9em; line-height:1.45}
+
+/* the live band, miniature */
+.band{
+  display:flex; align-items:center; gap:12px; padding:12px 14px 12px 18px; border-radius:16px; border:1.5px solid var(--ink);
+  background:var(--card); box-shadow:4px 4px 0 var(--mint); position:relative; overflow:hidden
+}
+.band::before{content:""; position:absolute; left:7px; top:12px; bottom:12px; width:4px; border-radius:3px; background:var(--mint-ink)}
+.band.closed{border-color:var(--line-2); box-shadow:var(--sh-1)}
+.band.closed::before{background:var(--line-2)}
+.band .bt{flex:1; min-width:0}
+.band .bk{font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--mint-ink); display:flex; align-items:center; gap:6px}
+.band.closed .bk{color:var(--ink-3)}
+.band .bk i{width:7px; height:7px; border-radius:50%; background:currentColor; animation:pulse 1.8s ease-out infinite}
+.band.closed .bk i{animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 var(--mint)}70%,100%{box-shadow:0 0 0 7px transparent}}
+.band .bn{font-family:var(--display); font-weight:600; font-size:17px; letter-spacing:-.02em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.band .cnt{font-family:var(--display); font-weight:600; font-size:24px; letter-spacing:-.03em}
+.band .cnt small{font-size:13px; color:var(--ink-3)}
+.bbtn{padding:7px 12px; border-radius:10px; border:1.5px solid var(--line-2); background:var(--paper); font-size:12.5px; font-weight:600; white-space:nowrap; transition:all .25s}
+.bbtn.hot{border-color:var(--ink); box-shadow:2px 2px 0 var(--lilac); transform:translateY(-1px)}
+.col.today .bbtn.hot{box-shadow:2px 2px 0 var(--rose)}
+
+/* the sheet */
+.sheet{
+  border:1.5px solid var(--ink); border-radius:20px; background:var(--card); box-shadow:var(--sh-2); overflow:hidden; position:relative;
+  transition:opacity .3s
+}
+.sheet.shut{opacity:.55}
+.sh-top{display:flex; align-items:flex-start; gap:12px; padding:16px 18px 12px; border-bottom:1.5px solid var(--line)}
+.sh-ic{width:34px; height:34px; border-radius:10px; display:grid; place-items:center; flex:none; border:1.5px solid var(--ink)}
+.col.today .sh-ic{background:var(--sky)}
+.col.fixed .sh-ic{background:var(--lilac)}
+.sh-ic svg{width:17px; height:17px}
+.sh-t{flex:1; min-width:0}
+.sh-t b{display:block; font-family:var(--display); font-size:18px; font-weight:600; letter-spacing:-.02em; line-height:1.2}
+.sh-t small{color:var(--ink-3); font-size:12.5px}
+.live-tag{display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:999px; background:var(--mint-soft); color:var(--mint-ink); font-size:11px; font-weight:600; white-space:nowrap}
+.live-tag i{width:6px; height:6px; border-radius:50%; background:currentColor; animation:pulse 1.8s ease-out infinite}
+.snap-tag{display:inline-flex; padding:3px 9px; border-radius:999px; background:var(--paper-3); color:var(--ink-3); font-size:11px; font-weight:600; white-space:nowrap}
+
+.sh-tools{display:flex; gap:12px; padding:10px 18px 4px; font-size:12px; font-weight:600}
+.sh-tools span{color:var(--lilac-ink)}
+.sh-tools span+span{color:var(--ink-3)}
+.sh-tools em{margin-left:auto; font-style:normal; color:var(--ink-3); font-weight:500}
+
+.rows{padding:6px 10px 8px; display:grid; gap:1px}
+.row{
+  display:grid; grid-template-columns:20px 26px minmax(0,1fr) auto; align-items:center; gap:10px;
+  padding:6px 8px; border-radius:10px; position:relative; transition:background .3s
+}
+.cb{
+  width:18px; height:18px; border-radius:5px; border:1.5px solid var(--line-2); display:grid; place-items:center; background:var(--card);
+  transition:background .25s, border-color .25s, transform .3s var(--ease-spring)
+}
+.cb svg{width:12px; height:12px; opacity:0; transform:scale(.4); transition:all .3s var(--ease-spring)}
+.row.on .cb{background:var(--ink); border-color:var(--ink)}
+.row.on .cb svg{opacity:1; transform:none; color:var(--paper)}
+.row.dis .cb{background:var(--paper-3); border-style:dashed}
+.mini-av{width:26px; height:26px; border-radius:50%; display:grid; place-items:center; font-size:10px; font-weight:600; color:rgba(38,33,27,.72)}
+.row .n{font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.row.dis .n{color:var(--ink-3)}
+.tag{font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; white-space:nowrap}
+.tag.in{background:var(--mint-soft); color:var(--mint-ink)}
+.tag.yet{color:var(--ink-3); font-weight:500}
+.tag.you{background:var(--lilac-soft); color:var(--lilac-ink)}
+.tag.exc{background:var(--butter-soft); color:var(--butter-ink)}
+.tag.pct{color:var(--ink-3); font-family:var(--mono); font-weight:500}
+.tag.ghost{background:var(--rose-soft); color:var(--rose-ink); border:1px dashed var(--rose-ink)}
+.row.blind{background:repeating-linear-gradient(-45deg, var(--rose-soft) 0 6px, transparent 6px 12px)}
+.row.flash{animation:flash 1.1s var(--ease-out)}
+.col.fixed .row.flash{animation-name:flashm}
+@keyframes flash{0%{background:var(--rose)}100%{background:transparent}}
+@keyframes flashm{0%{background:var(--mint)}100%{background:transparent}}
+.row.flash .cb{transform:scale(1.25)}
+
+.sh-foot{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 18px 16px; border-top:1.5px solid var(--line); background:var(--paper-2)}
+.tally{flex:1 1 180px; font-size:12.5px; color:var(--ink-3)}
+.tally b{color:var(--ink); font-weight:600}
+.tally .warn{color:var(--rose-ink); font-weight:600}
+.save{
+  padding:9px 16px; border-radius:11px; border:1.5px solid var(--ink); background:var(--ink); color:var(--paper); font-weight:600; font-size:13px;
+  white-space:nowrap; transition:transform .25s var(--ease-spring), box-shadow .25s
+}
+.save.hot{transform:translate(-2px,-2px); box-shadow:3px 3px 0 var(--butter)}
+.save.done{background:var(--card); color:var(--ink-3); border-color:var(--line-2)}
+.stamp{
+  position:absolute; right:22px; top:58px; padding:4px 10px; border:2.5px solid var(--mint-ink); color:var(--mint-ink); border-radius:7px;
+  font-family:var(--mono); font-weight:600; font-size:12px; letter-spacing:.14em; transform:rotate(-8deg); background:color-mix(in srgb, var(--card) 80%, transparent);
+  animation:stamp .45s var(--ease-spring) both; z-index:3
+}
+.col.today .stamp{border-color:var(--rose-ink); color:var(--rose-ink)}
+@keyframes stamp{from{opacity:0; transform:rotate(-8deg) scale(1.8)}}
+
+/* what the server got */
+.slip{
+  border-radius:16px; border:1.5px solid var(--line); background:var(--card); box-shadow:var(--sh-1); padding:14px 16px;
+  font-family:var(--mono); font-size:12.5px; line-height:1.6; position:relative; min-height:118px
+}
+.slip::before{content:""; position:absolute; left:0; right:0; top:-1px; height:7px; border-radius:16px 16px 0 0;
+  background:radial-gradient(circle at 6px -1px, var(--paper) 4px, transparent 4.5px) 0 0/12px 7px repeat-x}
+.slip .sk{font-size:10.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.slip pre{margin:6px 0 8px; white-space:pre-wrap; word-break:break-word; font:inherit; color:var(--ink)}
+.slip pre .k{color:var(--sky-ink)}
+.slip pre .s{color:var(--ink-2)}
+.slip pre .x{color:var(--rose-ink); font-weight:600}
+.slip pre .g{color:var(--mint-ink); font-weight:600}
+.slip .eff{font-family:var(--sans); font-size:13px; padding-top:8px; border-top:1.5px dashed var(--line)}
+.col.today .slip .eff{color:var(--rose-ink)}
+.col.fixed .slip .eff{color:var(--mint-ink)}
+.slip .eff b{font-weight:600}
+.slip .nil{font-family:var(--sans); color:var(--ink-3); font-size:13px; margin-top:8px}
+
+/* on the record */
+.rec{border-radius:16px; border:1.5px solid var(--line); background:var(--card); box-shadow:var(--sh-1); padding:14px 16px}
+.rec-h{display:flex; align-items:baseline; gap:10px; margin-bottom:10px}
+.rec-h .sk{font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.rec-h .pct{margin-left:auto; font-family:var(--display); font-weight:600; font-size:22px; letter-spacing:-.03em}
+.rec-h .pct small{font-family:var(--sans); font-size:12px; color:var(--ink-3); font-weight:500; letter-spacing:0; margin-left:4px}
+.marks{display:grid; grid-template-columns:repeat(auto-fill, minmax(84px,1fr)); gap:6px}
+.mk{display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:9px; font-size:12px; border:1.5px solid var(--line); position:relative; transition:all .3s}
+.mk i{font-style:normal; width:16px; height:16px; border-radius:50%; display:grid; place-items:center; font-size:10px; font-weight:700; flex:none; background:var(--paper-3); color:var(--ink-3)}
+.mk.p i{background:var(--mint-ink); color:var(--card)}
+.mk.a i{background:var(--ink-3); color:var(--card)}
+.mk.none{border-style:dashed; color:var(--ink-3)}
+.mk.wrong{border-color:var(--rose-ink); background:var(--rose-soft); color:var(--rose-ink); font-weight:600}
+.mk.wrong::after{content:""; position:absolute; inset:-5px -4px; border:2px solid var(--rose-ink); border-radius:50% 45% 52% 48%; transform:rotate(-3deg); opacity:.75; pointer-events:none}
+.mk.wrong.a i{background:var(--rose-ink)}
+.mk.wrong.p i{background:var(--rose-ink)}
+.verdict{margin-top:12px; display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:12px; font-size:13.5px; line-height:1.45; animation:bub .5s var(--ease-spring) both}
+.verdict b{font-weight:600}
+.col.today .verdict{background:var(--rose-soft); color:var(--rose-ink)}
+.col.fixed .verdict{background:var(--mint-soft); color:var(--mint-ink)}
+.verdict .vi{font-family:var(--display); font-size:20px; line-height:1; flex:none}
+
+/* ── What changes ───────────────────────────────────────── */
+.sec-h{margin:72px 0 6px; font-family:var(--display); font-size:clamp(26px,3vw,34px); font-weight:600; letter-spacing:-.03em}
+.sec-sub{color:var(--ink-2); margin:0 0 22px; max-width:60ch}
+.cards{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:18px}
+.card{
+  border:1.5px solid var(--ink); border-radius:20px; background:var(--card); padding:20px 20px 18px; position:relative;
+  transition:transform .3s var(--ease-spring), box-shadow .3s
+}
+.card:nth-child(1){box-shadow:4px 4px 0 var(--mint)}
+.card:nth-child(2){box-shadow:4px 4px 0 var(--sky)}
+.card:nth-child(3){box-shadow:4px 4px 0 var(--lilac)}
+.card:hover{transform:translate(-2px,-2px)}
+.card .num{font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.1em; color:var(--ink-3)}
+.card h3{font-family:var(--display); font-size:20px; font-weight:600; letter-spacing:-.02em; margin:6px 0 8px; line-height:1.15}
+.card p{margin:0; color:var(--ink-2); font-size:14px}
+.card .must{position:absolute; top:16px; right:16px; font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; padding:3px 8px; border-radius:6px}
+.card .must.fix{background:var(--mint-soft); color:var(--mint-ink)}
+.card .must.pol{background:var(--paper-3); color:var(--ink-3)}
+.vs{margin-top:14px; display:grid; gap:6px; font-size:12.5px}
+.vs div{display:grid; grid-template-columns:58px minmax(0,1fr); gap:8px; align-items:baseline}
+.vs span{font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase}
+.vs .b span{color:var(--rose-ink)}
+.vs .a span{color:var(--mint-ink)}
+.vs code{font-family:var(--mono); font-size:12px; background:var(--paper-2); padding:1px 6px; border-radius:5px; word-break:break-word}
+
+.note{
+  margin-top:26px; display:grid; grid-template-columns:auto minmax(0,1fr); gap:16px; align-items:start;
+  padding:18px 20px; border-radius:18px; background:var(--butter-soft); border:1.5px solid var(--butter);
+  transform:rotate(-.35deg)
+}
+.note .ni{font-size:26px; line-height:1}
+.note b{font-family:var(--display); font-size:17px; font-weight:600; letter-spacing:-.02em; display:block; margin-bottom:2px}
+.note p{margin:0; color:var(--ink-2); font-size:14px}
+
+.skip{margin-top:22px; display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px}
+.skip div{padding:12px 14px; border-radius:14px; border:1.5px dashed var(--line-2); font-size:13px; color:var(--ink-2)}
+.skip b{display:block; color:var(--ink); font-weight:600; text-decoration:line-through; text-decoration-color:var(--rose-ink); text-decoration-thickness:2px}
+
+.foot{margin-top:40px; font-family:var(--mono); font-size:11px; color:var(--ink-3)}
+.kbd{font-family:var(--mono); font-size:10.5px; padding:1px 6px; border-radius:5px; border:1px solid var(--line-2); background:var(--card)}
+
+@media (max-width:980px){
+  .cols{grid-template-columns:minmax(0,1fr)}
+  .cards{grid-template-columns:minmax(0,1fr)}
+  .skip{grid-template-columns:minmax(0,1fr)}
+  .room{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:620px){
+  .wrap{padding:28px 16px 70px}
+  .rail{grid-template-columns:minmax(0,1fr) auto}
+  .rail .steps{grid-column:1 / -1; grid-row:2}
+  .band .bbtn{display:none}
+  .pp{width:46px}
+}
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Attendance · live check-in</div>
+  <h1>Take attendance <span class="hi">mid-window</span></h1>
+  <p class="lede">An officer opens the attendance sheet while members are still tapping <b>I'm here</b>. Today the sheet saves a whole list, so anyone missing from it gets marked absent. With the fix, <b>the sheet only saves what the officer changed</b>. Step through the same meeting on both sides.</p>
+
+  <div class="controls">
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="rail">
+      <div class="play">
+        <button class="ibtn" id="prev" aria-label="Previous step"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg></button>
+        <button class="ibtn main" id="playBtn" aria-label="Play"><svg viewBox="0 0 16 16" fill="currentColor" id="playIc"><path d="M4.5 2.8v10.4L13 8z"/></svg></button>
+        <button class="ibtn" id="next" aria-label="Next step"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3 5 5-5 5"/></svg></button>
+      </div>
+      <div class="steps" id="steps"></div>
+      <div class="clock" id="clock"></div>
+    </div>
+  </div>
+
+  <div class="room">
+    <div class="room-h"><div class="kick">The room · Chapter meeting</div><p id="roomLine"></p></div>
+    <div class="people" id="people"></div>
+  </div>
+
+  <p class="say" id="say"></p>
+
+  <div class="cols">
+    <section class="col today" id="colToday"></section>
+    <section class="col fixed" id="colFixed"></section>
+  </div>
+
+  <h2 class="sec-h">What changes</h2>
+  <p class="sec-sub">Nothing new for anyone to learn. No locks, no "someone checked in, reload?" dialogs. The sheet just saves what people expect it to.</p>
+  <div class="cards">
+    <div class="card">
+      <span class="must fix">The fix</span>
+      <div class="num">01</div>
+      <h3>Save changes, not the whole list</h3>
+      <p>The sheet remembers where every row started and sends only the rows the officer flipped. Nobody else is touched, so a check-in that lands mid-edit survives.</p>
+      <div class="vs">
+        <div class="b"><span>Today</span><code>attendedIds: [6 names]</code></div>
+        <div class="a"><span>Fix</span><code>changes: [{ Theo: present }]</code></div>
+      </div>
+    </div>
+    <div class="card">
+      <span class="must fix">Ships with it</span>
+      <div class="num">02</div>
+      <h3>Start from the real check-ins</h3>
+      <p>While a window is open, unticked rows say <i>not checked in yet</i> instead of being pre-ticked. Closing the window still writes their absences, exactly as now.</p>
+      <div class="vs">
+        <div class="b"><span>Today</span><code>no rows → everyone ticked</code></div>
+        <div class="a"><span>Fix</span><code>no rows → "not checked in yet"</code></div>
+      </div>
+    </div>
+    <div class="card">
+      <span class="must pol">Polish</span>
+      <div class="num">03</div>
+      <h3>A live sheet called "Fix a mark"</h3>
+      <p>Check-ins tick on as they arrive. On the live card, the button says what the officer is actually doing in the room: correcting one or two people.</p>
+      <div class="vs">
+        <div class="b"><span>Today</span><code>Take attendance · snapshot</code></div>
+        <div class="a"><span>Fix</span><code>Fix a mark · live</code></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <div class="ni">☺</div>
+    <div>
+      <b>New orgs that never open a window see no change</b>
+      <p>Logging attendance after the meeting still starts with everyone ticked. For a full room, unticking the three who missed is the fastest way to work. That default was only dangerous when check-ins arrived at the same time, and saving only changes makes that safe. "All present" and "Clear" still work: they count as changing every row.</p>
+    </div>
+  </div>
+
+  <div class="skip">
+    <div><b>Lock the sheet during a window</b>Blocks the officer at the exact moment they need to fix something.</div>
+    <div><b>Reject the save if data moved</b>Throws away their edits in the middle of a meeting.</div>
+    <div><b>"Never un-mark a self check-in"</b>Works around the bug and blocks fixing a mistaken tap.</div>
+  </div>
+
+  <p class="foot">Use <span class="kbd">←</span> <span class="kbd">→</span> to step, <span class="kbd">space</span> to play. Names are made up.</p>
+</div>
+
+<script>
+/* ── Data ───────────────────────────────────────────────── */
+const HUES = ['peach','sky','mint','butter','lilac','rose'];
+const ROSTER = [
+  ['ava','Ava Brooks',92],['ben','Ben Ortiz',88],['cole','Cole Nguyen',95],['dani','Dani Reyes',81],
+  ['eli','Eli Park',90],['maya','Maya Cruz',86],['jordan','Jordan Lee',79],['theo','Theo Grant',84],
+  ['finn','Finn Walsh',62],['gus','Gus Hale',70],['hana','Hana Ito',58],['ivy','Ivy Moss',66],
+].map(([id,name,pct],i)=>({id,name,pct,first:name.split(' ')[0],ini:name.split(' ').map(s=>s[0]).join(''),hue:HUES[i%6]}));
+const EXCUSED = {id:'priya',name:'Priya Shah',first:'Priya',ini:'PS',hue:'butter'};
+const byId = Object.fromEntries(ROSTER.map(m=>[m.id,m]));
+const ELIG = ROSTER.map(m=>m.id);
+
+/* Each step carries events (replayed from zero on every render) and captions.
+   Events: open · tap <id> · mark <id> · save · close */
+const SCEN = [
+  {
+    key:'A', title:'Late arrivals', sub:'Check-ins land while the sheet is open',
+    present:['ava','ben','cole','dani','eli','maya','jordan','theo'],
+    steps:[
+      { t:'7:33', lb:'Sheet opens', ev:[['tap','ava'],['tap','ben'],['tap','cole'],['tap','dani'],['tap','eli'],['open']],
+        say:'Five members have tapped in. The officer opens the sheet from the live card.',
+        today:'The sheet copies who is present right now and freezes that list.',
+        fixed:'Same five ticks. The other rows say "not checked in yet" and stay live.' },
+      { t:'7:34', lb:'Maya taps in', ev:[['tap','maya']],
+        say:'Maya walks in and taps I\'m here on her phone.',
+        today:'The sheet can\'t see it. Maya is still unticked on the officer\'s screen.',
+        fixed:'Maya ticks on in front of the officer, marked "checked in 7:34".' },
+      { t:'7:35', lb:'Jordan taps in', ev:[['tap','jordan']],
+        say:'Jordan taps in a minute later.',
+        today:'Still invisible. Two people are now present on the server and absent on the sheet.',
+        fixed:'Jordan ticks on too. Nobody had to refresh anything.' },
+      { t:'7:36', lb:'Officer marks Theo', ev:[['mark','theo']],
+        say:'Theo forgot his phone, so the officer ticks him by hand.',
+        today:'One tick, but the sheet is still holding its 7:33 copy of everyone else.',
+        fixed:'One tick, tagged "your change". That is the only thing this sheet will send.' },
+      { t:'7:36', lb:'Save', ev:[['save']],
+        say:'The officer saves.',
+        today:'The sheet sends its full list. Anyone not on it, Maya and Jordan included, is written absent.',
+        fixed:'The sheet sends one change: Theo present. Every other row is left alone.' },
+      { t:'8:30', lb:'Window closes', ev:[['close']],
+        say:'The window closes and everyone without a mark gets an absence.',
+        today:'Maya and Jordan were there and checked in, and their record says absent.',
+        fixed:'Eight present, four absent. Every check-in kept.' },
+    ],
+  },
+  {
+    key:'B', title:'Opened too early', sub:'The sheet opens before anyone checks in',
+    present:['ava','ben','cole','dani','eli','maya','jordan','theo'],
+    steps:[
+      { t:'7:30', lb:'Sheet opens', ev:[['open']],
+        say:'The window has just opened. The officer taps the button straight away.',
+        today:'No records yet, so the sheet ticks all twelve members as present.',
+        fixed:'Nobody has checked in yet, so nobody is ticked. Rows wait for the room.' },
+      { t:'7:32', lb:'Three tap in', ev:[['tap','ava'],['tap','ben'],['tap','cole']],
+        say:'Ava, Ben and Cole tap in.',
+        today:'No visible change: they were already ticked, along with everyone else.',
+        fixed:'Three rows tick on live.' },
+      { t:'7:34', lb:'Officer marks Theo', ev:[['mark','theo']],
+        say:'The officer goes to tick Theo, who has no phone.',
+        today:'Theo is already ticked, along with everyone. Looks right, so they move on.',
+        fixed:'The officer ticks Theo. One change waiting to save.' },
+      { t:'7:35', lb:'Save', ev:[['save']],
+        say:'The officer saves.',
+        today:'All twelve are written present, including the four who never come.',
+        fixed:'One change sent: Theo present.' },
+      { t:'7:50', lb:'Four more tap in', ev:[['tap','dani'],['tap','eli'],['tap','maya'],['tap','jordan']],
+        say:'Dani, Eli, Maya and Jordan tap in later.',
+        today:'They already have a "present" row, so nothing changes.',
+        fixed:'Their check-ins write present, as normal.' },
+      { t:'8:30', lb:'Window closes', ev:[['close']],
+        say:'The window closes. Anyone without a mark should get an absence.',
+        today:'Everyone already has a row, so no absences are written. Attendance reads 100%.',
+        fixed:'Finn, Gus, Hana and Ivy get their absences. 8 of 12, which is what happened.' },
+    ],
+  },
+];
+
+/* ── Engine: pure replay of (scenario, step) ────────────── */
+function replay(sc, upto){
+  const S = {
+    tapped:new Map(),   // id -> time
+    marks:new Set(),
+    openSnap:null,      // today's frozen sheet
+    opened:false, saved:false, closed:false,
+    recT:new Map(), recF:new Map(), // server rows: id -> true/false
+    sentT:null, sentF:null, lastStep:upto,
+    nowTaps:new Set(), nowMarks:new Set(),
+  };
+  for (let i=0;i<=upto;i++){
+    const st = sc.steps[i];
+    for (const [k,id] of st.ev){
+      if (k==='tap'){
+        S.tapped.set(id, st.t);
+        S.recT.set(id,true); S.recF.set(id,true);
+        if (i===upto) S.nowTaps.add(id);
+      }
+      if (k==='open'){
+        S.opened = true;
+        const have = ELIG.filter(id=>S.recT.get(id)===true);
+        S.openSnap = new Set(have.length ? have : ELIG);
+        S.openEmpty = have.length===0;
+      }
+      if (k==='mark'){
+        S.marks.add(id); S.openSnap.add(id);
+        if (i===upto) S.nowMarks.add(id);
+      }
+      if (k==='save'){
+        S.saved = true;
+        const list = ELIG.filter(id=>S.openSnap.has(id));
+        S.sentT = list;
+        // today: full snapshot -> every eligible row rewritten
+        for (const id of ELIG) S.recT.set(id, S.openSnap.has(id));
+        // fix: only rows the officer changed vs. what the sheet started from
+        S.sentF = [...S.marks].filter(id=>S.recF.get(id)!==true);
+        for (const id of S.sentF) S.recF.set(id,true);
+      }
+      if (k==='close'){
+        S.closed = true;
+        for (const id of ELIG){ if(!S.recT.has(id)) S.recT.set(id,false); if(!S.recF.has(id)) S.recF.set(id,false); }
+      }
+    }
+  }
+  return S;
+}
+
+/* ── Render ─────────────────────────────────────────────── */
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const avStyle = m=>`background:var(--${m.hue})`;
+const CHECK = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m2.5 6.3 2.4 2.4 4.6-5"/></svg>';
+const IC_LIST = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2.5" width="12" height="13" rx="2"/><path d="m6 7 1.2 1.2L9.5 6M6 11.5h6"/></svg>';
+const IC_PEN  = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 3.5 14.5 6.5 6.5 14.5H3.5V11.5z"/><path d="m10 5 3 3"/></svg>';
+
+let scIdx = 0, step = 0, timer = null;
+let prevRows = {today:new Map(), fixed:new Map()};
+
+function renderTabs(){
+  $('#tabs').innerHTML = SCEN.map((s,i)=>`
+    <button class="tab" role="tab" aria-selected="${i===scIdx}" data-i="${i}">
+      <span class="k">${s.key}</span><span><b>${esc(s.title)}</b><small>${esc(s.sub)}</small></span>
+    </button>`).join('');
+  $('#tabs').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ stop(); scIdx=+b.dataset.i; step=0; prevRows={today:new Map(),fixed:new Map()}; render(); });
+}
+
+function render(){
+  const sc = SCEN[scIdx], st = sc.steps[step], S = replay(sc, step);
+  renderTabs();
+
+  $('#steps').innerHTML = sc.steps.map((s,i)=>`
+    <button class="st ${i<step?'past':''} ${i===step?'on':''}" data-i="${i}"><span class="tm">${s.t}</span><span class="lb">${esc(s.lb)}</span></button>`).join('');
+  $('#steps').querySelectorAll('.st').forEach(b=>b.onclick=()=>{ stop(); step=+b.dataset.i; render(); });
+  const onEl = $('#steps .st.on'); if (onEl) onEl.scrollIntoView({block:'nearest', inline:'nearest'});
+  $('#clock').innerHTML = `${st.t}<small>PM</small>`;
+  $('#prev').disabled = step===0;
+  $('#next').disabled = step===sc.steps.length-1;
+
+  // the room: who is physically here by this step (taps so far + Theo once he's marked)
+  const inRoom = new Set([...S.tapped.keys(), ...S.marks]);
+  $('#roomLine').textContent = S.closed ? `${sc.present.length} came · ${ELIG.length-sc.present.length} never showed`
+    : `${S.tapped.size} checked in on their phones${S.marks.size?' · 1 without a phone':''}`;
+  $('#people').innerHTML = ROSTER.map(m=>{
+    const cls = S.tapped.has(m.id) ? 'in' : S.marks.has(m.id) ? 'nophone' : 'away';
+    const now = S.nowTaps.has(m.id) || S.nowMarks.has(m.id);
+    const bub = S.nowTaps.has(m.id) ? `<span class="bub">I'm here</span>` : S.nowMarks.has(m.id) ? `<span class="bub">no phone</span>` : '';
+    return `<div class="pp ${cls} ${now?'tapnow':''}" title="${esc(m.name)}">${bub}<span class="av" style="${avStyle(m)}">${m.ini}</span><span class="nm">${esc(m.first)}</span></div>`;
+  }).join('') + `<div class="pp exc" title="Excused"><span class="av" style="${avStyle(EXCUSED)}">${EXCUSED.ini}</span><span class="nm">Excused</span></div>`;
+
+  $('#say').innerHTML = `<span>${st.t} PM · step ${step+1} of ${sc.steps.length}</span>${esc(st.say)}`;
+
+  $('#colToday').innerHTML = renderSide('today', sc, st, S);
+  $('#colFixed').innerHTML = renderSide('fixed', sc, st, S);
+  $('#playIc').innerHTML = timer ? '<path d="M4 3h3v10H4zM9 3h3v10H9z"/>' : '<path d="M4.5 2.8v10.4L13 8z"/>';
+}
+
+function renderSide(side, sc, st, S){
+  const T = side==='today';
+  const rec = T ? S.recT : S.recF;
+  const here = ELIG.filter(id=>rec.get(id)===true).length;
+  const isOpenStep = st.ev.some(e=>e[0]==='open');
+  const isSaveStep = st.ev.some(e=>e[0]==='save');
+
+  // band
+  const band = `
+    <div class="band ${S.closed?'closed':''}">
+      <div class="bt">
+        <div class="bk"><i></i>${S.closed?'Check-in closed':'Check-in open'}</div>
+        <div class="bn">Chapter meeting</div>
+      </div>
+      <div class="cnt">${here}<small>/${ELIG.length}</small></div>
+      <button class="bbtn ${isOpenStep?'hot':''}" tabindex="-1">${T?'Take attendance':'Fix a mark'}</button>
+    </div>`;
+
+  // sheet rows
+  const prev = prevRows[side], next = new Map();
+  const rows = ROSTER.map(m=>{
+    let on, tag='', cls='';
+    if (T){
+      on = S.openSnap.has(m.id);
+      const blindNow = !on && S.tapped.has(m.id) && !S.saved;
+      const wiped = S.saved && S.tapped.has(m.id) && !S.openSnap.has(m.id);
+      if (blindNow){ cls='blind'; tag=`<span class="tag ghost">tapped in ${S.tapped.get(m.id)} · not on sheet</span>`; }
+      else if (wiped){ cls='blind'; tag=`<span class="tag ghost">wiped → absent</span>`; }
+      else tag=`<span class="tag pct">${m.pct}%</span>`;
+    } else {
+      const tapped = S.tapped.has(m.id), marked = S.marks.has(m.id) && !tapped;
+      on = tapped || marked;
+      if (marked) tag='<span class="tag you">your change</span>';
+      else if (tapped) tag=`<span class="tag in">checked in ${S.tapped.get(m.id)}</span>`;
+      else tag = S.closed ? '<span class="tag yet">absent at close</span>' : '<span class="tag yet">not checked in yet</span>';
+    }
+    const key = (on?1:0)+tag;
+    if (prev.size && prev.get(m.id)!==key && (T ? cls==='blind' || S.nowMarks.has(m.id) : true)) cls+=' flash';
+    next.set(m.id,key);
+    return `<div class="row ${on?'on':''} ${cls}"><span class="cb">${CHECK}</span><span class="mini-av" style="${avStyle(m)}">${m.ini}</span><span class="n">${esc(m.name)}</span>${tag}</div>`;
+  }).join('') + `<div class="row dis"><span class="cb"></span><span class="mini-av" style="${avStyle(EXCUSED)}">${EXCUSED.ini}</span><span class="n">${EXCUSED.name}</span><span class="tag exc">Excused</span></div>`;
+  prevRows[side] = next;
+
+  let tally, saveLbl;
+  if (T){
+    const n = S.openSnap.size, blind = ELIG.filter(id=>S.tapped.has(id)&&!S.openSnap.has(id)&&!S.saved).length;
+    tally = `<b>${n}</b> attending · <b>${ELIG.length-n}</b> absent · <b>1</b> excused`
+      + (blind ? `<br><span class="warn">${blind} check-in${blind>1?'s':''} this sheet can't see</span>` : '')
+      + (S.openEmpty && !S.saved ? `<br><span class="warn">Pre-ticked: nobody has actually checked in</span>` : '');
+    saveLbl = S.saved ? 'Saved' : 'Log Attendance';
+  } else {
+    const ch = [...S.marks].filter(id=>!S.tapped.has(id)).length;
+    const liveHere = ELIG.filter(id=>S.tapped.has(id)||S.marks.has(id)).length;
+    tally = `<b>${liveHere}</b> here · <b>${ELIG.length-liveHere}</b> ${S.closed?'absent':'not yet'} · <b>1</b> excused`;
+    saveLbl = S.saved ? 'Saved' : ch ? `Save ${ch} change${ch>1?'s':''}` : 'No changes';
+  }
+
+  const sheet = `
+    <div class="sheet ${S.saved && !isSaveStep ? 'shut':''}">
+      ${S.saved && isSaveStep ? `<span class="stamp">${T?'SAVED · LIST':'SAVED · 1 CHANGE'}</span>`:''}
+      <div class="sh-top">
+        <span class="sh-ic">${T?IC_LIST:IC_PEN}</span>
+        <div class="sh-t"><b>${T?'Take attendance':'Fix a mark'}</b><small>Chapter meeting · Tue 7:30 PM</small></div>
+        ${T ? `<span class="snap-tag">Copy from ${sc.steps[0].t}</span>` : (S.closed ? `<span class="snap-tag">Window closed</span>` : `<span class="live-tag"><i></i>Live</span>`)}
+      </div>
+      <div class="sh-tools"><span>All present</span><span>Clear</span><em>${T?'':'Ticks arrive as members tap in'}</em></div>
+      <div class="rows">${rows}</div>
+      <div class="sh-foot">
+        <div class="tally">${tally}</div>
+        <button class="save ${isSaveStep?'hot':''} ${S.saved && !isSaveStep?'done':''}" tabindex="-1">${saveLbl}</button>
+      </div>
+    </div>`;
+
+  // what the server got
+  let slip;
+  if (!S.saved){
+    slip = `<div class="slip"><div class="sk">Sent to the server</div><div class="nil">Nothing yet. The sheet sends when the officer hits save.</div></div>`;
+  } else if (T){
+    const names = S.sentT.map(id=>byId[id].first);
+    const missing = ELIG.filter(id=>!S.sentT.includes(id));
+    const hurt = missing.filter(id=>sc.present.includes(id));
+    slip = `<div class="slip"><div class="sk">Sent to the server · full list</div>
+      <pre><span class="k">attendedIds</span>: [<span class="s">${names.map(esc).join(', ')}</span>]</pre>
+      <div class="eff">${missing.length
+        ? `Everyone not on the list becomes absent: <b>${missing.map(id=>byId[id].first).join(', ')}</b>.${hurt.length?` That includes <b>${hurt.map(id=>byId[id].first).join(' and ')}</b>, who had checked in.`:''}`
+        : `All <b>12</b> written present, before most of them have arrived.`}</div></div>`;
+  } else {
+    slip = `<div class="slip"><div class="sk">Sent to the server · changes only</div>
+      <pre><span class="k">changes</span>: [${S.sentF.map(id=>`{ <span class="s">${byId[id].first}</span>: <span class="g">present</span> }`).join(', ')}]</pre>
+      <div class="eff"><b>${S.sentF.length}</b> row written. The other ${ELIG.length-S.sentF.length} are left exactly as they were.</div></div>`;
+  }
+
+  // on the record
+  const marks = ROSTER.map(m=>{
+    const v = rec.get(m.id);
+    if (v===undefined) return `<div class="mk none"><i>·</i>${esc(m.first)}</div>`;
+    const truth = sc.present.includes(m.id);
+    const wrong = (S.closed || S.saved) && v!==truth && (v===false || S.closed);
+    return `<div class="mk ${v?'p':'a'} ${wrong?'wrong':''}"><i>${v?'✓':'✕'}</i>${esc(m.first)}</div>`;
+  }).join('');
+  const marked = ELIG.filter(id=>rec.has(id));
+  const pct = marked.length ? Math.round(100*marked.filter(id=>rec.get(id)).length/marked.length) : null;
+  let verdict = '';
+  if (S.closed){
+    const truthPct = Math.round(100*sc.present.length/ELIG.length);
+    if (T){
+      const wronged = ELIG.filter(id=>rec.get(id)!==sc.present.includes(id));
+      verdict = sc.key==='A'
+        ? `<div class="verdict"><span class="vi">✕</span><span><b>${wronged.map(id=>byId[id].first).join(' and ')} came and checked in.</b> Their record says absent, and it drags their attendance down.</span></div>`
+        : `<div class="verdict"><span class="vi">✕</span><span><b>Reads 100%, really ${truthPct}%.</b> Four no-shows got credit, and nobody is flagged.</span></div>`;
+    } else {
+      verdict = `<div class="verdict"><span class="vi">✓</span><span><b>${truthPct}%, which is what happened.</b> Every check-in kept, every absence recorded.</span></div>`;
+    }
+  }
+  const recEl = `
+    <div class="rec">
+      <div class="rec-h"><span class="sk">On the record</span><span class="pct">${pct===null?'—':pct+'%'}<small>${S.closed?'final':marked.length?`${marked.length} marked so far`:'no rows yet'}</small></span></div>
+      <div class="marks">${marks}</div>
+      ${verdict}
+    </div>`;
+
+  return `
+    <div class="col-h"><span class="pill">${T?'Today':'With the fix'}</span><span class="cap">${esc(T?st.today:st.fixed)}</span></div>
+    ${band}${sheet}${slip}${recEl}`;
+}
+
+/* ── Playback ───────────────────────────────────────────── */
+function stop(){ if (timer){ clearInterval(timer); timer=null; } }
+function go(d){ const n = SCEN[scIdx].steps.length; step = Math.max(0, Math.min(n-1, step+d)); render(); }
+$('#prev').onclick = ()=>{ stop(); go(-1); };
+$('#next').onclick = ()=>{ stop(); go(1); };
+$('#playBtn').onclick = ()=>{
+  if (timer){ stop(); render(); return; }
+  if (step===SCEN[scIdx].steps.length-1){ step=0; prevRows={today:new Map(),fixed:new Map()}; }
+  timer = setInterval(()=>{
+    if (step>=SCEN[scIdx].steps.length-1){ stop(); render(); return; }
+    go(1);
+  }, 2800);
+  render();
+};
+document.addEventListener('keydown', e=>{
+  if (e.key==='ArrowRight'){ stop(); go(1); }
+  else if (e.key==='ArrowLeft'){ stop(); go(-1); }
+  else if (e.key===' '){ e.preventDefault(); $('#playBtn').click(); }
+});
+render();
+</script>
+</body>
+</html>

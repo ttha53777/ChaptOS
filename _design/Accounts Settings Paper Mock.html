@@ -1,0 +1,853 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accounts Settings · Paper Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  ISOLATED MOCK: Settings → Accounts, rebuilt around one question:
+  "who's in, and what can each of them change?"
+
+  Same data as today, nothing new on the server:
+    GET  /api/auth/accounts        → id, name, role, linked, isSelf, isAdmin, email, roles[]
+    PATCH /api/auth/accounts/:id   → { isAdmin }
+    PATCH /api/brothers/:id        → { name }   (this org's Membership.name only)
+    DELETE /api/brothers/:id
+    POST/DELETE /api/brothers/:id/roles        (BrotherRoleChips today)
+    GET  /api/roles                → name, color, rank, permissions (for "what they can do")
+  Leave / Delete account keep their existing modals (LeaveOrgModal, DeleteAccountModal).
+
+  What changes for the officer:
+    1. (Tier cards removed per user; the list still groups Admins / Officers / Members.)
+    2. By person / By area. "By area" flips the question: for every page, who
+       can change it. Pages nobody but an admin can touch are called out, and an
+       unheld role (Service Chair, here) gets a nudge.
+    3. Rows stay calm (name, roles, what they can change in words). Every edit
+       moves into a person sheet: rename, admin switch with an inline confirm,
+       role checklist with a live "what they can do" board, remove at the bottom.
+       Today all of that sits inline on every row at once.
+    4. Your account is its own card at the bottom: Leave this chapter vs Delete my
+       account, side by side so the difference (one chapter vs everywhere) reads
+       at a glance.
+
+  "Member" (top right) shows what someone without Roster access sees: read-only
+  rows and sheet, rename only themselves.
+-->
+<style>
+:root {
+  --pp-peach:#FFD5C4;  --pp-peach-soft:#FFEDE5;  --pp-peach-ink:#C9542D;
+  --pp-sky:#CFE2FF;    --pp-sky-soft:#EAF2FF;    --pp-sky-ink:#2A66C7;
+  --pp-mint:#C7EFDA;   --pp-mint-soft:#E6F8EF;   --pp-mint-ink:#1B815B;
+  --pp-butter:#FFE5A0; --pp-butter-soft:#FFF6DC; --pp-butter-ink:#9C6B08;
+  --pp-lilac:#E1D8FF;  --pp-lilac-soft:#F1EDFF;  --pp-lilac-ink:#6244CC;
+  --pp-rose:#FFD6E6;   --pp-rose-soft:#FFEDF4;   --pp-rose-ink:#C23C77;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 2px 6px rgba(38,33,27,.06), 0 18px 48px rgba(38,33,27,.14);
+
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --card:#FFFFFF; --card-3:#F4ECDD;
+  --ink:#26211B; --ink-soft:#544A3F; --muted:#8A7F71; --faint:#998D7C;
+  --line:#EBE1CF; --line-med:#DCD0B9; --scrim:rgba(38,33,27,.28);
+
+  --display:"Bricolage Grotesque", Inter, system-ui, sans-serif;
+  --sans:Inter, -apple-system, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --spring:cubic-bezier(.16,.9,.3,1.02);
+}
+html[data-theme="night"] {
+  color-scheme: dark;
+  --pp-peach:#E5A28A;  --pp-peach-soft:rgba(255,178,148,.085); --pp-peach-ink:#FFB49A;
+  --pp-sky:#8DB2EC;    --pp-sky-soft:rgba(150,190,255,.085);   --pp-sky-ink:#AACBFF;
+  --pp-mint:#80CBA4;   --pp-mint-soft:rgba(140,220,180,.08);   --pp-mint-ink:#8FDDB6;
+  --pp-butter:#E3BF66; --pp-butter-soft:rgba(255,214,120,.08); --pp-butter-ink:#F0CC72;
+  --pp-lilac:#A593EE;  --pp-lilac-soft:rgba(180,160,255,.10);  --pp-lilac-ink:#C4B6FF;
+  --pp-rose:#E598B7;   --pp-rose-soft:rgba(255,160,200,.08);   --pp-rose-ink:#FFAACB;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --sh-2:0 2px 6px rgba(0,0,0,.4), 0 18px 48px rgba(0,0,0,.5);
+  --paper:#15110D; --paper-2:#1B1712; --card:#1F1A15; --card-3:#2B251E;
+  --ink:#F2EADC; --ink-soft:#CDBFAB; --muted:#948876; --faint:#7D7262;
+  --line:#2F271E; --line-med:#43382B; --scrim:rgba(5,4,2,.6);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh; background: var(--paper); color: var(--ink);
+  font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+button, input { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+svg { flex-shrink: 0; }
+:focus-visible { outline: 2px solid var(--pp-lilac-ink); outline-offset: 2px; }
+
+/* ── Shell ────────────────────────────────────────────────────────────────── */
+.app { display: grid; grid-template-columns: 248px minmax(0,1fr); min-height: 100vh; }
+.se-nav { border-right: 1.5px solid var(--line); background: var(--paper-2); padding: 20px 14px; }
+.se-back { display: inline-flex; align-items: center; gap: 6px; font: 550 .8rem var(--sans); color: var(--muted); margin: 2px 6px 18px; }
+.se-back svg { width: 14px; height: 14px; }
+.se-h { font: 700 1.35rem var(--display); letter-spacing: -.03em; margin: 0 8px 16px; }
+.se-g { font: 600 .62rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 16px 8px 6px; display: flex; align-items: center; gap: 7px; }
+.se-g i { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--ink); background: var(--s); }
+.se-it { display: block; padding: 6px 10px; border-radius: 9px; font: 500 .84rem var(--sans); color: var(--ink-soft); }
+.se-it.on { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink), 2px 2px 0 1.5px var(--pp-sky); font-weight: 600; }
+
+.se-main { padding: 30px 40px 120px; max-width: 1040px; min-width: 0; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.se-crumb { font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.toggles { display: flex; gap: 8px; flex-wrap: wrap; }
+.seg { display: inline-flex; padding: 3px; border: 1.5px solid var(--line-med); border-radius: 999px; background: var(--card); }
+.seg button { border: 0; background: none; padding: 4px 11px; border-radius: 999px; font: 600 .72rem var(--sans); color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.se-title { font: 700 2.3rem/1.05 var(--display); letter-spacing: -.035em; margin: 8px 0 6px; }
+.se-lede { color: var(--ink-soft); margin: 0 0 26px; max-width: 62ch; font-size: .95rem; }
+
+.ro-note {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin: -10px 0 22px; border-radius: 12px;
+  background: var(--pp-sky-soft); border: 1.5px solid color-mix(in oklab, var(--pp-sky-ink) 35%, transparent); color: var(--ink-soft); font-size: .85rem;
+}
+.ro-note svg { width: 16px; height: 16px; color: var(--pp-sky-ink); }
+
+/* ── Tiers ────────────────────────────────────────────────────────────────── */
+.tier-ic {
+  width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0;
+  background: var(--t); border: 1.5px solid var(--ink); color: #26211B;
+}
+.tier-ic svg { width: 18px; height: 18px; }
+/* face pile */
+.pile { display: flex; align-items: center; min-height: 28px; }
+.pile .av { --sz: 28px; margin-left: -5px; box-shadow: 0 0 0 2px var(--card); }
+.pile .av:first-child { margin-left: 0; }
+.pile .av .key { display: none; }
+.pile .more { margin-left: 6px; font: 600 .74rem var(--sans); color: var(--muted); }
+
+/* avatar */
+.av {
+  --sz: 40px; width: var(--sz); height: var(--sz); border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--a, var(--pp-sky)); border: 1.5px solid var(--ink); color: #26211B;
+  font: 700 calc(var(--sz) * .36)/1 var(--display); letter-spacing: -.02em; position: relative;
+}
+.av .key {
+  position: absolute; right: -4px; bottom: -4px; width: calc(var(--sz) * .48); height: calc(var(--sz) * .48); min-width: 15px; min-height: 15px;
+  border-radius: 50%; background: var(--pp-lilac); border: 1.5px solid var(--ink); display: grid; place-items: center;
+}
+.av .key svg { width: 60%; height: 60%; }
+
+/* ── View switch + search ─────────────────────────────────────────────────── */
+.listbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.views { display: inline-flex; padding: 3px; border-radius: 12px; background: var(--paper-2); border: 1.5px solid var(--line); }
+.views button { border: 0; background: none; cursor: pointer; padding: 7px 13px; border-radius: 9px; font: 600 .82rem var(--sans); color: var(--muted); display: inline-flex; align-items: center; gap: 7px; }
+.views button svg { width: 15px; height: 15px; }
+.views button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink); }
+.search {
+  flex: 1; min-width: 200px; display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 40px;
+  border: 1.5px solid var(--line-med); border-radius: 12px; background: var(--card); transition: border-color .15s, box-shadow .15s;
+}
+.search:focus-within { border-color: var(--ink); box-shadow: 3px 3px 0 var(--pp-sky); }
+.search svg { width: 16px; height: 16px; color: var(--muted); }
+.search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font-size: .9rem; }
+.chip-filter {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 6px 5px 11px; border-radius: 999px;
+  background: var(--pp-sky-soft); border: 1.5px solid var(--ink); font: 600 .78rem var(--sans);
+}
+.chip-filter button { border: 0; background: none; cursor: pointer; display: grid; place-items: center; padding: 2px; border-radius: 50%; color: var(--ink-soft); }
+.chip-filter button:hover { background: var(--card); }
+.chip-filter svg { width: 12px; height: 12px; }
+
+/* ── By person ────────────────────────────────────────────────────────────── */
+.grp-h { display: flex; align-items: center; gap: 8px; margin: 18px 2px 8px; font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.grp-h:first-child { margin-top: 0; }
+.grp-h i { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--ink); background: var(--s); }
+.grp-h span { margin-left: auto; letter-spacing: 0; text-transform: none; font-weight: 500; color: var(--faint); font-size: .74rem; }
+.roster { border: 1.5px solid var(--line-med); border-radius: 16px; background: var(--card); overflow: hidden; box-shadow: var(--sh-1); }
+.row {
+  width: 100%; border: 0; background: none; text-align: left; cursor: pointer;
+  display: grid; grid-template-columns: 40px minmax(0,1.3fr) minmax(0,1.2fr) minmax(0,1fr) 18px; align-items: center; gap: 14px;
+  padding: 11px 16px; border-top: 1.5px solid var(--line); transition: background .12s;
+}
+.row:first-child { border-top: 0; }
+.row:hover { background: var(--paper-2); }
+.row:hover .chev { color: var(--ink); transform: translateX(2px); }
+.row.gone { animation: gone .45s var(--spring) forwards; }
+@keyframes gone { to { opacity: 0; transform: translateX(30px); } }
+.who { min-width: 0; }
+.who b { display: flex; align-items: center; gap: 7px; font: 620 .92rem var(--sans); }
+.who b span.nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who small { display: block; color: var(--muted); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.you { font: 650 .62rem var(--sans); letter-spacing: .06em; text-transform: uppercase; padding: 2px 6px; border-radius: 6px; background: var(--ink); color: var(--paper); flex-shrink: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.rchip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 7px; border-radius: 999px; max-width: 100%;
+  font: 600 .74rem var(--sans); background: color-mix(in oklab, var(--rc) 14%, var(--card)); border: 1.5px solid color-mix(in oklab, var(--rc) 55%, var(--line-med));
+  white-space: nowrap;
+}
+.rchip i { width: 8px; height: 8px; border-radius: 50%; background: var(--rc); flex-shrink: 0; }
+.rchip.none { background: none; border: 1.5px dashed var(--line-med); color: var(--faint); font-weight: 500; }
+.can { font-size: .8rem; color: var(--ink-soft); min-width: 0; display: flex; align-items: center; gap: 7px; }
+.can svg { width: 14px; height: 14px; }
+.can span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.can.all { color: var(--pp-lilac-ink); font-weight: 600; }
+.can.view { color: var(--faint); }
+.chev { width: 16px; height: 16px; color: var(--faint); transition: transform .2s var(--spring), color .15s; }
+.empty { padding: 34px 20px; text-align: center; color: var(--muted); }
+.empty b { display: block; font: 680 1.05rem var(--display); color: var(--ink); margin-bottom: 4px; }
+
+/* ── By area ──────────────────────────────────────────────────────────────── */
+.areas { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.agrp { border: 1.5px solid var(--line-med); border-radius: 16px; background: var(--card); overflow: hidden; box-shadow: var(--sh-1); }
+.agrp-h { display: flex; align-items: center; gap: 9px; padding: 11px 14px; background: var(--ts); border-bottom: 1.5px solid var(--line); font: 680 .98rem var(--display); letter-spacing: -.015em; }
+.agrp-h i { width: 12px; height: 12px; border-radius: 4px; border: 1.5px solid var(--ink); background: var(--t); }
+.arow {
+  width: 100%; border: 0; background: none; cursor: pointer; text-align: left;
+  display: grid; grid-template-columns: 112px minmax(0,1fr) auto; align-items: center; gap: 10px;
+  padding: 9px 14px; border-top: 1.5px solid var(--line); transition: background .12s;
+}
+.arow:first-of-type { border-top: 0; }
+.arow:hover { background: var(--paper-2); }
+.arow .lbl { font: 600 .84rem var(--sans); }
+.arow .names { font-size: .8rem; color: var(--ink-soft); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arow .pile .av { --sz: 24px; font-size: 8.5px; }
+.arow.gap .names { color: var(--pp-butter-ink); font-weight: 550; }
+.arow.gap .lbl::after { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--pp-butter-ink); margin-left: 7px; vertical-align: 2px; }
+.nudge {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; margin-bottom: 14px; border-radius: 14px;
+  background: var(--pp-butter-soft); border: 1.5px solid color-mix(in oklab, var(--pp-butter-ink) 45%, transparent);
+}
+.nudge svg { width: 18px; height: 18px; color: var(--pp-butter-ink); }
+.nudge p { margin: 0; flex: 1; min-width: 200px; font-size: .86rem; color: var(--ink-soft); }
+.nudge p b { color: var(--ink); }
+.legend { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: 14px 2px 0; font-size: .76rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pp-butter-ink); }
+.legend .lk svg { width: 14px; height: 14px; color: var(--pp-lilac-ink); }
+
+/* ── Your account ─────────────────────────────────────────────────────────── */
+.mine { margin-top: 38px; padding-top: 28px; border-top: 1.5px dashed var(--line-med); }
+.mine-h { font: 680 1.3rem var(--display); letter-spacing: -.025em; margin: 0 0 4px; }
+.mine-sub { margin: 0 0 16px; color: var(--muted); font-size: .88rem; }
+.exits { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.exit {
+  --e: var(--pp-butter); --ei: var(--pp-butter-ink); --es: var(--pp-butter-soft);
+  display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border-radius: 16px;
+  background: var(--es); border: 1.5px solid color-mix(in oklab, var(--ei) 50%, transparent);
+}
+.exit.del { --e: var(--pp-rose); --ei: var(--pp-rose-ink); --es: var(--pp-rose-soft); }
+.exit-top { display: flex; align-items: center; gap: 11px; }
+.exit-ic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--card); border: 1.5px solid var(--ei); color: var(--ei); }
+.exit-ic svg { width: 18px; height: 18px; }
+.exit h3 { margin: 0; font: 680 1.02rem var(--display); letter-spacing: -.02em; color: var(--ei); }
+.exit p { margin: 0; color: var(--ink-soft); font-size: .84rem; }
+.scope { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.scope .org {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 4px; border-radius: 999px; font: 550 .74rem var(--sans);
+  background: var(--card); border: 1.5px solid var(--line-med);
+}
+.scope .org .m { width: 18px; height: 18px; border-radius: 6px; display: grid; place-items: center; font: 700 8px var(--display); color: #26211B; border: 1px solid var(--ink); background: linear-gradient(135deg, var(--pp-lilac), var(--pp-sky)); }
+.scope .org.hit { border-color: var(--ei); background: color-mix(in oklab, var(--e) 40%, var(--card)); }
+.scope .org.hit .m { background: var(--e); }
+.scope .org.miss { opacity: .55; }
+.scope .org.miss span { text-decoration: none; }
+.scope-k { font: 600 .62rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+.exit .btn { align-self: flex-start; margin-top: auto; }
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.btn {
+  --bg: var(--ink); --fg: var(--paper); --hs: var(--pp-sky);
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer;
+  padding: 10px 17px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--bg); color: var(--fg);
+  font: 600 .88rem var(--sans); letter-spacing: -.01em; white-space: nowrap; box-shadow: 2.5px 2.5px 0 var(--hs);
+  transition: transform .18s var(--spring), box-shadow .18s var(--spring), background .15s;
+}
+.btn:hover:not(:disabled) { transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--hs); }
+.btn.sm { padding: 6px 12px; font-size: .78rem; }
+.btn.ghost { --bg: var(--card); --fg: var(--ink-soft); border-color: var(--line-med); box-shadow: none; }
+.btn.ghost:hover:not(:disabled) { border-color: var(--ink); box-shadow: none; transform: none; }
+.btn.rose { --bg: var(--card); --fg: var(--pp-rose-ink); border-color: var(--pp-rose-ink); --hs: var(--pp-rose); }
+.btn.rose.solid { --bg: var(--pp-rose-ink); --fg: #fff; --hs: var(--ink); }
+.btn.gold { --bg: var(--card); --fg: var(--pp-butter-ink); border-color: var(--pp-butter-ink); --hs: var(--pp-butter); }
+.btn:disabled { --bg: var(--paper-2); --fg: var(--muted); border-color: var(--line-med); box-shadow: none; cursor: not-allowed; }
+.btn svg { width: 14px; height: 14px; }
+
+/* ── Person sheet ─────────────────────────────────────────────────────────── */
+.scrim { position: fixed; inset: 0; z-index: 40; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.scrim.on { opacity: 1; pointer-events: auto; }
+.sheet {
+  position: fixed; top: 12px; right: 12px; bottom: 12px; z-index: 41; width: min(470px, calc(100vw - 24px));
+  display: flex; flex-direction: column; background: var(--paper); border: 1.5px solid var(--ink); border-radius: 22px;
+  box-shadow: var(--sh-2); transform: translateX(calc(100% + 30px)); transition: transform .42s var(--spring); overflow: hidden;
+}
+.sheet:not(.on) { visibility: hidden; transition: transform .42s var(--spring), visibility 0s .42s; }
+.sheet.on { transform: none; }
+.sh-head { position: relative; padding: 20px 22px 18px; background: var(--card); border-bottom: 1.5px solid var(--line); }
+.sh-x { position: absolute; top: 14px; right: 14px; border: 1.5px solid var(--line-med); background: var(--card); width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: var(--ink-soft); }
+.sh-x:hover { border-color: var(--ink); color: var(--ink); }
+.sh-x svg { width: 14px; height: 14px; }
+.sh-id { display: flex; align-items: center; gap: 14px; }
+.sh-id .av { --sz: 62px; box-shadow: 3px 3px 0 var(--pp-sky); }
+.sh-name { min-width: 0; flex: 1; padding-right: 30px; }
+.sh-name .nm-line { display: flex; align-items: center; gap: 6px; }
+.sh-name h2 { margin: 0; font: 720 1.45rem/1.15 var(--display); letter-spacing: -.03em; overflow-wrap: anywhere; }
+.pen { border: 0; background: none; cursor: pointer; padding: 5px; border-radius: 8px; color: var(--muted); display: grid; place-items: center; }
+.pen:hover { color: var(--ink); background: var(--card-3); }
+.pen svg { width: 15px; height: 15px; }
+.rename { display: flex; gap: 6px; align-items: center; }
+.rename input { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 10px; border: 1.5px solid var(--ink); background: var(--paper); font: 650 1.05rem var(--display); outline: 0; box-shadow: 2px 2px 0 var(--pp-sky); }
+.sh-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.meta {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font: 500 .74rem var(--sans);
+  background: var(--paper-2); border: 1.5px solid var(--line); color: var(--ink-soft); max-width: 100%;
+}
+.meta svg { width: 12px; height: 12px; }
+.meta.ok svg { color: var(--pp-mint-ink); }
+.meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-note { margin: 10px 0 0; font-size: .74rem; color: var(--faint); }
+
+.sh-body { flex: 1; overflow-y: auto; padding: 18px 22px 22px; }
+.sh-sec { margin-bottom: 22px; }
+.sh-k { display: flex; align-items: center; gap: 8px; font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 9px; }
+.sh-k span { margin-left: auto; letter-spacing: 0; text-transform: none; font-weight: 500; color: var(--faint); font-size: .72rem; }
+
+/* summary sentence */
+.verdict {
+  padding: 13px 15px; border-radius: 14px; background: var(--card); border: 1.5px solid var(--line-med); font-size: .9rem; color: var(--ink-soft); line-height: 1.5;
+}
+.verdict b { color: var(--ink); font-weight: 650; }
+.verdict.all { border-color: var(--ink); background: color-mix(in oklab, var(--pp-lilac-soft) 70%, var(--card)); box-shadow: 3px 3px 0 var(--pp-lilac); }
+
+/* admin switch */
+.master {
+  display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-radius: 14px; background: var(--card); border: 1.5px solid var(--line-med);
+  transition: border-color .15s, background .2s;
+}
+.master.on { border-color: var(--ink); background: color-mix(in oklab, var(--pp-lilac-soft) 70%, var(--card)); }
+.master .tier-ic { width: 34px; height: 34px; background: var(--pp-lilac); }
+.master .tx { flex: 1; min-width: 0; }
+.master b { display: block; font: 650 .9rem var(--sans); }
+.master small { color: var(--muted); font-size: .78rem; }
+.switch { position: relative; width: 46px; height: 27px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--card-3); cursor: pointer; flex-shrink: 0; transition: background .2s; padding: 0; }
+.switch::after { content: ""; position: absolute; top: 2.5px; left: 3px; width: 19px; height: 19px; border-radius: 50%; background: var(--card); border: 1.5px solid var(--ink); transition: transform .3s var(--spring); }
+.switch[aria-checked="true"] { background: var(--pp-lilac-ink); }
+.switch[aria-checked="true"]::after { transform: translateX(18px); }
+.switch:disabled { opacity: .45; cursor: not-allowed; }
+.confirm {
+  margin-top: 8px; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--ink); background: var(--card);
+  box-shadow: 3px 3px 0 var(--c, var(--pp-lilac)); animation: pop .3s var(--spring);
+}
+.confirm p { margin: 0 0 10px; font-size: .84rem; color: var(--ink-soft); }
+.confirm p b { color: var(--ink); }
+.confirm .acts { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+@keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+
+/* role checklist */
+.rlist { border: 1.5px solid var(--line-med); border-radius: 14px; background: var(--card); overflow: hidden; }
+.ropt {
+  width: 100%; border: 0; background: none; text-align: left; cursor: pointer;
+  display: grid; grid-template-columns: 22px minmax(0,1fr) auto; align-items: center; gap: 11px; padding: 10px 13px; border-top: 1.5px solid var(--line);
+  transition: background .12s;
+}
+.ropt:first-child { border-top: 0; }
+.ropt:hover:not(:disabled) { background: var(--paper-2); }
+.ropt:disabled { cursor: default; }
+.box {
+  width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--line-med); background: var(--card); display: grid; place-items: center; color: #fff;
+  transition: background .15s, border-color .15s, transform .2s var(--spring);
+}
+.box svg { width: 12px; height: 12px; opacity: 0; transform: scale(.4); transition: opacity .15s, transform .25s var(--spring); }
+.ropt[aria-checked="true"] .box { background: var(--rc); border-color: var(--ink); }
+.ropt[aria-checked="true"] .box svg { opacity: 1; transform: none; }
+.ropt .rn { display: flex; align-items: center; gap: 7px; font: 620 .88rem var(--sans); }
+.ropt .rn i { width: 9px; height: 9px; border-radius: 50%; background: var(--rc); }
+.ropt .rd { display: block; color: var(--muted); font-size: .75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ropt .held { font-size: .72rem; color: var(--faint); white-space: nowrap; }
+.ropt .held.unheld { color: var(--pp-butter-ink); font-weight: 550; }
+
+/* what they can do board */
+.board { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+.bgrp { padding: 10px 11px; border-radius: 12px; background: var(--card); border: 1.5px solid var(--line); }
+.bgrp-h { display: flex; align-items: center; gap: 6px; font: 600 .66rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; }
+.bgrp-h i { width: 9px; height: 9px; border-radius: 3px; border: 1.5px solid var(--ink); background: var(--t); }
+.pages { display: flex; flex-wrap: wrap; gap: 4px; }
+.pg {
+  padding: 2px 8px; border-radius: 999px; font: 550 .72rem var(--sans); border: 1.5px dashed var(--line-med); color: var(--faint);
+  transition: background .2s, color .2s, border-color .2s, transform .25s var(--spring);
+}
+.pg.lit { border-style: solid; border-color: var(--ink); background: var(--t); color: #26211B; }
+.pg.flash { animation: lit .5s var(--spring); }
+@keyframes lit { 40% { transform: scale(1.12); } }
+.board-note { margin: 8px 0 0; font-size: .74rem; color: var(--faint); }
+
+.sh-foot { padding: 14px 22px 18px; border-top: 1.5px solid var(--line); background: var(--paper-2); }
+.sh-foot .rm { display: flex; align-items: center; gap: 10px; }
+.sh-foot .rm p { margin: 0; flex: 1; font-size: .78rem; color: var(--muted); }
+
+/* read-only */
+.ro .owner-only { display: none !important; }
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 60; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; border-radius: 999px; background: var(--ink); color: var(--paper);
+  font: 550 .84rem var(--sans); transition: transform .35s var(--spring), opacity .25s; max-width: calc(100vw - 32px);
+}
+.toast.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.toast > svg { width: 15px; height: 15px; color: var(--pp-mint); }
+.toast span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast button { border: 0; background: color-mix(in oklab, var(--paper) 16%, transparent); color: var(--paper); border-radius: 999px; padding: 4px 11px; font: 600 .78rem var(--sans); cursor: pointer; }
+.toast button[hidden] + i { display: none; }
+.toast .pad { width: 8px; }
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 980px) {
+  .row { grid-template-columns: 40px minmax(0,1.3fr) minmax(0,1.2fr) 18px; }
+  .row .can { display: none; }
+  .areas { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 860px) {
+  .app { grid-template-columns: minmax(0,1fr); } .se-nav { display: none; }
+  .se-main { padding: 18px 16px 110px; }
+  .topbar { flex-wrap: wrap; }
+  .se-title { font-size: 1.8rem; }
+  .row { grid-template-columns: 40px minmax(0,1fr) 16px; row-gap: 6px; }
+  .row .chips { grid-column: 2; grid-row: 2; }
+  .row .chev { grid-column: 3; grid-row: 1 / span 2; }
+  .listbar .search { order: 3; flex-basis: 100%; }
+  .arow { grid-template-columns: 96px minmax(0,1fr); }
+  .arow .pile { display: none; }
+  .exits { grid-template-columns: minmax(0,1fr); }
+  .sheet { top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-height: 92vh; border-radius: 22px 22px 0 0; border-bottom: 0; transform: translateY(102%); }
+  .sheet.on { transform: none; }
+  .sh-head, .sh-body, .sh-foot { padding-left: 16px; padding-right: 16px; }
+  .board { grid-template-columns: minmax(0,1fr); }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="se-nav" aria-label="Settings">
+    <a class="se-back"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 3 5 8l5 5"/></svg>Back to app</a>
+    <div class="se-h">Settings</div>
+    <div class="se-g" style="--s:var(--pp-lilac)"><i></i>Identity</div>
+    <a class="se-it">Identity</a>
+    <div class="se-g" style="--s:var(--pp-sky)"><i></i>Membership</div>
+    <a class="se-it on">Accounts</a><a class="se-it">Invitations</a><a class="se-it">Roles</a><a class="se-it">Member fields</a>
+    <div class="se-g" style="--s:var(--pp-butter)"><i></i>Operations</div>
+    <a class="se-it">Thresholds</a><a class="se-it">Semesters</a><a class="se-it">Event types</a><a class="se-it">Money categories</a><a class="se-it">Workflows</a>
+    <div class="se-g" style="--s:var(--pp-mint)"><i></i>System</div>
+    <a class="se-it">Activity log</a><a class="se-it">Billing</a>
+  </aside>
+
+  <main class="se-main" id="main">
+    <div class="topbar">
+      <div class="se-crumb">Settings · Accounts</div>
+      <div class="toggles">
+        <div class="seg" role="group" aria-label="View as">
+          <button type="button" data-role="admin" aria-pressed="true">Admin</button>
+          <button type="button" data-role="member" aria-pressed="false">Member</button>
+        </div>
+        <div class="seg" role="group" aria-label="Theme">
+          <button type="button" data-theme-btn="day" aria-pressed="true">Day</button>
+          <button type="button" data-theme-btn="night" aria-pressed="false">Night</button>
+        </div>
+      </div>
+    </div>
+    <h1 class="se-title">Who's in, and what they can do</h1>
+    <p class="se-lede">Everyone in Lambda Phi Epsilon, sorted by how much they can change. Roles decide what officers can touch. Admins hold the master key.</p>
+
+    <div class="ro-note" id="roNote" hidden>
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clip-rule="evenodd"/></svg>
+      You can see who's here and what they can do. Officers with Roster access can make changes.
+    </div>
+
+    <!-- List -->
+    <div class="listbar">
+      <div class="views" role="group" aria-label="View">
+        <button type="button" data-view="person" aria-pressed="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 13.5c.6-2.3 2.3-3.5 4.5-3.5s3.9 1.2 4.5 3.5M11 3.2a2.4 2.4 0 0 1 0 4.6M12.5 10.3c1 .5 1.7 1.6 2 3.2"/></svg>By person</button>
+        <button type="button" data-view="area" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="5" height="5" rx="1.3"/><rect x="9" y="2" width="5" height="5" rx="1.3"/><rect x="2" y="9" width="5" height="5" rx="1.3"/><rect x="9" y="9" width="5" height="5" rx="1.3"/></svg>By area</button>
+      </div>
+      <label class="search" id="searchWrap"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg><input id="q" placeholder="Find someone by name, email or role" autocomplete="off"></label>
+      <span class="chip-filter" id="areaChip" hidden><span id="areaChipT"></span><button type="button" id="areaChipX" aria-label="Clear filter"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m4 4 8 8M12 4l-8 8"/></svg></button></span>
+    </div>
+
+    <div id="byPerson"></div>
+    <div id="byArea" hidden></div>
+
+    <!-- Your account -->
+    <section class="mine" aria-labelledby="mineH">
+      <h2 class="mine-h" id="mineH">Your account</h2>
+      <p class="mine-sub">Signed in as daniel.park@uw.edu with Google. Two ways out, and they're very different.</p>
+      <div class="exits">
+        <div class="exit">
+          <div class="exit-top">
+            <div class="exit-ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 13.5 16 10l-3.5-3.5M16 10H7.5M10 16.5H5A1.5 1.5 0 0 1 3.5 15V5A1.5 1.5 0 0 1 5 3.5h5"/></svg></div>
+            <h3>Leave this chapter</h3>
+          </div>
+          <div class="scope"><span class="scope-k">Affects</span><span class="org hit"><span class="m">LΦ</span><span>Lambda Phi Epsilon</span></span><span class="org miss"><span class="m">MS</span><span>Mock Trial Society</span></span></div>
+          <p>You lose access here right away. Your records stay with the chapter, and an officer can invite you back.</p>
+          <button class="btn sm gold" type="button" data-toast="Opens the Leave confirmation (type the chapter name)">Leave Lambda Phi Epsilon…</button>
+        </div>
+        <div class="exit del">
+          <div class="exit-top">
+            <div class="exit-ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 6V4.5h4V6M5.5 6l.7 9.6A1.5 1.5 0 0 0 7.7 17h4.6a1.5 1.5 0 0 0 1.5-1.4l.7-9.6M8.5 9v5M11.5 9v5"/></svg></div>
+            <h3>Delete my account</h3>
+          </div>
+          <div class="scope"><span class="scope-k">Affects</span><span class="org hit"><span class="m">LΦ</span><span>Lambda Phi Epsilon</span></span><span class="org hit"><span class="m">MS</span><span>Mock Trial Society</span></span></div>
+          <p>Your login is gone and you leave every chapter. Your history is erased; money you paid stays on the books without your name. No undo.</p>
+          <button class="btn sm rose" type="button" data-toast="Opens the Delete account check (asks what's blocking first)">Delete my account…</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Person sheet -->
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shName" tabindex="-1">
+  <div class="sh-head">
+    <button class="sh-x" type="button" id="shX" aria-label="Close"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m4 4 8 8M12 4l-8 8"/></svg></button>
+    <div class="sh-id">
+      <div id="shAv"></div>
+      <div class="sh-name" id="shNameWrap"></div>
+    </div>
+    <p class="sh-note" id="shNote"></p>
+  </div>
+  <div class="sh-body" id="shBody"></div>
+  <div class="sh-foot owner-only" id="shFoot"></div>
+</aside>
+
+<div class="toast" id="toast" role="status"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m3.5 8.5 3 3 6-7"/></svg><span id="toastMsg"></span><button type="button" id="toastUndo" hidden>Undo</button><i class="pad"></i></div>
+
+<script>
+/* ── Data (shape of GET /api/auth/accounts + GET /api/roles) ─────────────── */
+const PERMS = {
+  MANAGE_BROTHERS: "Roster", MANAGE_ATTENDANCE: "Attendance", MANAGE_ROLES: "Roles", MANAGE_SETTINGS: "Org settings",
+  MANAGE_TREASURY: "Treasury", MANAGE_FUNDRAISING: "Fundraisers",
+  MANAGE_EVENTS: "Events", MANAGE_PARTIES: "Parties", MANAGE_SERVICE: "Service", MANAGE_SEMESTERS: "Semesters",
+  MANAGE_ANNOUNCEMENTS: "Announcement", MANAGE_DOCS: "Docs", MANAGE_TASKS: "Tasks", MANAGE_POLLS: "Polls", MANAGE_INSTAGRAM: "Media",
+};
+const CAN = {
+  MANAGE_BROTHERS: "approve new members and edit the roster", MANAGE_ATTENDANCE: "take attendance", MANAGE_ROLES: "hand out roles",
+  MANAGE_SETTINGS: "change org settings", MANAGE_TREASURY: "keep the books", MANAGE_FUNDRAISING: "run fundraisers",
+  MANAGE_EVENTS: "add events", MANAGE_PARTIES: "run parties", MANAGE_SERVICE: "run service events", MANAGE_SEMESTERS: "set up semesters",
+  MANAGE_ANNOUNCEMENTS: "post the announcement", MANAGE_DOCS: "edit shared docs", MANAGE_TASKS: "assign tasks", MANAGE_POLLS: "run polls", MANAGE_INSTAGRAM: "plan social posts",
+};
+const GROUPS = [
+  { label: "People & access", t: "var(--pp-lilac)",  ts: "var(--pp-lilac-soft)",  perms: ["MANAGE_BROTHERS", "MANAGE_ATTENDANCE", "MANAGE_ROLES", "MANAGE_SETTINGS"] },
+  { label: "Money",           t: "var(--pp-mint)",   ts: "var(--pp-mint-soft)",   perms: ["MANAGE_TREASURY", "MANAGE_FUNDRAISING"] },
+  { label: "Calendar",        t: "var(--pp-butter)", ts: "var(--pp-butter-soft)", perms: ["MANAGE_EVENTS", "MANAGE_PARTIES", "MANAGE_SERVICE", "MANAGE_SEMESTERS"] },
+  { label: "Communication",   t: "var(--pp-sky)",    ts: "var(--pp-sky-soft)",    perms: ["MANAGE_ANNOUNCEMENTS", "MANAGE_DOCS", "MANAGE_TASKS", "MANAGE_POLLS", "MANAGE_INSTAGRAM"] },
+];
+const ROLES = [
+  { id: 1, name: "President",      color: "#F59E0B", rank: 90, perms: ["MANAGE_BROTHERS","MANAGE_ATTENDANCE","MANAGE_ROLES","MANAGE_SETTINGS","MANAGE_EVENTS","MANAGE_ANNOUNCEMENTS","MANAGE_TASKS","MANAGE_POLLS"] },
+  { id: 2, name: "Vice President", color: "#8B5CF6", rank: 80, perms: ["MANAGE_BROTHERS","MANAGE_ATTENDANCE","MANAGE_EVENTS","MANAGE_TASKS","MANAGE_POLLS"] },
+  { id: 3, name: "Treasurer",      color: "#10B981", rank: 70, perms: ["MANAGE_TREASURY","MANAGE_FUNDRAISING"] },
+  { id: 4, name: "Secretary",      color: "#3B82F6", rank: 60, perms: ["MANAGE_ATTENDANCE","MANAGE_DOCS","MANAGE_ANNOUNCEMENTS","MANAGE_TASKS"] },
+  { id: 5, name: "Rush Chair",     color: "#EC4899", rank: 50, perms: ["MANAGE_BROTHERS","MANAGE_EVENTS"] },
+  { id: 6, name: "Social Chair",   color: "#EF4444", rank: 50, perms: ["MANAGE_PARTIES","MANAGE_EVENTS"] },
+  { id: 7, name: "Service Chair",  color: "#06B6D4", rank: 50, perms: ["MANAGE_SERVICE"] },
+  { id: 8, name: "Media Chair",    color: "#5865F2", rank: 40, perms: ["MANAGE_INSTAGRAM"] },
+];
+const roleById = id => ROLES.find(r => r.id === id);
+const raw = [
+  ["Daniel Park", [1], true, true], ["Kevin Huang", [], true], ["Jason Wu", [2]], ["Robert Chen", [3]], ["Andrew Nguyen", [4]],
+  ["Brian Tran", [5]], ["Eric Lee", [6]], ["Ryan Kim", [8]],
+  ["Alex Cho"], ["Brandon Liu"], ["Calvin Yang"], ["Derek Pham"], ["Ethan Zhou"], ["Frank Ho"], ["Gavin Chang"], ["Henry Le"],
+  ["Ivan Lam"], ["Jonathan Vo"], ["Justin Ma"], ["Kyle Dang"], ["Marcus Lim"], ["Nathan Su"], ["Owen Tan"], ["Patrick Ng"],
+];
+let people = raw.map(([name, roles = [], isAdmin = false, isSelf = false], i) => ({
+  id: 100 + i, name, roles: [...roles], isAdmin, isSelf, linked: true,
+  email: name.toLowerCase().replace(" ", ".") + "@uw.edu",
+}));
+const ME = () => people.find(p => p.isSelf);
+
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const first = p => p.name.split(" ")[0];
+const initials = n => n.trim().split(/\s+/).slice(0, 2).map(w => w[0].toUpperCase()).join("");
+const AV = ["var(--pp-peach)", "var(--pp-sky)", "var(--pp-mint)", "var(--pp-butter)", "var(--pp-lilac)", "var(--pp-rose)"];
+const avColor = n => AV[[...n].reduce((a, c) => a + c.charCodeAt(0), 0) % AV.length];
+const ICON = {
+  key: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="12.5" r="3.5"/><path d="m9.5 10 6-6M13.5 6l2 2M12 7.5l1.5 1.5"/></svg>`,
+  badge: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M10 2.5 12 7l4.8.4-3.6 3.2 1.1 4.7L10 12.8l-4.3 2.5 1.1-4.7-3.6-3.2L8 7Z"/></svg>`,
+  eye: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1.8 10S5 4.5 10 4.5 18.2 10 18.2 10 15 15.5 10 15.5 1.8 10 1.8 10Z"/><circle cx="10" cy="10" r="2.6"/></svg>`,
+  chev: `<svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 3 5 5-5 5"/></svg>`,
+  check: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>`,
+  pen: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 3 13 5.5 6 12.5l-3 .5.5-3Z"/></svg>`,
+  mail: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3.5" width="12" height="9" rx="2"/><path d="m2.5 4.5 5.5 4 5.5-4"/></svg>`,
+  g: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m3.5 8.5 3 3 6-7"/></svg>`,
+  warn: `<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.5 2.6a1.7 1.7 0 0 1 3 0l6.3 11.2a1.7 1.7 0 0 1-1.5 2.6H3.7a1.7 1.7 0 0 1-1.5-2.6Zm1.5 3.9a.8.8 0 0 0-.8.8v3.8a.8.8 0 0 0 1.6 0V7.3a.8.8 0 0 0-.8-.8Zm0 8.2a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd"/></svg>`,
+};
+const avatar = (p, sz) => `<span class="av" style="--a:${avColor(p.name)}${sz ? `;--sz:${sz}px` : ""}" aria-hidden="true">${esc(initials(p.name))}${p.isAdmin ? `<span class="key">${ICON.key}</span>` : ""}</span>`;
+const permsOf = p => p.isAdmin ? Object.keys(PERMS) : [...new Set(p.roles.flatMap(id => roleById(id).perms))];
+const tierOf = p => p.isAdmin ? "admin" : permsOf(p).length ? "officer" : "member";
+const sortRoles = ids => [...ids].sort((a, b) => roleById(b).rank - roleById(a).rank);
+const listJoin = arr => arr.length <= 1 ? arr.join("") : arr.slice(0, -1).join(", ") + " and " + arr[arr.length - 1];
+const pile = (list, max = 5) => `<span class="pile">${list.slice(0, max).map(p => avatar(p)).join("")}${list.length > max ? `<span class="more">+${list.length - max}</span>` : ""}</span>`;
+
+/* ── State ───────────────────────────────────────────────────────────────── */
+const st = { view: "person", q: "", area: null, open: null, editingName: false, confirm: null, ro: false };
+const canEdit = () => !st.ro;
+
+const TIERS = [
+  { id: "admin",   cls: "",        icon: ICON.key,   title: "Admins",   p: "Can change everything, including billing." },
+  { id: "officer", cls: "officer", icon: ICON.badge, title: "Officers", p: "Hold a role, and can change only the pages it unlocks." },
+  { id: "member",  cls: "member",  icon: ICON.eye,   title: "Members",  p: "See the whole chapter, and change their own stuff." },
+];
+
+function matches(p) {
+  if (st.area && !permsOf(p).includes(st.area)) return false;
+  const q = st.q.trim().toLowerCase();
+  if (!q) return true;
+  return p.name.toLowerCase().includes(q) || p.email.includes(q) || p.roles.some(id => roleById(id).name.toLowerCase().includes(q));
+}
+
+function canLine(p) {
+  if (p.isAdmin) return `<span class="can all">${ICON.key}<span>Everything</span></span>`;
+  const perms = permsOf(p);
+  if (!perms.length) return `<span class="can view">${ICON.eye}<span>Can view</span></span>`;
+  const labels = perms.map(k => PERMS[k]);
+  const shown = labels.slice(0, 2).join(", ") + (labels.length > 2 ? ` +${labels.length - 2}` : "");
+  return `<span class="can">${ICON.badge}<span>${esc(shown)}</span></span>`;
+}
+
+function renderPeople() {
+  const groups = TIERS.map(t => ({ t, list: people.filter(p => tierOf(p) === t.id && matches(p)) })).filter(g => g.list.length);
+  if (!groups.length) {
+    $("#byPerson").innerHTML = `<div class="roster"><div class="empty"><b>Nobody matches</b>Try a different name, or clear the filter.</div></div>`;
+    return;
+  }
+  const S = { admin: "var(--pp-lilac)", officer: "var(--pp-butter)", member: "var(--pp-mint)" };
+  $("#byPerson").innerHTML = groups.map(({ t, list }) => `
+    <div class="grp-h" style="--s:${S[t.id]}"><i></i>${t.title}<span>${list.length}</span></div>
+    <div class="roster">${list.map(p => `
+      <button type="button" class="row" data-open="${p.id}">
+        ${avatar(p)}
+        <span class="who"><b><span class="nm">${esc(p.name)}</span>${p.isSelf ? `<span class="you">You</span>` : ""}</b><small>${esc(p.email)}</small></span>
+        <span class="chips">${p.roles.length
+          ? sortRoles(p.roles).map(id => { const r = roleById(id); return `<span class="rchip" style="--rc:${r.color}"><i></i>${esc(r.name)}</span>`; }).join("")
+          : `<span class="rchip none">${p.isAdmin ? "No role" : "Member"}</span>`}</span>
+        ${canLine(p)}
+        ${ICON.chev}
+      </button>`).join("")}
+    </div>`).join("");
+}
+
+function renderAreas() {
+  const admins = people.filter(p => p.isAdmin);
+  const unheld = ROLES.filter(r => !people.some(p => p.roles.includes(r.id)));
+  const nudge = unheld.length ? `<div class="nudge">${ICON.warn}<p><b>${esc(listJoin(unheld.map(r => r.name)))}</b> ${unheld.length === 1 ? "has" : "have"} nobody in ${unheld.length === 1 ? "it" : "them"}, so only admins can do ${unheld.length === 1 ? "that job" : "those jobs"} right now.</p>${canEdit() ? `<button class="btn sm ghost" type="button" data-toast="Pick someone, then tick the role in their sheet">Give it to someone</button>` : ""}</div>` : "";
+  $("#byArea").innerHTML = nudge + `<div class="areas">${GROUPS.map(g => `
+    <div class="agrp" style="--t:${g.t};--ts:${g.ts}">
+      <div class="agrp-h"><i></i>${g.label}</div>
+      ${g.perms.map(k => {
+        const holders = people.filter(p => !p.isAdmin && permsOf(p).includes(k));
+        const gap = !holders.length;
+        const names = gap ? "Only admins" : esc(holders.map(p => p.name).join(", "));
+        return `<button type="button" class="arow${gap ? " gap" : ""}" data-area="${k}" title="See who can change ${PERMS[k]}">
+          <span class="lbl">${PERMS[k]}</span><span class="names">${names}</span>${pile(holders, 4)}
+        </button>`;
+      }).join("")}
+    </div>`).join("")}</div>
+    <div class="legend"><span class="lk">${ICON.key} Admins can also change every page</span><span><i class="dot"></i> Nobody but an admin can change this</span></div>`;
+}
+
+function render() {
+  $("#byPerson").hidden = st.view !== "person";
+  $("#byArea").hidden = st.view !== "area";
+  $("#searchWrap").hidden = st.view !== "person";
+  $("#areaChip").hidden = !(st.area && st.view === "person");
+  if (st.area) $("#areaChipT").textContent = `Can change ${PERMS[st.area]}`;
+  $$("[data-view]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === st.view)));
+  if (st.view === "person") renderPeople(); else renderAreas();
+  if (st.open) renderSheet();
+}
+
+/* ── Person sheet ────────────────────────────────────────────────────────── */
+function verdict(p) {
+  const nm = p.isSelf ? "You" : first(p);
+  if (p.isAdmin) return `<div class="verdict all"><b>${nm}</b> ${p.isSelf ? "hold" : "holds"} the master key: ${p.isSelf ? "you" : "they"} can change every page here, manage billing, and make other admins.</div>`;
+  const perms = permsOf(p);
+  if (!perms.length) return `<div class="verdict"><b>${nm}</b> can see the whole chapter and change ${p.isSelf ? "your" : "their"} own profile, RSVPs and tasks. Give ${p.isSelf ? "yourself" : "them"} a role to unlock more.</div>`;
+  return `<div class="verdict"><b>${nm}</b> can ${esc(listJoin(perms.map(k => CAN[k])))}.</div>`;
+}
+
+function renderSheet(flash = []) {
+  const p = people.find(x => x.id === st.open);
+  if (!p) { closeSheet(); return; }
+  const me = ME();
+  const renameOk = canEdit() || p.isSelf;
+  $("#shAv").innerHTML = avatar(p, 62);
+  $("#shNameWrap").innerHTML = (st.editingName
+    ? `<form class="rename" id="renameForm"><input id="renameIn" maxlength="80" value="${esc(p.name)}" aria-label="Name in this chapter"><button class="btn sm" type="submit">Save</button><button class="btn sm ghost" type="button" id="renameCancel">Cancel</button></form>`
+    : `<div class="nm-line"><h2 id="shName">${esc(p.name)}</h2>${renameOk ? `<button class="pen" type="button" id="renameBtn" title="Rename" aria-label="Rename ${esc(p.name)}">${ICON.pen}</button>` : ""}</div>`)
+    + `<div class="sh-meta"><span class="meta">${ICON.mail}<span>${esc(p.email)}</span></span><span class="meta ok">${ICON.g}<span>Signs in with Google</span></span>${p.isSelf ? `<span class="meta" style="background:var(--ink);color:var(--paper);border-color:var(--ink)">You</span>` : ""}</div>`;
+  $("#shNote").textContent = renameOk ? "Renaming only changes what this chapter calls them. Other chapters keep their own name." : "";
+  $("#shNote").hidden = !renameOk;
+
+  const perms = permsOf(p);
+  const board = `<div class="board">${GROUPS.map(g => `
+    <div class="bgrp" style="--t:${g.t}"><div class="bgrp-h"><i></i>${g.label}</div>
+    <div class="pages">${g.perms.map(k => `<span class="pg${perms.includes(k) ? " lit" : ""}${flash.includes(k) ? " flash" : ""}">${PERMS[k]}</span>`).join("")}</div></div>`).join("")}</div>`;
+
+  const adminLocked = p.isSelf;
+  const showAdmin = canEdit() && me.isAdmin;
+  const c = st.confirm;
+  const adminSec = showAdmin ? `
+    <div class="sh-sec">
+      <div class="sh-k">Master key</div>
+      <div class="master${p.isAdmin ? " on" : ""}">
+        <span class="tier-ic">${ICON.key}</span>
+        <span class="tx"><b>Admin</b><small>${adminLocked ? "You can't take your own key. Another admin can." : "Every page, every setting, billing. Ignores roles."}</small></span>
+        <button class="switch" type="button" role="switch" id="adminSw" aria-checked="${p.isAdmin}" aria-label="Admin" ${adminLocked ? "disabled" : ""}></button>
+      </div>
+      ${c === "admin" ? `<div class="confirm" style="--c:var(--pp-lilac)">
+        <p>${p.isAdmin
+          ? `Take the master key from <b>${esc(first(p))}</b>? They keep only what their roles allow${p.roles.length ? "" : ", which right now is nothing beyond what members can do"}.`
+          : `Give <b>${esc(first(p))}</b> the master key? They'll be able to change everything here, including billing and who else is an admin.`}</p>
+        <div class="acts"><button class="btn sm ghost" type="button" data-cancel>Cancel</button><button class="btn sm" type="button" id="adminGo" style="--hs:var(--pp-lilac)">${p.isAdmin ? "Take key" : "Make admin"}</button></div>
+      </div>` : ""}
+    </div>` : "";
+
+  const roleSec = `
+    <div class="sh-sec">
+      <div class="sh-k">Roles<span>${canEdit() ? "Tick to give, untick to take away" : ""}</span></div>
+      <div class="rlist">${ROLES.map(r => {
+        const on = p.roles.includes(r.id);
+        const others = people.filter(x => x.id !== p.id && x.roles.includes(r.id));
+        const held = others.length ? `${esc(others.map(first).join(", "))} too` : on ? "" : "Nobody yet";
+        return `<button type="button" class="ropt" role="checkbox" aria-checked="${on}" data-role-id="${r.id}" style="--rc:${r.color}" ${canEdit() ? "" : "disabled"}>
+          <span class="box">${ICON.check}</span>
+          <span style="min-width:0"><span class="rn"><i></i>${esc(r.name)}</span><span class="rd">${esc(r.perms.map(k => PERMS[k]).join(" · "))}</span></span>
+          <span class="held${!others.length && !on ? " unheld" : ""}">${held}</span>
+        </button>`;
+      }).join("")}</div>
+    </div>`;
+
+  $("#shBody").innerHTML = `
+    <div class="sh-sec"><div class="sh-k">What ${p.isSelf ? "you" : esc(first(p))} can do</div>${verdict(p)}</div>
+    ${adminSec}
+    ${p.isAdmin ? "" : roleSec}
+    <div class="sh-sec"><div class="sh-k">Pages ${p.isSelf ? "you" : "they"} can change</div>${board}
+      ${p.isAdmin ? `<p class="board-note">Admins can change every page, so roles don't add anything. Their roles still show as titles on the roster.</p>` : ""}
+    </div>
+    ${p.isAdmin && p.roles.length ? `<div class="sh-sec"><div class="sh-k">Title</div><div class="chips">${sortRoles(p.roles).map(id => { const r = roleById(id); return `<span class="rchip" style="--rc:${r.color}"><i></i>${esc(r.name)}</span>`; }).join("")}</div></div>` : ""}`;
+
+  const foot = $("#shFoot");
+  if (!canEdit() || p.isSelf) { foot.hidden = true; foot.innerHTML = ""; }
+  else {
+    foot.hidden = false;
+    foot.innerHTML = c === "remove"
+      ? `<div class="confirm" style="--c:var(--pp-rose);margin-top:0">
+          <p>Remove <b>${esc(p.name)}</b> from Lambda Phi Epsilon? Their attendance, dues, service and roles here are erased. Ledger transactions stay on the books. <b>This can't be undone.</b> To keep their history, archive them from the roster instead.</p>
+          <div class="acts"><button class="btn sm ghost" type="button" data-cancel>Cancel</button><button class="btn sm ghost" type="button" data-toast="Archive lives on the roster page">Archive instead</button><button class="btn sm rose solid" type="button" id="removeGo">Remove for good</button></div>
+        </div>`
+      : `<div class="rm"><p>No longer in the chapter? Removing them erases their records here.</p><button class="btn sm rose" type="button" id="removeBtn">Remove…</button></div>`;
+  }
+  if (st.editingName) { const i = $("#renameIn"); i.focus(); i.select(); }
+}
+
+let lastFocus = null;
+function openSheet(id) {
+  lastFocus = document.activeElement;
+  st.open = id; st.editingName = false; st.confirm = null;
+  renderSheet();
+  $("#sheet").classList.add("on"); $("#scrim").classList.add("on");
+  $("#sheet").scrollTop = 0; $("#shBody").scrollTop = 0;
+  setTimeout(() => $("#sheet").focus(), 50);
+}
+function closeSheet() {
+  st.open = null; st.confirm = null; st.editingName = false;
+  $("#sheet").classList.remove("on"); $("#scrim").classList.remove("on");
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+}
+
+/* ── Toast ───────────────────────────────────────────────────────────────── */
+function toast(msg, undo) {
+  $("#toastMsg").textContent = msg; const t = $("#toast"), u = $("#toastUndo");
+  u.hidden = !undo; u.onclick = () => { undo(); t.classList.remove("show"); };
+  t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), undo ? 4200 : 2600);
+}
+
+/* ── Events ──────────────────────────────────────────────────────────────── */
+document.addEventListener("click", e => {
+  const v = e.target.closest("[data-view]");
+  if (v) { st.view = v.dataset.view; render(); return; }
+  const o = e.target.closest("[data-open]");
+  if (o) { openSheet(+o.dataset.open); return; }
+  const a = e.target.closest("[data-area]");
+  if (a) { st.area = a.dataset.area; st.q = ""; $("#q").value = ""; st.view = "person"; render(); return; }
+  const tt = e.target.closest("[data-toast]");
+  if (tt) { toast(tt.dataset.toast); return; }
+});
+$("#q").addEventListener("input", e => { st.q = e.target.value; renderPeople(); });
+$("#areaChipX").addEventListener("click", () => { st.area = null; render(); });
+$("#scrim").addEventListener("click", closeSheet);
+$("#shX").addEventListener("click", closeSheet);
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape" || !st.open) return;
+  if (st.editingName) { st.editingName = false; renderSheet(); return; }
+  if (st.confirm) { st.confirm = null; renderSheet(); return; }
+  closeSheet();
+});
+
+$("#sheet").addEventListener("click", e => {
+  const p = people.find(x => x.id === st.open); if (!p) return;
+  if (e.target.closest("#renameBtn")) { st.editingName = true; renderSheet(); return; }
+  if (e.target.closest("#renameCancel")) { st.editingName = false; renderSheet(); return; }
+  if (e.target.closest("[data-cancel]")) { st.confirm = null; renderSheet(); return; }
+  if (e.target.closest("#adminSw")) { st.confirm = st.confirm === "admin" ? null : "admin"; renderSheet(); return; }
+  if (e.target.closest("#adminGo")) {
+    p.isAdmin = !p.isAdmin; st.confirm = null; render();
+    toast(p.isAdmin ? `${first(p)} is now an admin` : `${first(p)} is no longer an admin`);
+    return;
+  }
+  if (e.target.closest("#removeBtn")) { st.confirm = "remove"; renderSheet(); $("#shFoot").scrollIntoView({ block: "nearest" }); return; }
+  if (e.target.closest("#removeGo")) {
+    const row = document.querySelector(`[data-open="${p.id}"]`);
+    closeSheet();
+    const finish = () => { people = people.filter(x => x.id !== p.id); render(); toast(`${p.name} was removed from the chapter`); };
+    if (row) { row.classList.add("gone"); setTimeout(finish, 420); } else finish();
+    return;
+  }
+  const r = e.target.closest("[data-role-id]");
+  if (r && canEdit()) {
+    const id = +r.dataset.roleId, role = roleById(id);
+    const before = new Set(permsOf(p));
+    const had = p.roles.includes(id);
+    p.roles = had ? p.roles.filter(x => x !== id) : [...p.roles, id];
+    const flash = permsOf(p).filter(k => !before.has(k));
+    renderSheet(flash); if (st.view === "person") renderPeople(); else renderAreas();
+    const undo = () => { p.roles = had ? [...p.roles, id] : p.roles.filter(x => x !== id); render(); };
+    toast(had ? `${first(p)} is no longer ${role.name}` : `${first(p)} is now ${role.name}`, undo);
+  }
+});
+$("#sheet").addEventListener("submit", e => {
+  if (e.target.id !== "renameForm") return;
+  e.preventDefault();
+  const p = people.find(x => x.id === st.open), v = $("#renameIn").value.trim();
+  st.editingName = false;
+  if (v && v !== p.name) { const old = p.name; p.name = v; render(); toast(`Renamed to ${v}`, () => { p.name = old; render(); }); }
+  else renderSheet();
+});
+
+$$("[data-role]").forEach(b => b.addEventListener("click", () => {
+  st.ro = b.dataset.role === "member";
+  $$("[data-role]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  document.body.classList.toggle("ro", st.ro);
+  $("#roNote").hidden = !st.ro;
+  // A member's view: the self row is a plain member (no role, not admin).
+  people.forEach(p => { if (p.isSelf) { p._admin ??= p.isAdmin; p._roles ??= p.roles; p.isAdmin = st.ro ? false : p._admin; p.roles = st.ro ? [] : p._roles; } });
+  render();
+}));
+$$("[data-theme-btn]").forEach(b => b.addEventListener("click", () => {
+  document.documentElement.dataset.theme = b.dataset.themeBtn;
+  $$("[data-theme-btn]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+}));
+
+render();
+</script>
+</body>
+</html>

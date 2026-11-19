@@ -1,0 +1,1404 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask Chapt List Forms</title>
+<!--
+  Ask Chapt — the row list, redrawn. MOCK ONLY.
+
+  Today any answer that is "several things" renders as the same ruled list of boxes
+  (.reslist > .res: glyph | title + subtitle | value | chevron). It is right for a
+  handful of unrelated things and wrong when the rows share something the eye could
+  use: a number to compare, a date to place, a status to count, the same three facts,
+  or nothing but a name.
+
+  This mock leaves every other answer type alone (verdict, tally, breakdown, week,
+  not-found, ask-back, proposals, advisory tier rows). It only replaces the picture
+  drawn for plain `rows`, with an optional `layout` the server grants when EVERY row
+  qualifies. Rows stay rows on the wire, so anything that doesn't know `layout`
+  (older native builds) keeps drawing the list.
+
+  Paper idiom: tokens, .spot shell and .res rows from Ask Chapt Reply States.html.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ---------- tokens (verbatim from Dashboard Paper Mock) -------------------- */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --mark-op:.85;
+  --av-ink:rgba(38,33,27,.72);
+  --r-sm:10px; --r-md:16px; --r-lg:22px;
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --mark-op:.42;
+  --av-ink:rgba(22,18,14,.78);
+  color-scheme:dark;
+}
+
+/* ---------- base ---------------------------------------------------------- */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em; -webkit-font-smoothing:antialiased; overflow-x:clip; transition:background .35s var(--ease-out), color .35s var(--ease-out)}
+h1,h2,h3,h4,p,ul,ol{margin:0}
+ul,ol{padding:0; list-style:none}
+button,input{font:inherit; color:inherit}
+button{cursor:pointer}
+svg{display:block}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+.ic{width:18px; height:18px; flex:none}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.hi{position:relative; white-space:nowrap; z-index:0}
+.hi::before{content:''; position:absolute; z-index:-1; left:-.12em; right:-.12em; bottom:.04em; height:.5em; background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em; transform:rotate(-.8deg) scaleX(var(--mx,1)); transform-origin:left center; opacity:var(--mark-op); transition:transform .8s var(--ease-spring) .35s}
+.ak-a:not(.in) .hi::before{--mx:0}
+.eyebrow{display:inline-flex; align-items:center; gap:9px; font-size:.7rem; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.eyebrow::before{content:''; width:18px; height:2px; border-radius:2px; background:var(--peach)}
+.avatar{width:28px; height:28px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:.66rem; font-weight:700; letter-spacing:-.02em; background:var(--av, var(--lilac)); color:var(--av-ink); border:1.5px solid rgba(38,33,27,.08)}
+.avatar--sm{width:22px; height:22px; font-size:.56rem}
+.avatar--lg{width:46px; height:46px; font-size:.95rem; border:1.5px solid var(--ink)}
+.btn{--bg:var(--ink); --fg:var(--paper); --hs:var(--lilac); display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:6px 13px; border-radius:999px; border:1.5px solid var(--ink); background:var(--bg); color:var(--fg); font-weight:600; font-size:.8rem; box-shadow:2px 2px 0 var(--hs); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:3.5px 3.5px 0 var(--hs)}
+.btn .ic{width:13px; height:13px}
+.btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--sky)}
+.kicker{font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+
+/* ---------- page shell (mock only) ------------------------------------------ */
+.pg{max-width:1180px; margin:0 auto; padding:44px 24px 120px}
+.pg-top{display:flex; align-items:flex-start; gap:20px; flex-wrap:wrap}
+.pg-top h1{font-family:var(--display); font-weight:600; font-size:clamp(2rem,5vw,3rem); letter-spacing:-.035em; line-height:1.05; margin-top:12px}
+.pg-top .lede{margin-top:14px; max-width:64ch; color:var(--ink-2); font-size:1rem; text-wrap:pretty}
+.theme{margin-left:auto; display:inline-flex; gap:2px; padding:3px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--card)}
+.theme button{border:0; background:none; border-radius:999px; padding:5px 12px; font-size:.78rem; font-weight:600; color:var(--ink-3)}
+.theme button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+
+/* the picker: one tile per form, each a small drawing of itself */
+.pick{margin-top:30px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px}
+.pk{position:relative; display:grid; gap:3px; align-content:start; padding:12px 14px 13px; border-radius:var(--r-md); border:1.5px solid var(--ink); background:var(--card); box-shadow:3px 3px 0 var(--c, var(--paper-3)); text-decoration:none; color:inherit; transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+a.pk:hover{transform:translate(-1.5px,-1.5px); box-shadow:5px 5px 0 var(--c)}
+.pk svg.th{width:76px; height:50px; margin-bottom:6px; color:var(--ink)}
+.pk .th .f{fill:var(--c, var(--paper-3)); stroke:currentColor; stroke-width:1.5}
+.pk .th .l{stroke:var(--line-2); stroke-width:3; stroke-linecap:round}
+.pk .th .k{stroke:currentColor; stroke-width:3; stroke-linecap:round}
+.pk .th .o{fill:none; stroke:currentColor; stroke-width:1.5}
+.pk .th .d{stroke:currentColor; stroke-width:1.5; stroke-dasharray:3 3; fill:none}
+.pk i{position:absolute; top:12px; right:14px; font-style:normal; font-family:var(--mono); font-size:.66rem; color:var(--ink-3)}
+.pk b{font-family:var(--display); font-weight:600; font-size:1.02rem; letter-spacing:-.02em}
+.pk span{font-size:.8rem; color:var(--ink-2); line-height:1.4; text-wrap:pretty}
+.pk.wide{grid-column:1 / -1; grid-template-columns:auto minmax(0,1fr); column-gap:16px; align-items:center}
+.pk.wide svg.th{grid-row:span 2; margin:0}
+.pk.old{grid-column:1 / -1; grid-template-columns:auto minmax(0,1fr); column-gap:16px; align-items:center; border-style:dashed; border-color:var(--line-2); background:var(--paper-2); box-shadow:none}
+.pk.old svg.th{color:var(--ink-3); grid-row:span 2; margin:0}
+.pk.old .th .f{fill:var(--paper-3)}
+@media (max-width:900px){ .pick{grid-template-columns:repeat(2,minmax(0,1fr))} }
+
+.st{padding-top:68px; scroll-margin-top:8px}
+.st-h{display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 16px; align-items:baseline; margin-bottom:18px}
+.st-h .num{font-family:var(--mono); font-size:.8rem; color:var(--ink-3); grid-row:span 2}
+.st-h h2{font-family:var(--display); font-weight:600; font-size:1.7rem; letter-spacing:-.03em; line-height:1.1}
+.st-h p{color:var(--ink-2); font-size:.94rem; max-width:66ch; text-wrap:pretty}
+.st-g{display:grid; grid-template-columns:minmax(0,732px) minmax(0,1fr); gap:28px; align-items:start}
+@media (max-width:1120px){ .st-g{grid-template-columns:minmax(0,1fr)} }
+
+.notes{position:sticky; top:20px; padding:16px 18px; border-radius:var(--r-md); border:1.5px solid var(--line); background:var(--paper-2); font-size:.84rem; color:var(--ink-2); display:grid; gap:14px}
+.notes h4{margin:0 0 5px; font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.notes pre{margin:0; padding:10px 12px; border-radius:10px; background:var(--card); border:1.5px solid var(--line); font-family:var(--mono); font-size:.7rem; line-height:1.55; color:var(--ink-2); white-space:pre-wrap; overflow-wrap:anywhere}
+.notes pre b{color:var(--lilac-ink); font-weight:600}
+.notes .rule{padding-left:10px; border-left:2.5px solid var(--butter); line-height:1.5}
+@media (max-width:1120px){ .notes{position:static} }
+
+/* ---------- the spotlight shell (as in paper-chat.css) ---------------------- */
+.spot{display:flex; flex-direction:column; width:100%; background:var(--card); border:1.5px solid var(--ink); border-radius:20px; box-shadow:5px 5px 0 var(--lilac); overflow:hidden}
+.ak-bar{display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1.5px solid var(--line)}
+.ak-bar .tick{width:7px; height:7px; border-radius:2px; background:var(--lilac-ink); transform:rotate(45deg)}
+.ak-bar .title{font-family:var(--display); font-weight:600; font-size:.9rem; letter-spacing:-.015em; margin-left:2px}
+.ak-bar .spacer{flex:1}
+.barbtn{border:1.5px dashed var(--lilac-bd); background:none; border-radius:999px; padding:4px 10px; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--lilac-ink)}
+.barbtn:hover{border-color:var(--lilac-ink)}
+/* mock control: flip one answer between today's list and its new form */
+.seg{display:inline-flex; padding:2px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--paper-2)}
+.seg button{border:0; background:none; border-radius:999px; padding:3px 11px; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.seg button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+.spot[data-view="new"] .v-old,.spot[data-view="old"] .v-new{display:none}
+.spot-b{padding:4px 18px 18px; font-size:.94em}
+.dock{display:flex; align-items:flex-end; gap:8px; margin:0 14px 14px; padding:6px 6px 6px 14px; border:1.5px solid var(--line-2); border-radius:14px; background:var(--paper-2)}
+.dock span{flex:1; padding:6px 0; font-size:.9rem; color:var(--ink-3)}
+.dock .send{width:34px; height:34px; flex:none; display:grid; place-items:center; border-radius:10px; border:0; background:var(--paper-3); color:var(--ink-3)}
+.dock .send .ic{width:15px; height:15px}
+.ak-turn{padding-top:14px}
+.ak-turn + .ak-turn{margin-top:20px; border-top:1px dashed var(--line-2)}
+.ak-q{display:flex; justify-content:flex-end}
+.ak-q span{max-width:80%; padding:8px 14px; border-radius:16px 16px 4px 16px; background:var(--paper-2); border:1.5px solid var(--line); font-size:.92rem; font-weight:500}
+.trace{margin-top:12px; display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px dashed var(--line-2); font-size:.8rem; color:var(--ink-3)}
+.trace .tk{width:16px; height:16px; border-radius:50%; background:var(--lilac-soft); border:1.5px solid var(--lilac-bd); color:var(--lilac-ink); display:grid; place-items:center; flex:none}
+.trace .tk .ic{width:9px; height:9px}
+.trace .chev{margin-left:auto; width:13px; height:13px}
+.verdict{margin-top:10px; font-family:var(--display); font-weight:500; font-size:1.16rem; letter-spacing:-.022em; line-height:1.38; color:var(--ink-2); text-wrap:pretty}
+.verdict .hi{color:var(--ink); font-weight:650}
+.ak-a:not(.in){opacity:0}
+.ak-a{transition:opacity .3s}
+/* one stagger for every form: anything marked data-a rises in turn */
+.ak-a [data-a]{transition:opacity .35s var(--ease-out), transform .45s var(--ease-spring); transition-delay:calc(var(--i,0)*45ms + 120ms)}
+.ak-a:not(.in) [data-a]{opacity:0; transform:translateY(6px); transition:none}
+
+/* today's list — unchanged, kept as the fallback and as the "Today" view */
+.res-list{margin-top:12px; border:1.5px solid var(--line); border-radius:var(--r-md); overflow:hidden; background:var(--card)}
+.res{display:grid; grid-template-columns:28px minmax(0,1fr) auto 14px; gap:12px; align-items:center; width:100%; padding:8px 12px; border:0; border-top:1px solid var(--paper-3); background:none; text-align:left; transition:background .15s}
+.res:first-child{border-top:0}
+.res:hover{background:var(--paper-2)}
+.res .glyph{width:28px; height:28px; border-radius:10px; display:grid; place-items:center; background:var(--g-bg, var(--paper-2)); border:1.5px solid var(--g-bd, var(--line)); color:var(--g-fg, var(--ink-2))}
+.res .glyph .ic{width:14px; height:14px}
+.res .t{display:block; font-size:.9rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.res .s{display:block; font-size:.76rem; color:var(--ink-3); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.res .val{font-family:var(--mono); font-size:.8rem; color:var(--ink); white-space:nowrap}
+.chev{width:14px; height:14px; color:var(--ink-3); transition:transform .18s var(--ease-out), color .15s}
+button:hover > .chev, tr:hover .chev{color:var(--ink); transform:translateX(2px)}
+
+.ak-meta{margin-top:12px; display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px}
+.sources{display:flex; flex-wrap:wrap; align-items:center; gap:6px}
+.sources .lbl,.fb .lbl{font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.src{display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:999px; border:1.5px solid var(--line); background:var(--paper); font-size:.72rem; font-weight:600; color:var(--ink-2)}
+.src i{width:6px; height:6px; border-radius:50%; background:var(--lilac-ink)}
+.fb{margin-left:auto; display:flex; align-items:center; gap:4px}
+.fb button{width:28px; height:28px; display:grid; place-items:center; border-radius:9px; border:1.5px solid transparent; background:none; color:var(--ink-3)}
+.fb button:hover{background:var(--paper-2); color:var(--ink)}
+.fb .ic{width:14px; height:14px}
+.fb .flip{transform:scaleY(-1)}
+.follows{margin-top:12px; display:flex; flex-wrap:wrap; gap:7px}
+.follows button{border:1.5px solid var(--line-2); background:var(--card); border-radius:999px; padding:5px 12px; font-size:.8rem; color:var(--ink-2); transition:border-color .15s, color .15s, background .15s}
+.follows button:hover{border-color:var(--lilac-ink); color:var(--ink); background:var(--lilac-soft)}
+
+/* the sheet every form sits on */
+.sheet{margin-top:12px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); position:relative}
+.sheet-h{display:flex; align-items:center; gap:6px 10px; padding:11px 14px 0; flex-wrap:wrap}
+.legend{margin-left:auto; display:flex; flex-wrap:wrap; gap:4px 12px; font-size:.72rem; color:var(--ink-3)}
+.legend span{display:inline-flex; align-items:center; gap:6px}
+.legend i{width:11px; height:11px; border-radius:4px; border:1.5px solid var(--ink); background:var(--c)}
+.legend i.dash{width:0; height:13px; border:0; border-left:1.5px dashed var(--ink-2); border-radius:0}
+.cap{margin-top:8px; font-size:.74rem; color:var(--ink-3)}
+
+/* ═════ 01 STANDINGS — rows that share a number get one scale ═════ */
+.rk-rows{padding:8px 6px}
+.rk-r{display:grid; grid-template-columns:16px 28px minmax(0,128px) minmax(0,1fr) 14px; gap:10px; align-items:center; width:100%; padding:5px 8px; border:0; border-radius:10px; background:none; text-align:left; transition:background .15s}
+.rk-r:hover{background:var(--paper-2)}
+.rk-r .n{font-family:var(--mono); font-size:.7rem; color:var(--ink-3); text-align:right}
+.rk-r .t{font-size:.9rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.rk-trk{position:relative; display:flex; align-items:center; gap:8px; height:28px}
+/* the org's bar: one dashed stroke per row, overlapping into a single line */
+.rk-trk::before{content:''; position:absolute; z-index:1; left:calc(var(--bar)*(100% - 44px)); top:-5px; bottom:-5px; border-left:1.5px dashed var(--ink-2)}
+.rk-fill{height:14px; width:calc(var(--w)*(100% - 44px)); min-width:4px; border-radius:4px 7px 7px 4px; border:1.5px solid var(--ink); background:var(--mint); transform-origin:left center; transition:transform .7s var(--ease-spring); transition-delay:calc(var(--i)*60ms + 200ms)}
+.ak-a:not(.in) .rk-fill{transform:scaleX(0); transition:none}
+.rk-v{position:relative; z-index:2; padding:0 3px; margin-left:-3px; background:var(--card); font-family:var(--mono); font-size:.8rem; font-weight:600; font-variant-numeric:tabular-nums}
+.rk-r:hover .rk-v{background:var(--paper-2)}
+.rk-r.under .rk-fill{background:var(--peach)}
+.rk-r.under .rk-v{color:var(--peach-ink)}
+.rk-r.zero .rk-fill{background:none; border-style:dashed; border-color:var(--peach-ink)}
+/* dated rows keep their order and wear a date stub; nobody is ranked */
+.rk-rows.by-date .rk-r{grid-template-columns:38px minmax(0,118px) minmax(0,1fr) 14px}
+.rk-rows.by-date .stub{--sc:var(--sky)}
+.rk-rows.by-date .rk-r .t{font-weight:500; color:var(--ink-2); font-size:.84rem}
+.rk-cut{display:flex; align-items:center; gap:8px; margin:6px 8px 4px 34px; font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--peach-ink)}
+.rk-cut::after{content:''; flex:1; border-top:1.5px dashed var(--peach-bd)}
+
+/* ═════ 02 TODAY LINE — rows that share a date hang off one rail ═════ */
+.td{padding:8px 6px 10px}
+.td-g{position:relative}
+.td-g::before{content:''; position:absolute; left:26px; top:0; bottom:0; border-left:1.5px solid var(--line-2)}
+.td-g:last-child::before{bottom:22px}
+.td-l{display:block; padding:6px 8px 0 58px}
+.td-l b{color:var(--peach-ink); font-weight:600}
+.td-r{position:relative; display:grid; grid-template-columns:38px minmax(0,1fr) auto 14px; gap:12px; align-items:center; width:100%; padding:5px 8px; border:0; border-radius:10px; background:none; text-align:left; transition:background .15s}
+.td-r:hover{background:var(--paper-2)}
+.stub{display:grid; width:38px; border:1.5px solid var(--ink); border-radius:8px; overflow:hidden; background:var(--card); text-align:center; line-height:1}
+.stub b{padding:3px 0 2px; font-family:var(--mono); font-size:.5rem; font-weight:600; letter-spacing:.1em; background:var(--sc, var(--paper-3)); border-bottom:1.5px solid var(--ink)}
+.stub i{padding:4px 0 5px; font-style:normal; font-family:var(--display); font-weight:650; font-size:1rem; letter-spacing:-.03em}
+.td-r.late .stub{--sc:var(--peach); transform:rotate(-3deg)}
+/* a past event or finished task: it happened, nothing is wrong, so it's drawn quiet */
+.td-r.was .stub{border-color:var(--line-2)}
+.td-r.was .stub b{border-bottom-color:var(--line-2)}
+.td-r.was .stub,.td-r.was .t{color:var(--ink-3)}
+.td-r.was .t{font-weight:500}
+.td-g.now .stub{--sc:var(--butter)}
+.td-g.week .stub{--sc:var(--sky)}
+.td-r .t{display:block; font-size:.9rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.td-r .s{display:block; font-size:.76rem; color:var(--ink-3); margin-top:1px}
+.td-r .d{font-family:var(--mono); font-size:.74rem; color:var(--ink-3); white-space:nowrap}
+.td-r.late .d{color:var(--peach-ink); font-weight:600}
+.td-g.now .d{color:var(--butter-ink); font-weight:600}
+.td-now{position:relative; display:flex; align-items:center; gap:10px; margin:8px 8px 4px 0; padding-left:20px}
+.td-now::before{content:''; width:12px; height:12px; flex:none; border-radius:3px; border:1.5px solid var(--ink); background:var(--butter); transform:rotate(45deg)}
+.td-now::after{content:''; flex:1; height:0; border-top:2px solid var(--ink)}
+.td-now span{order:1; font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; padding:3px 9px; border-radius:999px; border:1.5px solid var(--ink); background:var(--butter); color:#26211B}
+.td-now::after{order:2}
+
+/* ═════ LOGBOOK — dated rows that are all behind us: count them, shelve them by month ═════ */
+.lg-head{display:flex; align-items:baseline; gap:12px; padding:14px 16px 10px}
+.lg-head b{font-family:var(--display); font-weight:650; font-size:2.5rem; letter-spacing:-.045em; line-height:.9}
+/* the same question on three different weeks */
+.wk{margin-top:26px}
+.wk-h{display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 12px; margin-bottom:10px}
+.wk-h b{font-family:var(--display); font-weight:600; font-size:1.05rem; letter-spacing:-.02em}
+.wk-h span{font-size:.86rem; color:var(--ink-2)}
+.wk-g{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:start}
+.wk-c .kicker{display:block; margin-bottom:6px}
+.wk-c .sheet{margin-top:0}
+.wk-c .lg-m{grid-template-columns:minmax(0,1fr); gap:7px}
+.wk-c .lg-ml{padding-top:0}
+.wk-c .lg-head b{font-size:2rem}
+@media (max-width:900px){ .wk-g{grid-template-columns:minmax(0,1fr)} }
+.lg-m{display:grid; grid-template-columns:104px minmax(0,1fr); gap:14px; align-items:start; padding:11px 16px; border-top:1px dashed var(--line-2)}
+.lg-ml{display:flex; align-items:baseline; gap:8px; padding-top:9px}
+.lg-ml .m{font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:-.02em}
+.lg-ml .c{font-family:var(--mono); font-size:.74rem; font-weight:600; color:var(--ink-3)}
+.lg-ml small{display:block; font-size:.7rem; color:var(--ink-3)}
+.lg-tk{display:flex; flex-wrap:wrap; gap:8px}
+.tk{display:inline-flex; align-items:stretch; max-width:100%; padding:0; border:1.5px solid var(--ink); border-radius:10px; background:var(--card); overflow:hidden; text-align:left; transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.tk:hover{transform:translate(-1.5px,-1.5px); box-shadow:3px 3px 0 var(--mint)}
+.tk .dt{display:grid; align-content:center; justify-items:center; width:40px; flex:none; padding:4px 0; line-height:1; background:var(--tkc, var(--mint)); border-right:1.5px solid var(--ink); color:#26211B}
+.tk .dt u{text-decoration:none; font-family:var(--mono); font-size:.5rem; font-weight:600; letter-spacing:.1em}
+.tk .dt i{font-style:normal; font-family:var(--display); font-weight:650; font-size:1.02rem; letter-spacing:-.03em; margin-top:2px}
+.tk .nm{display:grid; align-content:center; min-width:0; padding:5px 12px 6px 10px}
+.tk .nm .t{font-size:.86rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tk .nm .s{font-size:.72rem; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+
+/* ═════ 03 PROGRESS — rows that share a status are counted first ═════ */
+.sx-strip{display:flex; gap:5px; padding:12px 14px 0}
+.sx-b{flex:1; height:26px; display:grid; place-items:center; border-radius:7px; border:1.5px solid var(--ink); background:var(--mint); color:var(--ink); padding:0; transform-origin:center bottom; transition:transform .2s var(--ease-spring), box-shadow .2s}
+.sx-b .ic{width:11px; height:11px}
+.sx-b.open{background:var(--butter-soft); border-style:dashed}
+.sx-b.stuck{background:var(--peach); font-family:var(--mono); font-size:.76rem; font-weight:600}
+.sx-b.hot,.sx-b:hover{transform:translateY(-3px); box-shadow:0 3px 0 var(--ink)}
+.sx-key{display:flex; gap:5px; padding:5px 14px 4px; font-size:.74rem; color:var(--ink-3)}
+.sx-key span{min-width:0; white-space:nowrap}
+.sx-key b{color:var(--ink); font-family:var(--mono); font-weight:600; margin-right:4px}
+.sx-grp{padding:6px 6px 0}
+.sx-grp:last-child{padding-bottom:8px}
+.sx-gl{display:block; padding:4px 8px 2px}
+.sx-grp.stuck .sx-gl{color:var(--peach-ink)}
+.sx-r{display:grid; grid-template-columns:20px minmax(0,1fr) auto 14px; gap:12px; align-items:center; width:100%; padding:6px 8px; border:0; border-radius:10px; background:none; text-align:left; transition:background .15s}
+.sx-r:hover,.sx-r.hot{background:var(--paper-2)}
+.sx-m{width:20px; height:20px; display:grid; place-items:center; border-radius:6px; border:1.5px solid var(--ink); font-family:var(--mono); font-size:.68rem; font-weight:600; line-height:1}
+.sx-m .ic{width:10px; height:10px}
+.sx-r.stuck .sx-m{background:var(--peach)}
+.sx-r.open .sx-m{background:var(--butter-soft); border-style:dashed}
+.sx-r.done .sx-m{background:var(--mint)}
+.sx-r .t{display:block; font-size:.9rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.sx-r .s{display:block; font-size:.76rem; color:var(--ink-3)}
+.sx-r .d{font-family:var(--mono); font-size:.74rem; color:var(--ink-3); white-space:nowrap}
+.sx-r.stuck .d{color:var(--peach-ink); font-weight:600}
+.sx-r.done .t{font-weight:500; color:var(--ink-3); text-decoration:line-through; text-decoration-color:var(--line-2)}
+.sx-fold{display:flex; align-items:center; gap:12px; width:100%; padding:7px 8px; border:0; border-top:1px dashed var(--line-2); border-radius:0 0 10px 10px; background:none; text-align:left; font-size:.82rem; color:var(--ink-3)}
+.sx-fold:hover{color:var(--ink)}
+.sx-fold .sx-m{background:var(--mint); color:var(--ink)}
+.sx-fold span.tx{flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.sx-fold b{color:var(--ink-2); font-weight:600}
+.sx-fold[aria-expanded="true"] .chev{transform:rotate(90deg)}
+
+/* ═════ 04 THE RECORD — one or two rows are not a list ═════ */
+.rec{margin-top:12px; border:1.5px solid var(--ink); border-radius:var(--r-md); background:var(--card); box-shadow:4px 4px 0 var(--sky)}
+.rec-top{display:grid; grid-template-columns:auto minmax(0,1fr); gap:16px; align-items:center; padding:16px 16px 14px}
+.rec-cal{position:relative; width:66px; display:grid; text-align:center; line-height:1; border:1.5px solid var(--ink); border-radius:10px; background:var(--card); transform:rotate(-3deg); box-shadow:2px 2px 0 var(--ink)}
+.rec-cal::before{content:''; position:absolute; left:50%; top:-8px; width:30px; height:13px; margin-left:-15px; background:var(--butter); opacity:.9; transform:rotate(2deg); border-radius:2px}
+.rec-cal b{padding:5px 0 4px; font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.12em; background:var(--sky); border-bottom:1.5px solid var(--ink); border-radius:8px 8px 0 0; color:#26211B}
+.rec-cal i{padding:6px 0 1px; font-style:normal; font-family:var(--display); font-weight:650; font-size:1.7rem; letter-spacing:-.04em}
+.rec-cal u{padding-bottom:6px; text-decoration:none; font-family:var(--mono); font-size:.56rem; letter-spacing:.12em; color:var(--ink-3)}
+.rec h3{font-family:var(--display); font-weight:600; font-size:1.3rem; letter-spacing:-.025em; line-height:1.15; margin-top:2px}
+.rec-w{color:var(--ink-2); font-size:.9rem; margin-top:2px}
+.tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
+.tag{padding:1px 9px; border-radius:999px; border:1.5px solid var(--line-2); font-size:.72rem; font-weight:600; color:var(--ink-2)}
+.tag.rose{background:var(--rose-soft); border-color:var(--rose-bd); color:var(--rose-ink)}
+.tag.lilac{background:var(--lilac-soft); border-color:var(--lilac-bd); color:var(--lilac-ink)}
+.tear{position:relative; border-top:1.5px dashed var(--line-2)}
+.tear::before,.tear::after{content:''; position:absolute; top:-9px; width:16px; height:16px; border-radius:50%; background:var(--card); border:1.5px solid var(--ink)}
+.tear::before{left:-9px; clip-path:inset(0 0 0 50%)} .tear::after{right:-9px; clip-path:inset(0 50% 0 0)}
+.rec-f{display:grid; grid-template-columns:repeat(3,minmax(0,1fr))}
+.rec-f div{padding:11px 16px 12px; border-left:1px dashed var(--line-2); display:grid; gap:1px}
+.rec-f div:first-child{border-left:0}
+.rec-f .v{font-size:.9rem; font-weight:600}
+.rec-f .v.warn{color:var(--butter-ink)}
+.rec-act{display:flex; flex-wrap:wrap; gap:9px; padding:2px 16px 16px}
+.cards{margin-top:12px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px}
+.cc{display:grid; gap:10px; padding:14px; border:1.5px solid var(--ink); border-radius:var(--r-md); background:var(--card); box-shadow:3px 3px 0 var(--hs, var(--lilac)); text-align:left; transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.cc:hover{transform:translate(-1.5px,-1.5px); box-shadow:5px 5px 0 var(--hs, var(--lilac))}
+.cc-top{display:flex; align-items:center; gap:12px}
+.cc-top .nm{display:block; font-family:var(--display); font-weight:600; font-size:1.06rem; letter-spacing:-.02em; line-height:1.2}
+.cc-top .tag{display:inline-block; margin-top:3px}
+.cc-top .chev{margin-left:auto}
+.cc dl{margin:0; display:grid; grid-template-columns:auto minmax(0,1fr); gap:3px 12px; padding-top:10px; border-top:1px dashed var(--line-2); font-size:.8rem}
+.cc dt{color:var(--ink-3)} .cc dd{margin:0; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.cc dd.mono{font-size:.76rem}
+
+/* ═════ 05 SIDE BY SIDE — rows that share the same facts become columns ═════ */
+.tb-scroll{overflow-x:auto; border-radius:var(--r-md)}
+.tb table{width:100%; min-width:470px; border-collapse:collapse}
+.tb th{padding:10px 12px 8px; text-align:right; vertical-align:bottom; font-weight:400; border-bottom:1.5px solid var(--line)}
+.tb th:first-child{text-align:left}
+.tb th button{border:0; background:none; padding:0; display:inline-grid; justify-items:end; gap:1px; color:var(--ink-3)}
+.tb th button:hover .kicker{color:var(--ink)}
+.tb th button[aria-sort] .kicker{color:var(--ink)}
+.tb th button[aria-sort] .kicker::after{content:' ↓'}
+.tb th button[aria-sort="ascending"] .kicker::after{content:' ↑'}
+.tb th small{font-family:var(--mono); font-size:.6rem; color:var(--ink-3)}
+.tb td{padding:7px 12px; border-top:1px solid var(--paper-3); text-align:right; font-family:var(--mono); font-size:.82rem; font-variant-numeric:tabular-nums; white-space:nowrap}
+.tb tbody tr:first-child td{border-top:0}
+.tb tbody tr{cursor:pointer; transition:background .15s}
+.tb tbody tr:hover td{background:var(--paper-2)}
+.tb td:first-child{position:sticky; left:0; z-index:1; background:var(--card); text-align:left; font-family:var(--sans)}
+.tb td:last-child{width:14px; padding-left:0}
+.tb .who{display:flex; align-items:center; gap:10px}
+.tb .who .t{display:block; font-size:.9rem; font-weight:600}
+.tb .who .s{display:block; font-size:.74rem; color:var(--ink-3)}
+.tb .bad{display:inline-block; margin-right:-8px; padding:1px 8px; border-radius:6px; background:var(--peach-soft); box-shadow:inset 0 0 0 1.5px var(--peach-bd); color:var(--peach-ink); font-weight:600}
+.tb .ok{color:var(--ink-2)}
+
+/* ═════ 06 ROLL CALL — rows that are only names don't need a row each ═════ */
+.roll{padding:4px 14px}
+.roll-g{display:grid; grid-template-columns:86px minmax(0,1fr); gap:14px; padding:12px 0; border-top:1px dashed var(--line-2)}
+.roll-g:first-child{border-top:0}
+.roll-n{display:grid; align-content:start; gap:2px}
+.roll-n b{font-family:var(--display); font-weight:650; font-size:1.9rem; letter-spacing:-.04em; line-height:1}
+.roll-g.plain .roll-n b{color:var(--peach-ink)}
+.roll-c{display:flex; flex-wrap:wrap; gap:7px; align-content:start}
+.who-chip{display:inline-flex; align-items:center; gap:7px; padding:3px 11px 3px 3px; border-radius:999px; border:1.5px solid var(--ink); background:var(--card); font-size:.82rem; font-weight:600; transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.who-chip:hover{transform:translate(-1px,-1px); box-shadow:2px 2px 0 var(--peach)}
+.who-chip em{font-style:normal; font-family:var(--mono); font-size:.66rem; font-weight:600; color:var(--peach-ink); padding-left:7px; border-left:1.5px solid var(--line-2)}
+.roll-g.soft .who-chip{border-color:var(--line-2); border-style:dashed; color:var(--ink-2); font-weight:500}
+.roll-g.soft .who-chip:hover{box-shadow:2px 2px 0 var(--paper-3)}
+
+/* ═════ 07 BY DRAWER — rows of different kinds are filed where they live ═════ */
+.mx{margin-top:14px; display:grid; gap:12px}
+.dr-tab{position:relative; z-index:1; display:inline-flex; align-items:center; gap:7px; margin:0 0 -1.5px 14px; padding:4px 12px 4px 9px; border:1.5px solid var(--ink); border-bottom-color:var(--c); border-radius:10px 10px 0 0; background:var(--c); font-size:.76rem; font-weight:700; color:#26211B}
+.dr-tab .ic{width:13px; height:13px}
+.dr-tab i{font-style:normal; font-family:var(--mono); font-size:.66rem; font-weight:600; opacity:.7}
+.dr-b{border:1.5px solid var(--ink); border-radius:14px; background:var(--card); overflow:hidden; box-shadow:inset 0 5px 0 var(--c)}
+.dr-b .res:first-child{padding-top:13px}
+.dr .res .glyph{--g-bg:var(--cs); --g-bd:var(--cb); --g-fg:var(--ci)}
+.dr .res .stub{width:28px; border-radius:7px}
+.dr .res .stub b{font-size:.42rem; padding:2px 0 1px}
+.dr .res .stub i{font-size:.78rem; padding:2px 0 3px}
+
+/* ═════ 09 RECEIPT — rows that are payments add up ═════ */
+.rcp{border-color:var(--ink); box-shadow:4px 4px 0 var(--mint)}
+.rcp-top{display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px 16px; padding:14px 16px 14px}
+.rcp-n{font-family:var(--display); font-weight:650; font-size:clamp(2rem,6vw,2.6rem); letter-spacing:-.045em; line-height:.95; font-variant-numeric:tabular-nums; margin-top:4px}
+.rcp-n small{font-size:.5em; color:var(--ink-3); letter-spacing:-.02em}
+.rcp-d{margin:0 0 4px auto; padding:3px 10px; border-radius:999px; background:var(--mint-soft); border:1.5px solid var(--mint-bd); color:var(--mint-ink); font-family:var(--mono); font-size:.74rem; font-weight:600}
+.rcp-rows{padding:4px 8px 6px}
+.rcp-r{display:grid; grid-template-columns:46px minmax(0,1fr) auto; gap:12px; align-items:baseline; width:100%; padding:7px 8px; border:0; border-top:1px dotted var(--line-2); background:none; text-align:left; transition:background .15s}
+.rcp-r:first-child{border-top:0}
+.rcp-r:hover{background:var(--paper-2)}
+.rcp-r .dt{font-family:var(--mono); font-size:.72rem; color:var(--ink-3); white-space:nowrap}
+.rcp-r .t{font-size:.9rem; font-weight:600}
+.rcp-r .s{display:block; font-size:.76rem; color:var(--ink-3)}
+.rcp-r .pend{margin-left:7px; padding:0 7px; border-radius:999px; background:var(--butter-soft); border:1.5px solid var(--butter-bd); color:var(--butter-ink); font-size:.66rem; font-weight:600; vertical-align:1px; white-space:nowrap}
+.rcp-r .a{font-family:var(--mono); font-size:.86rem; font-variant-numeric:tabular-nums; white-space:nowrap}
+.rcp-r.in .a{color:var(--mint-ink); font-weight:600}
+.rcp-sum{padding:10px 16px 14px; display:grid; gap:4px; font-size:.86rem}
+.rcp-sum div{display:flex; justify-content:space-between; gap:14px; color:var(--ink-2)}
+.rcp-sum .mono{color:var(--ink)}
+.rcp-sum .in .mono{color:var(--mint-ink)}
+.rcp-sum .net{margin-top:5px; padding-top:8px; border-top:3.5px double var(--ink); font-weight:650; color:var(--ink); font-size:.95rem}
+
+/* ═════ 10 PAST DUE — open work that is late is measured back from today ═════ */
+#pastdue .sheet{--pd-late:var(--peach)}
+html[data-theme="dark"] #pastdue .sheet{--pd-late:color-mix(in srgb, var(--peach) 38%, var(--card))}
+.pd-rows{padding:6px 6px 10px}
+.pd-r,.pd-ax{display:grid; grid-template-columns:28px minmax(0,1fr) minmax(0,46%) 14px; gap:12px; align-items:center; padding:6px 8px}
+.pd-r{width:100%; border:0; border-radius:10px; background:none; text-align:left; transition:background .15s}
+.pd-r:hover{background:var(--paper-2)}
+.pd-r .t{display:block; font-size:.9rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.pd-r .s{display:block; font-size:.76rem; color:var(--ink-3)}
+.pd-r .avatar.none{background:none; border:1.5px dashed var(--peach-ink); color:var(--peach-ink)}
+.pd-trk{padding-left:64px; grid-column:3}
+.pd-in{position:relative; height:30px; border-right:2px solid var(--ink)}
+/* week lines: one dashed stroke per row, overlapping into continuous rules */
+.pd-in::before{content:''; position:absolute; inset:-6px 0; background:repeating-linear-gradient(to left, transparent 0 calc(100%/3 - 1.5px), var(--line-2) calc(100%/3 - 1.5px) calc(100%/3))}
+.pd-bar{position:absolute; right:0; top:7px; height:16px; width:calc(var(--w)*100%); border:1.5px solid var(--ink); border-right:0; border-radius:7px 0 0 7px; background:var(--pd-late); transform-origin:right center; transition:transform .7s var(--ease-spring); transition-delay:calc(var(--i)*70ms + 200ms)}
+.ak-a:not(.in) .pd-bar{transform:scaleX(0); transition:none}
+.pd-r.old .pd-bar{background:var(--peach-ink)}
+.pd-v{position:absolute; right:calc(var(--w)*100% + 8px); top:0; line-height:30px; font-family:var(--mono); font-size:.76rem; font-weight:600; color:var(--peach-ink); white-space:nowrap}
+.pd-ax{padding-top:10px; padding-bottom:0}
+.pd-ax .pd-in{height:14px; border-right-color:transparent}
+.pd-ax .pd-in::before{display:none}
+.pd-ax .pd-in span{position:absolute; right:var(--x); top:0; transform:translateX(50%); font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); white-space:nowrap}
+.pd-ax .pd-in span:last-child{transform:none; color:var(--ink)}
+
+/* ═════ 11 GAME PLAN — advice is sized by how much it matters ═════ */
+.gp{margin-top:6px}
+.gp-l{display:flex; align-items:center; gap:10px; margin:14px 0 8px}
+.gp-l::after{content:''; flex:1; border-top:1px dashed var(--line-2)}
+.gp-1{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px}
+.gp-c{position:relative; display:grid; gap:6px; align-content:start; padding:14px 14px 13px; border:1.5px solid var(--ink); border-radius:var(--r-md); background:var(--card); box-shadow:3px 3px 0 var(--butter); text-align:left; transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.gp-c:hover{transform:translate(-1.5px,-1.5px); box-shadow:5px 5px 0 var(--butter)}
+.gp-no{width:26px; height:26px; flex:none; display:grid; place-items:center; border-radius:8px; border:1.5px solid var(--ink); background:var(--butter); font-family:var(--mono); font-size:.76rem; font-weight:600; color:#26211B}
+.gp-c .t{font-family:var(--display); font-weight:600; font-size:1.04rem; letter-spacing:-.02em; line-height:1.25; margin-top:4px}
+.gp-c .s{font-size:.82rem; color:var(--ink-2); line-height:1.45}
+.go{display:inline-flex; align-items:center; gap:6px; justify-self:start; margin-top:4px; padding:2px 10px; border-radius:999px; border:1.5px solid var(--line-2); font-size:.74rem; font-weight:600; color:var(--ink-2); white-space:nowrap}
+.go .ic{width:11px; height:11px}
+.go.plus{border-style:dashed; border-color:var(--lilac-ink); color:var(--lilac-ink)}
+button:hover > .go, button:hover .go{border-color:var(--ink); color:var(--ink)}
+.gp-2{border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); overflow:hidden}
+.gp-r{display:grid; grid-template-columns:26px minmax(0,1fr) auto; gap:12px; align-items:center; width:100%; padding:9px 12px; border:0; border-top:1px solid var(--paper-3); background:none; text-align:left; transition:background .15s}
+.gp-r:first-child{border-top:0}
+.gp-r:hover{background:var(--paper-2)}
+.gp-r .gp-no{background:var(--butter-soft)}
+.gp-r .t{display:block; font-size:.9rem; font-weight:600}
+.gp-r .s{display:block; font-size:.78rem; color:var(--ink-3)}
+.gp-r .go{margin-top:0}
+.gp-3{display:grid; gap:2px}
+.gp-3 .gp-r{padding:5px 12px; border-top:0; border-radius:10px}
+.gp-3 .gp-no{background:none; border-style:dashed; border-color:var(--line-2); color:var(--ink-3)}
+.gp-3 .t{font-weight:500; color:var(--ink-2); font-size:.86rem}
+
+/* ═════ 12 NOTHING YET — one empty slot that says it looked ═════ */
+.zr{margin-top:12px; display:flex; align-items:center; gap:14px; padding:12px 14px; border:1.5px dashed var(--ink-3); border-radius:var(--r-md); background:var(--paper-2)}
+/* a blank calendar page: the stub every dated row wears, with nothing on it */
+.zr-0{width:44px; height:48px; flex:none; display:grid; grid-template-rows:13px 1fr; border:1.5px dashed var(--ink-3); border-radius:9px; background:var(--card); transform:rotate(-3deg); overflow:hidden}
+.zr-0::before{content:''; background:var(--paper-3); border-bottom:1.5px dashed var(--ink-3)}
+.zr-b{flex:1; min-width:0}
+.zr-b .t{display:block; font-family:var(--display); font-weight:600; font-size:1.04rem; letter-spacing:-.02em; line-height:1.25}
+.zr-b .s{display:flex; align-items:center; gap:6px; margin-top:3px; font-size:.8rem; color:var(--ink-2)}
+.zr-b .s .ic{width:11px; height:11px; flex:none; color:var(--lilac-ink)}
+.zr-wrap{margin-top:12px; border:1.5px dashed var(--ink-3); border-radius:var(--r-md); background:var(--paper-2)}
+.zr-wrap .zr{margin:0; border:0; background:none}
+.zr-near{display:flex; align-items:center; flex-wrap:wrap; gap:7px; padding:10px 14px 12px; border-top:1px dashed var(--line-2)}
+.zr-near .kicker{margin-right:4px}
+.zr-near button{display:inline-flex; align-items:center; gap:7px; padding:3px 6px 3px 11px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--card); font-size:.8rem; font-weight:600; color:var(--ink-2); transition:border-color .15s, color .15s}
+.zr-near button:hover{border-color:var(--ink); color:var(--ink)}
+.zr-near button i{font-style:normal; min-width:20px; padding:0 6px; border-radius:999px; background:var(--paper-3); font-family:var(--mono); font-size:.7rem; color:var(--ink)}
+.zr-near button.likely{border-color:var(--ink); color:var(--ink); box-shadow:2px 2px 0 var(--lilac)}
+@media (max-width:600px){ .zr{flex-wrap:wrap; row-gap:10px} .zr-b{flex-basis:calc(100% - 58px)} .zr .btn{margin-left:58px} }
+
+/* ═════ 13 YES OR NO — the answer is stamped, and only the exceptions are listed ═════ */
+.yn{margin-top:12px; border:1.5px solid var(--ink); border-radius:var(--r-md); background:var(--card); box-shadow:4px 4px 0 var(--yc)}
+.yn.no{--yc:var(--peach); --yi:var(--peach-ink); --ys:var(--peach-soft)}
+.yn.yes{--yc:var(--mint); --yi:var(--mint-ink); --ys:var(--mint-soft)}
+.yn-top{display:flex; align-items:center; gap:18px; padding:16px 16px 14px 20px}
+.yn-st{flex:none; min-width:74px; text-align:center; padding:7px 12px 8px; border-radius:11px; border:2.5px solid var(--yi); color:var(--yi); background:var(--ys); box-shadow:inset 0 0 0 2.5px var(--card), inset 0 0 0 3.5px var(--yi); font-family:var(--display); font-weight:700; font-size:1.55rem; letter-spacing:.07em; text-transform:uppercase; line-height:1; transform:rotate(-5deg); transition:opacity .2s .3s, transform .4s var(--ease-spring) .3s}
+.ak-a:not(.in) .yn-st{opacity:0; transform:rotate(-5deg) scale(1.7); transition:none}
+.yn-h{min-width:0}
+.yn-h .t{display:block; font-family:var(--display); font-weight:600; font-size:1.12rem; letter-spacing:-.02em; line-height:1.25}
+.yn-h .s{display:block; font-size:.8rem; color:var(--ink-3); margin-top:1px}
+.yn-pips{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
+.yn-pips .avatar{transition:transform .18s var(--ease-spring)}
+.yn.no .yn-pips .avatar:not(.fail){opacity:.5}
+.yn-pips .avatar.fail{box-shadow:0 0 0 2px var(--card), 0 0 0 3.5px var(--peach-ink); margin:0 3px}
+.yn-pips .more{align-self:center; font-family:var(--mono); font-size:.72rem; color:var(--ink-3)}
+.yn-x{border-top:1.5px dashed var(--line-2); padding:8px 4px 4px}
+.yn-x > .kicker{display:block; padding:2px 12px 2px; color:var(--yi)}
+.yn-x .res{border-top:0; border-radius:10px}
+.yn-x .res .val{color:var(--peach-ink); font-weight:600}
+.yn .sx-fold{padding-left:16px; padding-right:16px}
+.yn .sx-fold .sx-m{background:var(--mint)}
+.yn-rest{padding:0 4px 6px}
+.yn-rest .res{border-top:0; border-radius:10px}
+
+/* ---------- the ladder: how a form is chosen -------------------------------- */
+.ladder{margin-top:18px; border:1.5px solid var(--ink); border-radius:var(--r-md); background:var(--card); box-shadow:4px 4px 0 var(--butter); overflow:hidden}
+.ld{display:grid; grid-template-columns:30px minmax(0,1fr) auto; gap:14px; align-items:center; padding:10px 16px; border-top:1px solid var(--paper-3); font-size:.9rem}
+.ld:first-child{border-top:0}
+.ld .n{font-family:var(--mono); font-size:.7rem; color:var(--ink-3)}
+.ld .q{color:var(--ink-2)}
+.ld .q b{color:var(--ink); font-weight:600}
+.ld .to{display:inline-flex; align-items:center; gap:7px; padding:2px 11px; border-radius:999px; border:1.5px solid var(--ink); background:var(--c); font-size:.78rem; font-weight:700; white-space:nowrap; color:#26211B}
+.ld.end{background:var(--paper-2)}
+.ld.end .to{background:none; border-style:dashed; border-color:var(--ink-3); color:var(--ink-2)}
+
+/* ---------- small screens ----------------------------------------------- */
+@media (max-width:600px){
+  .pg{padding:28px 14px 80px}
+  .spot-b{padding:4px 12px 14px}
+  .ak-bar .title{display:none}
+  .res{grid-template-columns:28px minmax(0,1fr) 14px; gap:10px}
+  .res .val{grid-column:2; justify-self:start; margin-top:-4px}
+  .res .chev{grid-row:1; grid-column:3}
+  .rk-r{grid-template-columns:16px 28px minmax(0,1fr) 14px; row-gap:0}
+  .rk-trk{grid-column:2 / 4; grid-row:2; height:24px}
+  .rk-r .chev{grid-row:1; grid-column:4}
+  .rk-cut{margin-left:8px}
+  .rk-rows.by-date .rk-r{grid-template-columns:38px minmax(0,1fr) 14px}
+  .rk-rows.by-date .rk-trk{grid-column:2; grid-row:auto}
+  .rk-rows.by-date .rk-r .t{display:none}
+  .rk-rows.by-date .rk-r .chev{grid-column:3}
+  .td-r{grid-template-columns:38px minmax(0,1fr) 14px; row-gap:1px}
+  .td-r .stub{grid-row:1 / 3; align-self:start}
+  .td-r .t{white-space:normal; line-height:1.3}
+  .td-r .s{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .td-r .d{grid-column:2; grid-row:2; justify-self:start}
+  .td-r .chev{grid-column:3; grid-row:1}
+  .sx-key{font-size:.68rem}
+  .lg-m{grid-template-columns:minmax(0,1fr); gap:7px}
+  .rcp-d{margin-left:0}
+  .pd-r,.pd-ax{grid-template-columns:28px minmax(0,1fr) 14px; row-gap:0}
+  .pd-trk{grid-column:2; grid-row:2}
+  .pd-in::before{inset:3px 0}
+  .pd-ax .pd-trk{grid-row:1}
+  .pd-r .chev{grid-column:3; grid-row:1}
+  .pd-r .t{white-space:normal; line-height:1.3}
+  .gp-1{grid-template-columns:minmax(0,1fr)}
+  .gp-r{grid-template-columns:26px minmax(0,1fr)}
+  .gp-r .go{grid-column:2; justify-self:start; margin-top:2px}
+  .zr-row{grid-template-columns:minmax(0,1fr)}
+  .yn-top{gap:14px; padding-left:16px}
+  .yn-st{min-width:62px; font-size:1.25rem; padding:6px 9px 7px}
+  .lg-ml{padding-top:0}
+  .rec-f{grid-template-columns:minmax(0,1fr)}
+  .rec-f div{border-left:0; border-top:1px dashed var(--line-2); grid-template-columns:auto 1fr; gap:10px; align-items:baseline; padding:8px 16px}
+  .rec-f div:first-child{border-top:0}
+  .rec-f .v{text-align:right}
+  .cards{grid-template-columns:minmax(0,1fr)}
+  .roll-g{grid-template-columns:minmax(0,1fr); gap:8px}
+  .roll-n{display:flex; align-items:baseline; gap:8px}
+  .ld{grid-template-columns:minmax(0,1fr); gap:6px}
+  .ld .n{display:none}
+  .ld .to{justify-self:start}
+}
+@media (prefers-reduced-motion:reduce){ *,*::before,*::after{transition-duration:.01ms !important; animation-duration:.01ms !important; transition-delay:0s !important} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-chev-r" viewBox="0 0 24 24"><path d="m9.4 5.6 6.4 6.4-6.4 6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="d-clip" viewBox="0 0 24 24"><rect x="4.4" y="4.2" width="15.2" height="16.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 4.2c0-1.2 1.3-2 3-2s3 .8 3 2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.4 11.4h7.2M8.4 15.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-doc" viewBox="0 0 24 24"><path d="M6.2 2.9h8l4.6 4.7v12.2c0 .8-.6 1.4-1.4 1.4H6.2c-.8 0-1.4-.6-1.4-1.4V4.3c0-.8.6-1.4 1.4-1.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14 3.2v4.6h4.6M8.6 12.4h6.8M8.6 16h4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-note" viewBox="0 0 24 24"><path d="M9.4 18V5.2l9.4-2v12.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="7" cy="18.4" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="16.4" cy="15.8" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+    <symbol id="d-thumb" viewBox="0 0 24 24"><path d="M7.4 10.6v9.6H4.2v-9.6h3.2Zm0 0 3.8-6.4c1.4 0 2.4 1.1 2.2 2.5l-.5 3.3h5.3c1.3 0 2.2 1.2 1.9 2.4l-1.6 6.1c-.3 1-1.2 1.7-2.2 1.7H7.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="d-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6.4 16-2.4-6.8L4 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-timeline" viewBox="0 0 24 24"><path d="M6 4v16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><circle cx="6" cy="7" r="1.9" fill="currentColor"/><circle cx="6" cy="17" r="1.9" fill="currentColor"/><path d="M10 7h9.4M10 12h6M10 17h8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+<div class="pg">
+  <header class="pg-top">
+    <div>
+      <span class="eyebrow">Ask Chapt · the row list</span>
+      <h1>A list that knows <span class="hi">what it's a list of</span>.</h1>
+      <p class="lede">Today, any answer that is “several things” gets the same stack of boxes. Compare, place in time, count, look up one thing: the reader does that work by reading every row. Here the rows are the same rows, but when they all share something, Ask Chapt draws that thing. Flip <b>Today / New</b> on any answer below to see the same rows both ways. Every other answer type is untouched.</p>
+    </div>
+    <div class="theme" role="group" aria-label="Theme">
+      <button aria-pressed="true" data-theme-set="light">Day</button>
+      <button aria-pressed="false" data-theme-set="dark">Night</button>
+    </div>
+  </header>
+
+  <nav class="pick" aria-label="Forms">
+    <div class="pk old">
+      <svg class="th" viewBox="0 0 76 50"><g><rect class="f" x="1" y="2" width="9" height="9" rx="3"/><path class="l" d="M16 6.5h34M62 6.5h12"/><rect class="f" x="1" y="15" width="9" height="9" rx="3"/><path class="l" d="M16 19.5h28M62 19.5h12"/><rect class="f" x="1" y="28" width="9" height="9" rx="3"/><path class="l" d="M16 32.5h36M62 32.5h12"/><rect class="f" x="1" y="41" width="9" height="8" rx="3"/><path class="l" d="M16 45h24M62 45h12"/></g></svg>
+      <b>Today</b><span>Thirteen different questions, one picture.</span>
+    </div>
+    <a class="pk" href="#ranked" style="--c:var(--mint)"><i>01</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="f" x="1" y="2" width="70" height="8" rx="3"/><rect class="f" x="1" y="15" width="52" height="8" rx="3"/><rect class="f" x="1" y="28" width="38" height="8" rx="3"/><rect class="f" x="1" y="41" width="14" height="8" rx="3" style="fill:var(--peach)"/><path class="d" d="M28 0v50"/></svg>
+      <b>Standings</b><span>Every row is a number in the same unit.</span></a>
+    <a class="pk" href="#dated" style="--c:var(--butter)"><i>02</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="f" x="1" y="1" width="10" height="10" rx="3" style="fill:var(--peach)"/><path class="l" d="M18 6h36"/><path class="k" d="M1 18h74"/><rect class="f" x="1" y="25" width="10" height="10" rx="3"/><path class="l" d="M18 30h30"/><rect class="f" x="1" y="39" width="10" height="10" rx="3"/><path class="l" d="M18 44h40"/></svg>
+      <b>Today line</b><span>Every row has a date, and some are still ahead.</span></a>
+    <a class="pk" href="#logbook" style="--c:var(--mint)"><i>03</i>
+      <svg class="th" viewBox="0 0 76 50"><path class="k" d="M1 7h12M1 24h12M1 41h12"/><rect class="f" x="20" y="1" width="24" height="12" rx="3"/><rect class="f" x="20" y="18" width="24" height="12" rx="3"/><rect class="f" x="48" y="18" width="24" height="12" rx="3"/><rect class="f" x="20" y="35" width="24" height="12" rx="3"/></svg>
+      <b>Logbook</b><span>Every row has a date, and they're all behind us.</span></a>
+    <a class="pk" href="#status" style="--c:var(--mint)"><i>04</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="f" x="1" y="2" width="12" height="12" rx="3"/><rect class="f" x="16" y="2" width="12" height="12" rx="3"/><rect class="f" x="31" y="2" width="12" height="12" rx="3"/><rect class="o" x="46" y="2" width="12" height="12" rx="3" stroke-dasharray="3 2"/><rect class="f" x="61" y="2" width="12" height="12" rx="3" style="fill:var(--peach)"/><path class="l" d="M2 26h44M2 36h34M2 46h40"/></svg>
+      <b>Progress</b><span>Every row has a status.</span></a>
+    <a class="pk" href="#record" style="--c:var(--sky)"><i>05</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="o" x="1" y="3" width="74" height="44" rx="6"/><rect class="f" x="8" y="10" width="18" height="20" rx="3"/><path class="k" d="M33 14h30"/><path class="l" d="M33 24h22M8 39h60"/></svg>
+      <b>The record</b><span>The question asked for one thing.</span></a>
+    <a class="pk" href="#table" style="--c:var(--peach)"><i>06</i>
+      <svg class="th" viewBox="0 0 76 50"><path class="k" d="M2 5h18M34 5h8M50 5h8M66 5h8"/><path class="l" d="M2 18h20M34 18h8M50 18h8M66 18h8M2 31h16M34 31h8M2 44h22M34 44h8M50 44h8M66 44h8"/><rect class="f" x="47" y="26" width="14" height="10" rx="3"/><rect class="f" x="63" y="26" width="12" height="10" rx="3"/></svg>
+      <b>Side by side</b><span>Every row carries the same few facts.</span></a>
+    <a class="pk" href="#roll" style="--c:var(--rose)"><i>07</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="f" x="1" y="3" width="26" height="12" rx="6"/><rect class="f" x="31" y="3" width="20" height="12" rx="6"/><rect class="f" x="55" y="3" width="20" height="12" rx="6"/><rect class="f" x="1" y="19" width="20" height="12" rx="6"/><rect class="f" x="25" y="19" width="28" height="12" rx="6"/><rect class="o" x="1" y="37" width="24" height="12" rx="6" stroke-dasharray="3 2"/><rect class="o" x="29" y="37" width="20" height="12" rx="6" stroke-dasharray="3 2"/></svg>
+      <b>Roll call</b><span>The rows are just people.</span></a>
+    <a class="pk" href="#mixed" style="--c:var(--lilac)"><i>08</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="f" x="6" y="1" width="22" height="8" rx="3"/><rect class="o" x="1" y="8" width="74" height="15" rx="4"/><path class="l" d="M8 15.5h40"/><rect class="f" x="6" y="27" width="22" height="8" rx="3" style="fill:var(--butter)"/><rect class="o" x="1" y="34" width="74" height="15" rx="4"/><path class="l" d="M8 41.5h32"/></svg>
+      <b>By drawer</b><span>The rows are different kinds of thing.</span></a>
+    <a class="pk" href="#receipt" style="--c:var(--mint)"><i>09</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="o" x="12" y="1" width="52" height="48" rx="5"/><path class="l" d="M19 10h22M19 19h18M19 28h24"/><path class="k" d="M52 10h6M52 19h6M52 28h6" style="stroke-width:2.5"/><path class="k" d="M19 36h39M19 39.5h39" style="stroke-width:1.2"/><rect class="f" x="42" y="42" width="16" height="4" rx="2"/></svg>
+      <b>Receipt</b><span>Every row is a payment.</span></a>
+    <a class="pk" href="#pastdue" style="--c:var(--peach)"><i>10</i>
+      <svg class="th" viewBox="0 0 76 50"><path class="k" d="M70 0v50" style="stroke-width:2"/><rect class="f" x="10" y="3" width="60" height="9" rx="3"/><rect class="f" x="32" y="16" width="38" height="9" rx="3"/><rect class="f" x="48" y="29" width="22" height="9" rx="3"/><rect class="f" x="60" y="42" width="10" height="7" rx="3"/></svg>
+      <b>Past due</b><span>Every row is open work that's late.</span></a>
+    <a class="pk" href="#plan" style="--c:var(--butter)"><i>11</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="f" x="1" y="1" width="35" height="22" rx="4"/><rect class="f" x="40" y="1" width="35" height="22" rx="4"/><rect class="o" x="1" y="28" width="74" height="10" rx="4"/><path class="d" d="M3 45h70"/></svg>
+      <b>Game plan</b><span>The rows are advice, ranked.</span></a>
+    <a class="pk" href="#zero" style="--c:var(--lilac)"><i>12</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="o" x="1" y="10" width="74" height="30" rx="6" stroke-dasharray="4 3"/><rect class="o" x="8" y="15" width="16" height="20" rx="3" stroke-dasharray="3 2"/><path class="k" d="M31 21h26"/><path class="l" d="M31 30h18"/></svg>
+      <b>Nothing yet</b><span>The count is zero.</span></a>
+    <a class="pk wide" href="#yesno" style="--c:var(--peach)"><i>13</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="f" x="2" y="8" width="30" height="18" rx="5" transform="rotate(-6 17 17)"/><path class="k" d="M10 20l0-7 7 7 0-7M22 13.5h4v6h-4z" style="stroke-width:1.6; fill:none" transform="rotate(-6 17 17)"/><path class="k" d="M40 13h28"/><path class="l" d="M40 22h20"/><path class="d" d="M2 36h72"/><path class="l" d="M12 44h34"/><circle class="f" cx="5" cy="44" r="3.5"/></svg>
+      <b>Yes or no</b><span>The question can be answered in one word. The word is stamped, and only the exceptions are listed.</span></a>
+  </nav>
+
+  <!-- ═════════════════════════════ 01 STANDINGS ═════════════════════════════ -->
+  <section class="st" id="ranked">
+    <div class="st-h"><span class="num">01</span><h2>Standings</h2><p>When every row carries a number in the same unit, the question is really “how do they compare?” The numbers become bars on one scale, your own threshold is drawn through all of them, and the rows that miss it sit under a cut line. If the rows are dated things, like meetings, they keep their date order and nobody is ranked; the number is still what gets drawn.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="How are the new members doing on service hours?" data-trace="Checked 2 sources · 1.2s" data-src="Roster,Service" data-follows="Nudge the three under the bar|Compare with last term's class" data-old="ranked">
+          <p class="verdict">Five of eight have cleared the 10-hour bar. <span class="hi" style="--mark:var(--peach)">Three haven't</span>, and Cole hasn't logged anything.</p>
+          <div class="v-new">
+            <div class="sheet">
+              <div class="sheet-h"><span class="kicker">Service hours · new members · Fall 26</span><span class="legend"><span><i class="dash"></i>Your bar · 10 hrs</span></span></div>
+              <div class="rk-rows" id="rk"></div>
+            </div>
+          </div>
+        </div>
+        <div class="ak-turn" data-q="What was attendance at each chapter meeting this term?" data-trace="Checked 2 sources · 1.3s" data-src="Timeline,Attendance" data-follows="Who missed the last three?|Same for last spring" data-old="meet">
+          <p class="verdict">Above your 75% bar for most of the term, but <span class="hi" style="--mark:var(--peach)">three of the last four</span> fell under it.</p>
+          <div class="v-new">
+            <div class="sheet">
+              <div class="sheet-h"><span class="kicker">Chapter meetings · attendance · Fall 26</span><span class="legend"><span><i class="dash"></i>Your bar · 75%</span></span></div>
+              <div class="rk-rows by-date" id="rk2"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">Two or more rows of one kind, and every row carries a number in one unit (hours, dollars, percent, GPA). Checked before the date forms, so a meeting with a number never loses it to a logbook.</p></div>
+        <div><h4>Drawn from</h4><p>Bars are scaled to the largest value in the answer (percentages to 100), so they can only say what the rows already say. Rows with a date keep date order and get a date stub in place of a rank. The dashed bar appears only if the org set that threshold in Settings; with no threshold there is no cut line and no peach.</p></div>
+        <div><h4>On the wire</h4><pre>layout: <b>"ranked"</b>
+row: { title, value: "22 hrs",
+       <b>num: 22</b>, ref }
+<b>bar: { at: 10, label: "Your bar" }</b></pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 02 TODAY LINE ═════════════════════════════ -->
+  <section class="st" id="dated">
+    <div class="st-h"><span class="num">02</span><h2>Today line</h2><p>When every row has a date, what matters is which side of today it falls on. Tasks and events share one rail in date order, a rule marks today, and each row says how far away it is. Above the line, only open work is late and looks it. An event that already happened is just earlier, and is drawn quiet.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="What's on my plate this month?" data-trace="Checked 2 sources · 1.0s" data-src="Tasks,Timeline" data-follows="Just the late ones|Who else is on the deposit?" data-old="dated">
+          <p class="verdict">Nine things, and <span class="hi" style="--mark:var(--peach)">two are already late</span>. The venue deposit is the one that costs money.</p>
+          <div class="v-new"><div class="sheet td" id="td"></div></div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">Every row is something on the calendar (a task, deadline or event) and at least one is today or later. Tasks and events together are fine: date order is checked before sorting by kind. All in the past is a Logbook.</p></div>
+        <div><h4>Drawn from</h4><p>The date comes from the record behind each row, never from the model's subtitle. Groups are fixed: Before today, Today, Next 7 days, Later. “Late” is never a group and never an event: it is one open task whose due date has passed, marked on its own row. An empty group isn't drawn.</p></div>
+        <div><h4>On the wire</h4><pre>layout: <b>"dated"</b>
+row: { title, subtitle, ref,
+       <b>date: "2026-11-04",
+       late?: true</b> }</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ LOGBOOK ═════════════════════════════ -->
+  <section class="st" id="logbook">
+    <div class="st-h"><span class="num">03</span><h2>Logbook</h2><p>“How many have we had?” is a count of things that already happened. The count leads, and the events are shelved under the month they happened in, each as a small dated ticket. Six rows of scrolling become one glance. Only months that had something are shown.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="How many service events have we had this term?" data-trace="Checked 2 sources · 1.1s" data-src="Timeline,Service" data-follows="What service is planned next?|Compare with last fall" data-old="logbook">
+          <p class="verdict"><span class="hi" style="--mark:var(--mint)">Six</span> so far. Four of them were in October, with one each in September and November.</p>
+          <div class="v-new">
+            <div class="sheet" id="lg"></div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">Every row resolves to a dated record and every date is before today, and the rows are events or finished work. Needs nothing but a title and a date. Payments go to the Receipt and late open tasks to Past due.</p></div>
+        <div><h4>Drawn from</h4><p>The count is the number of rows, so it can't disagree with the list. Each ticket is one row and opens the same record a row would. A month with nothing in it isn't drawn. Past about a dozen in one month, the month shows its first tickets and a “+ 9 more”.</p></div>
+        <div><h4>On the wire</h4><pre>layout: <b>"logbook"</b>
+row: { title, subtitle?,
+       <b>date: "2026-10-03"</b>, ref }</pre></div>
+      </aside>
+    </div>
+    <div class="wk">
+      <div class="wk-h"><b>Same question, any week</b><span>The form comes from what was asked, never from how many came back. One event is a logbook with one ticket, not a different kind of answer.</span></div>
+      <div class="wk-g">
+        <div class="wk-c"><span class="kicker">Asked in week 3</span><div class="sheet" id="lg-w1"></div></div>
+        <div class="wk-c"><span class="kicker">Asked in week 7</span><div class="sheet" id="lg-w2"></div></div>
+        <div class="wk-c"><span class="kicker">Asked today</span><div class="sheet" id="lg-w3"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 03 PROGRESS ═════════════════════════════ -->
+  <section class="st" id="status">
+    <div class="st-h"><span class="num">04</span><h2>Progress</h2><p>When every row has a status, the first thing anyone wants is the count. One block per row gives it at a glance. Underneath, the stuck rows come first, and finished work folds into a single line instead of taking up half the answer.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="Where are we on Winter Formal?" data-trace="Checked 2 sources · 1.3s" data-src="Tasks,Timeline" data-follows="Who could take the photographer?|What's left before Dec 5?" data-old="status">
+          <p class="verdict"><span class="hi" style="--mark:var(--mint)">Five of nine</span> done. The venue deposit is late and nobody owns the photographer.</p>
+          <div class="v-new">
+            <div class="sheet">
+              <div class="sheet-h"><span class="kicker">Winter Formal · Dec 5 · 9 tasks</span></div>
+              <div class="sx-strip" id="sx-strip"></div>
+              <div class="sx-key" id="sx-key"></div>
+              <div id="sx-body"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">Every row has a status from one closed set (the typed enums in <span class="mono">lib/state</span>), and at least two different statuses are present.</p></div>
+        <div><h4>Drawn from</h4><p>One block per row, so the strip is a count and not a percentage someone has to trust. “Stuck” is derived: late, or no owner. Hover a block to find its row. Done rows stay in the answer; they're just folded.</p></div>
+        <div><h4>On the wire</h4><pre>layout: <b>"status"</b>
+row: { title, subtitle,
+       <b>status: "done"|"open"|"stuck"</b>,
+       ref }</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 04 THE RECORD ═════════════════════════════ -->
+  <section class="st" id="record">
+    <div class="st-h"><span class="num">05</span><h2>The record</h2><p>Some questions ask for one thing: when is the next meeting, who is the treasurer. Handing back a list of one is a strange reply to that, so Ask Chapt shows the record itself, with the facts you would have opened it to see. This is decided by the question. A “how many” or “which ones” that happens to find one result keeps its own form.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="When's our next chapter meeting?" data-trace="Checked 1 source · 0.8s" data-src="Timeline" data-follows="Who's excused?|What was on last week's agenda?" data-old="record1">
+          <p class="verdict"><span class="hi" style="--mark:var(--sky)">Sunday at 7</span> in the Union. It's mandatory, and the agenda isn't set yet.</p>
+          <div class="v-new">
+            <div class="rec" data-a>
+              <div class="rec-top">
+                <div class="rec-cal"><b>SUN</b><i>15</i><u>NOV</u></div>
+                <div><span class="kicker">Meeting · in 5 days</span><h3>Chapter Meeting</h3><p class="rec-w">7:00 PM · Student Union 204</p><div class="tags"><span class="tag rose">Mandatory</span><span class="tag">Weekly</span></div></div>
+              </div>
+              <div class="tear"></div>
+              <div class="rec-f">
+                <div><span class="kicker">Agenda</span><span class="v warn">Not set yet</span></div>
+                <div><span class="kicker">Excuses</span><span class="v">2 waiting on you</span></div>
+                <div><span class="kicker">Last week</span><span class="v">72% came</span></div>
+              </div>
+              <div class="rec-act"><button class="btn">Open the meeting<svg class="ic"><use href="#d-arrow-r"/></svg></button><button class="btn btn--ghost">Review excuses</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="ak-turn" data-q="Who do I talk to about dues?" data-trace="Checked 1 source · 0.7s" data-src="Roster" data-follows="What do I owe?" data-old="record2">
+          <p class="verdict">Daniel runs the books. <span class="hi" style="--mark:var(--lilac)">Maya can also take payments</span> if he's out.</p>
+          <div class="v-new">
+            <div class="cards">
+              <button class="cc" data-a style="--i:0; --hs:var(--mint)">
+                <span class="cc-top"><span class="avatar avatar--lg" style="--av:var(--mint)">DO</span><span><span class="nm">Daniel Oyelaran</span><span class="tag">Treasurer</span></span><svg class="ic chev"><use href="#d-chev-r"/></svg></span>
+                <dl><dt>Email</dt><dd class="mono">daniel.o@lpe.org</dd><dt>Can</dt><dd>Record payments, set dues</dd></dl>
+              </button>
+              <button class="cc" data-a style="--i:1; --hs:var(--butter)">
+                <span class="cc-top"><span class="avatar avatar--lg" style="--av:var(--butter)">MC</span><span><span class="nm">Maya Chen</span><span class="tag">Asst. Treasurer</span></span><svg class="ic chev"><use href="#d-chev-r"/></svg></span>
+                <dl><dt>Email</dt><dd class="mono">maya.chen@lpe.org</dd><dt>Can</dt><dd>Record payments</dd></dl>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">The question was a lookup (“when is the next…”, “who is our…”) and it resolved to one record, or the pair that shares the job. A count or a list that came back short is never turned into cards.</p></div>
+        <div><h4>Drawn from</h4><p>This is the peek sheet's own card, built by <span class="mono">peek-service</span> from the database, placed inline. The model writes the verdict and nothing on the card. What a viewer can see on it follows the same permissions as the peek.</p></div>
+        <div><h4>On the wire</h4><pre>layout: <b>"record"</b>
+row: { title, ref,
+       <b>card: PeekCard</b> }</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 05 SIDE BY SIDE ═════════════════════════════ -->
+  <section class="st" id="table">
+    <div class="st-h"><span class="num">06</span><h2>Side by side</h2><p>When each row carries the same few facts, the list crams them into a subtitle and you read six sentences to find one bad number. As columns, the eye runs down each measure, and the cells under your thresholds are the only ones with colour. Tap a heading to sort.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="How's exec doing on grades, dues and attendance?" data-trace="Checked 3 sources · 1.6s" data-src="Roster,Dues,Attendance" data-follows="Message Tyler about dues|Same for the whole chapter" data-old="table">
+          <p class="verdict">Mostly fine. <span class="hi" style="--mark:var(--peach)">Two officers are under a bar</span>: Tyler on dues and attendance, Devin on GPA.</p>
+          <div class="v-new"><div class="sheet tb" data-a><div class="tb-scroll"><table id="tb"></table></div></div></div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">Two or more rows of the same kind, and the question asked for two to four measures of each. Dated rows qualify too (“how did each party do?”): the first column shows the date and the rows stay in date order.</p></div>
+        <div><h4>Drawn from</h4><p>Each cell is read from the member's roster row. A cell is tinted only against a threshold the org has set; a measure the org doesn't track isn't offered as a column at all. On a phone the name column pins and the measures scroll.</p></div>
+        <div><h4>On the wire</h4><pre>layout: <b>"table"</b>
+<b>cols: [{ key, label, bar? }]</b>
+row: { title, subtitle, ref,
+       <b>cells: { gpa: 3.1, … }</b> }</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 06 ROLL CALL ═════════════════════════════ -->
+  <section class="st" id="roll">
+    <div class="st-h"><span class="num">07</span><h2>Roll call</h2><p>When the rows are people and the only fact is that they're on the list, eleven boxes is eleven lines of scrolling for eleven names. As a roll, the count leads, the names sit together, and a split that matters (excused or not) is the only structure.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="Who missed chapter on Sunday?" data-trace="Checked 2 sources · 1.1s" data-src="Attendance,Excuses" data-follows="Who's missed more than twice?|Draft a note to the seven" data-old="roll">
+          <p class="verdict"><span class="hi" style="--mark:var(--rose)">Eleven</span> missed Sunday. Four had an accepted excuse; seven didn't.</p>
+          <div class="v-new"><div class="sheet roll" id="roll-body"></div></div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">The rows are members and carry nothing but a name, or a value that takes only two or three distinct forms (which becomes the split). Any number of them: two names or forty draw the same way.</p></div>
+        <div><h4>Drawn from</h4><p>Each chip is a member row and opens the same member card a row would. A short note rides on a chip only when the row had something extra to say (“3rd miss”). There is no size at which it turns back into boxes, so “who missed chapter?” looks the same every week.</p></div>
+        <div><h4>On the wire</h4><pre>layout: <b>"roll"</b>
+row: { kind: "person", title,
+       <b>group: "No excuse"</b>,
+       value?: "3rd miss", ref }</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 07 BY DRAWER ═════════════════════════════ -->
+  <section class="st" id="mixed">
+    <div class="st-h"><span class="num">08</span><h2>By drawer</h2><p>Sometimes the rows really are different kinds of thing: an event, two tasks, a payment, a doc. That's where the list belongs, with one fix. Rows are filed under the part of the app they live in, and each kind puts its own key fact on the right.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="What do we have on the retreat?" data-trace="Checked 4 sources · 1.9s" data-src="Timeline,Tasks,Treasury,Docs" data-follows="Who's driving?|What did last year's retreat cost?" data-old="mixed">
+          <p class="verdict">Five things in four places. The <span class="hi" style="--mark:var(--sky)">retreat is Nov 21</span>, the cabin deposit is paid, and waivers still need an owner.</p>
+          <div class="v-new"><div class="mx" id="mx"></div></div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">The rows resolve to two or more kinds of record and they aren't all things on the calendar (tasks and events together go on the Today line). Drawers appear in the sidebar's order, and a drawer the org has switched off never shows.</p></div>
+        <div><h4>Drawn from</h4><p>Nothing new is needed: the grouping is the record type the server already attaches to each row. The tab colours are the app's own section colours.</p></div>
+        <div><h4>On the wire</h4><pre>layout: <b>"drawers"</b>
+row: { title, subtitle, value,
+       ref: { <b>type</b>, id } }</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 09 RECEIPT ═════════════════════════════ -->
+  <section class="st" id="receipt">
+    <div class="st-h"><span class="num">09</span><h2>Receipt</h2><p>When every row is a payment, the rows are only half the answer; the other half is what they add up to. The figure asked for leads, each entry is a line with its amount in one column, and the lines visibly sum at the bottom. Money in and money out are told apart by sign and colour, never mixed into one number without saying so.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="What have we spent on formal?" data-trace="Checked 1 source · 1.0s" data-src="Treasury" data-follows="What's still unpaid?|How does that compare to last year?" data-old="receipt">
+          <p class="verdict"><span class="hi" style="--mark:var(--mint)">$1,228.40</span> so far, in four payments. Ticket sales have already covered it.</p>
+          <div class="v-new">
+            <div class="sheet rcp" data-a>
+              <div class="rcp-top">
+                <div><span class="kicker">Winter Formal · paid out so far</span><div class="rcp-n">$1,228<small>.40</small></div></div>
+                <span class="rcp-d">+ $21.60 after ticket sales</span>
+              </div>
+              <div class="tear"></div>
+              <div class="rcp-rows" id="rcp"></div>
+              <div class="tear"></div>
+              <div class="rcp-sum" id="rcp-sum"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">Every row resolves to a ledger transaction. Checked before the Logbook, because payments are dated and in the past too.</p></div>
+        <div><h4>Drawn from</h4><p>Amounts come from the ledger rows; the totals are summed by the server from exactly the lines shown, so the receipt can't disagree with itself. “Pending” is the reimbursement's real state. If the answer is a sample of a longer list, the total line says “of 6 shown” and no net is drawn.</p></div>
+        <div><h4>On the wire</h4><pre>layout: <b>"receipt"</b>
+row: { title, subtitle, ref,
+       <b>date, cents: -18640,
+       pending?: true</b> }
+<b>totals: { out, in, net }</b></pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 10 PAST DUE ═════════════════════════════ -->
+  <section class="st" id="pastdue">
+    <div class="st-h"><span class="num">10</span><h2>Past due</h2><p>Late work isn't history, so it doesn't belong in a logbook. What matters is how late and who has it. Every bar ends at the same edge, today, and reaches back to the day the task was due, so the longest bar is the oldest problem. The owner's face is on the row; a task nobody owns says so.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="What's overdue?" data-trace="Checked 1 source · 0.9s" data-src="Tasks" data-follows="Nudge Marcus about his two|Who could take the proofs?" data-old="pastdue">
+          <p class="verdict">Five things. <span class="hi" style="--mark:var(--peach)">Insurance is 18 days late</span>, Marcus has two, and one has no owner.</p>
+          <div class="v-new">
+            <div class="sheet">
+              <div class="sheet-h"><span class="kicker">Open and past due · 5</span><span class="legend"><span><i style="--c:var(--pd-late)"></i>Late</span><span><i style="--c:var(--peach-ink)"></i>Over two weeks</span></span></div>
+              <div class="pd-rows" id="pd"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">Every row is an open task or deadline whose due date has passed. One row that is done, or due later, and the answer is Progress or the Today line instead.</p></div>
+        <div><h4>Drawn from</h4><p>Bar length is today minus the due date, nothing else. The scale is whole weeks, rounded up from the oldest row, so one very old task doesn't flatten the rest into slivers: past eight weeks the bar is capped and its label carries the real number.</p></div>
+        <div><h4>On the wire</h4><pre>layout: <b>"pastdue"</b>
+row: { title, ref,
+       <b>date: "2026-10-23",
+       owner?: { name, id }</b> }</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 11 GAME PLAN ═════════════════════════════ -->
+  <section class="st" id="plan">
+    <div class="st-h"><span class="num">11</span><h2>Game plan</h2><p>Advice rows are ranked, but in boxes the first suggestion looks exactly as important as the sixth, with a small “high” or “later” in the corner. Here the ranking is the layout: what to do first gets a card and room to say why, the next tier is a plain row, and the someday ideas are a quiet line each. Every item still says where it takes you.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="How do we get attendance back up?" data-trace="Checked 2 sources · 1.4s" data-src="Attendance,Settings" data-follows="Draft the reminder|What do other chapters do?" data-old="plan">
+          <p class="verdict">Start with the <span class="hi" style="--mark:var(--butter)">two that cost nothing</span>: make the meetings count, and close the late-excuse gap.</p>
+          <div class="v-new"><div class="gp" id="gp"></div></div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">Every row carries a tier. That is already how advisory answers arrive, so nothing changes on the wire; this is the same answer drawn differently.</p></div>
+        <div><h4>Drawn from</h4><p>The three bands are the three tiers the server already validates (a tier can never improve further down the list). The pill on each item is the row's existing action: an arrow goes to a screen from the closed list, a dashed plus drafts an event for approval. At most two cards; a third “high” row joins them as a full-width card.</p></div>
+        <div><h4>On the wire</h4><pre>layout: <b>"plan"</b>
+row: { title, subtitle,
+       tier: "high"|"medium"|"later",
+       screen: { label, path } }</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 12 NOTHING YET ═════════════════════════════ -->
+  <section class="st" id="zero">
+    <div class="st-h"><span class="num">12</span><h2>Nothing yet</h2><p>“None” on its own leaves a doubt: is it really zero, or did it not find them? So a zero answer is one empty slot: a blank calendar page, exactly what there are none of, and a line saying what was checked. Under it, what those things were filed as instead, so if the chapter calls its service events “Philanthropy” the reader sees that at once and one tap re-asks.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="How many service events have we had this term?" data-trace="Checked 1 source · 0.8s" data-src="Timeline" data-follows="Count the Philanthropy ones|Ideas for a quick service event" data-old="zero">
+          <p class="verdict"><span class="hi" style="--mark:var(--lilac)">None filed as Service</span> this term. Six are filed as Philanthropy, if that's what you mean.</p>
+          <div class="v-new">
+            <div class="zr-wrap" data-a>
+              <div class="zr">
+                <span class="zr-0" aria-hidden="true"></span>
+                <span class="zr-b"><span class="t">No events filed as Service this term</span><span class="s"><svg class="ic"><use href="#d-check"/></svg>Checked all 41 events since Aug 24</span></span>
+                <button class="btn btn--ghost"><svg class="ic"><use href="#d-plus"/></svg>Plan one</button>
+              </div>
+              <div class="zr-near"><span class="kicker">The 41 are filed as</span><button>Chapter<i>12</i></button><button>Social<i>9</i></button><button>Brotherhood<i>8</i></button><button class="likely">Philanthropy<i>6</i></button><button>Recruitment<i>6</i></button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">The question was a count or a list, the tools ran cleanly, the word asked about matched a real category or status in this org, and nothing was in it. If the word matches nothing the org uses, Ask Chapt asks which one was meant and never claims a zero.</p></div>
+        <div><h4>Drawn from</h4><p>The slot states the filter in the org's own word (“filed as Service”), not a paraphrase. The strip below is a plain count of the same 41 records by category, straight from the tool result; nothing is guessed to be similar. One chip is outlined only when its name is a known alias of the word asked.</p></div>
+        <div><h4>On the wire</h4><pre>layout: <b>"zero"</b>, rows: []
+<b>searched: { count: 41, label,
+            filter: "Service" }
+instead: [{ label, count,
+            likely? }]</b></pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 13 YES OR NO ═════════════════════════════ -->
+  <section class="st" id="yesno">
+    <div class="st-h"><span class="num">13</span><h2>Yes or no</h2><p>“Has all of exec paid?” wants one word, and then only the part that makes it a no. So the word is stamped. Beside it, everyone the question covered is one small face, with the exceptions ringed. Below, the exceptions are the only rows. The people who are fine fold into a single line, and a clean yes has no rows at all.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="Has all of exec paid their dues?" data-trace="Checked 2 sources · 1.0s" data-src="Roster,Dues" data-follows="Message Tyler about it|What about the whole chapter?" data-old="yn1">
+          <p class="verdict"><span class="hi" style="--mark:var(--peach)">Not yet</span>. Tyler still owes $380; the other five are paid up.</p>
+          <div class="v-new"><div class="yn no" data-a id="yn1"></div></div>
+        </div>
+        <div class="ak-turn" data-q="Did all the new members finish risk training?" data-trace="Checked 2 sources · 0.9s" data-src="Roster,Tasks" data-follows="When did the last one finish?" data-old="yn2">
+          <p class="verdict"><span class="hi" style="--mark:var(--mint)">Yes</span>, all eight.</p>
+          <div class="v-new"><div class="yn yes" data-a id="yn2"></div></div>
+        </div>
+        <div class="ak-turn" data-q="Is the venue deposit paid?" data-trace="Checked 1 source · 0.7s" data-src="Tasks" data-follows="Remind Marcus|How much is it?" data-old="yn3">
+          <p class="verdict"><span class="hi" style="--mark:var(--peach)">No</span>, and it was due six days ago.</p>
+          <div class="v-new">
+            <div class="yn no" data-a>
+              <div class="yn-top"><span class="yn-st">No</span><span class="yn-h"><span class="t">The deposit hasn't been paid</span><span class="s">It's Marcus's task, still open</span></span></div>
+              <div class="yn-x"><button class="res"><span class="stub" style="--sc:var(--peach); width:28px; border-radius:7px"><b style="font-size:.42rem; padding:2px 0 1px">NOV</b><i style="font-size:.78rem; padding:2px 0 3px">4</i></span><span><span class="t">Pay the venue deposit</span><span class="s">Marcus Shaw · Winter Formal</span></span><span class="val">6 days late</span><svg class="ic chev"><use href="#d-chev-r"/></svg></button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">The question is yes-or-no, and the server can mark every row it covers as passing or failing a test it can run (owes nothing, task done, attended). Checked first, before any other form.</p></div>
+        <div><h4>Drawn from</h4><p>The stamp is computed, never written: Yes only if every row passes, No if any fails. The model writes the sentence but cannot choose the word. If even one row can't be judged (a new member with nothing recorded yet), there is no stamp and the answer falls through to its ordinary form, with that row marked “not measured”.</p></div>
+        <div><h4>The three cases</h4><p>No, with exceptions: the failing rows are listed and the rest fold. Yes: faces only, no rows. One thing (“is the deposit paid?”): the stamp and that one record as its evidence.</p></div>
+        <div><h4>On the wire</h4><pre>layout: <b>"yesno"</b>
+<b>holds: false</b>
+row: { title, value, ref,
+       <b>pass: false</b> }</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ THE LADDER ═════════════════════════════ -->
+  <section class="st" id="ladder">
+    <div class="st-h"><span class="num">→</span><h2>How a form gets chosen</h2><p>The model can ask for a layout, but the server only grants it when every row qualifies, checked in this order. The first match wins. Three things hold the order together: a number on every row is drawn before a date is; a shared date is used before rows are sorted by kind; and no step looks at how many rows came back, so the same question gets the same form every week. If nothing matches, or a single row is missing what the form needs, the answer is drawn as the list it is today, so a wrong guess costs nothing.</p></div>
+    <div class="ladder">
+      <div class="ld" style="--c:var(--peach)"><span class="n">1</span><span class="q">A <b>yes-or-no</b> question, and every row can be marked pass or fail?</span><span class="to">Yes or no</span></div>
+      <div class="ld" style="--c:var(--lilac)"><span class="n">2</span><span class="q"><b>No rows</b>, and the word asked about is one this org uses?</span><span class="to">Nothing yet</span></div>
+      <div class="ld" style="--c:var(--sky)"><span class="n">3</span><span class="q">The question was a <b>lookup for one thing</b>?</span><span class="to">The record</span></div>
+      <div class="ld" style="--c:var(--butter)"><span class="n">4</span><span class="q">Every row carries a <b>tier</b> (it's advice)?</span><span class="to">Game plan</span></div>
+      <div class="ld" style="--c:var(--mint)"><span class="n">5</span><span class="q">Every row is a <b>payment</b>?</span><span class="to">Receipt</span></div>
+      <div class="ld" style="--c:var(--peach)"><span class="n">6</span><span class="q">Rows of one kind with the same <b>two to four measures</b>?</span><span class="to">Side by side</span></div>
+      <div class="ld" style="--c:var(--mint)"><span class="n">7</span><span class="q">Rows of one kind with <b>one number</b> in the same unit?</span><span class="to">Standings</span></div>
+      <div class="ld" style="--c:var(--peach)"><span class="n">8</span><span class="q">Every row is <b>open work</b> whose date has passed?</span><span class="to">Past due</span></div>
+      <div class="ld" style="--c:var(--mint)"><span class="n">9</span><span class="q">Every row has a <b>status</b>, and they differ?</span><span class="to">Progress</span></div>
+      <div class="ld" style="--c:var(--mint)"><span class="n">10</span><span class="q">Every row is <b>on the calendar</b>, all in the past?</span><span class="to">Logbook</span></div>
+      <div class="ld" style="--c:var(--butter)"><span class="n">11</span><span class="q">Every row is <b>on the calendar</b>, some still ahead?</span><span class="to">Today line</span></div>
+      <div class="ld" style="--c:var(--lilac)"><span class="n">12</span><span class="q">Rows of <b>more than one kind</b>, not all on the calendar?</span><span class="to">By drawer</span></div>
+      <div class="ld" style="--c:var(--rose)"><span class="n">13</span><span class="q">The rows are <b>just people</b>, however many?</span><span class="to">Roll call</span></div>
+      <div class="ld end"><span class="n">14</span><span class="q">None of the above, or the client doesn't know <span class="mono">layout</span>.</span><span class="to">The list, as today</span></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var root = document.documentElement;
+  var HUES = ['peach','sky','mint','butter','lilac','rose'];
+  function ic(id, cls){ return '<svg class="ic' + (cls ? ' ' + cls : '') + '"><use href="#d-' + id + '"/></svg>'; }
+  function ini(n){ return n.split(' ').map(function(s){ return s[0]; }).join('').slice(0, 2); }
+  function hue(n){ var h = 0; for (var i = 0; i < n.length; i++) h += n.charCodeAt(i); return HUES[h % HUES.length]; }
+  function av(n, cls){ return '<span class="avatar' + (cls ? ' ' + cls : '') + '" style="--av:var(--' + hue(n) + ')">' + ini(n) + '</span>'; }
+  var GLYPH = { event:'cal', task:'clip', money:'wallet', doc:'doc', generic:'note' };
+  /* today's row, exactly as the app draws it: [kind, title, subtitle, value] */
+  function res(r, extra){
+    var lead = r[0] === 'person' ? av(r[1]) : '<span class="glyph">' + ic(GLYPH[r[0]] || 'note') + '</span>';
+    return '<button class="res"' + (extra || '') + '>' + lead + '<span><span class="t">' + r[1] + '</span>' + (r[2] ? '<span class="s">' + r[2] + '</span>' : '') + '</span><span class="val">' + (r[3] || '') + '</span>' + ic('chev-r', 'chev') + '</button>';
+  }
+
+  /* ---------- data: each answer's rows, used for BOTH pictures ---------- */
+  var BAR = 10;
+  var hours = [['Aiden Kim',22],['Maya Chen',19],['Leo Grant',16],['Henry Wu',13],['Mateo Cruz',11],['Gabe Ruiz',7],['Ian Moss',4],['Cole Hart',0]];
+
+  var dated = [
+    ['past', 'Before today', [['NOV',4,'Pay the venue deposit','Task · Winter Formal','6 days late','task','late'], ['NOV',7,'Habitat build day','Event · Service','3 days ago','event','was'], ['NOV',8,'Submit October budget report','Task · Treasury','2 days late','task','late']]],
+    ['now', 'Due today', [['NOV',10,'Send the formal invite list to Priya','Task · Winter Formal','today','task']]],
+    ['week', 'Next 7 days', [['NOV',12,'Risk management form','Deadline · Nationals','in 2 days','task'], ['NOV',15,'Chapter Meeting','Meeting · mandatory · 7:00 PM','in 5 days','event'], ['NOV',16,'Order composite photos','Task · assigned by Ava','in 6 days','task']]],
+    ['later', 'Later', [['NOV',21,'Brotherhood Retreat','Event · Lake Hartwell','in 11 days','event'], ['DEC',1,'Publish the spring dues schedule','Task · Treasury','in 21 days','task']]]
+  ];
+
+  var tasks = [
+    ['done','Pick the theme','Priya','Oct 12'], ['done','Approve the budget','Marcus','Oct 19'], ['done','Reserve the venue','Marcus','Oct 21'],
+    ['done','Book the DJ','Leo','Oct 30'], ['done','Design the invite','Maya','Nov 6'],
+    ['open','Send the invite list','Marcus','due today'], ['open','Order wristbands','Leo','due Nov 20'],
+    ['stuck','Pay the venue deposit','Marcus','6 days late'], ['stuck','Book a photographer','No owner','due Nov 18']
+  ];
+
+  var exec = [
+    ['Priya Nair','President',3.8,0,96], ['Marcus Shaw','Vice President',3.4,0,91], ['Daniel Oyelaran','Treasurer',3.6,0,88],
+    ['Tyler Brooks','Social Chair',3.1,380,68], ['Devin Shah','Recruitment',2.7,0,84], ['Ava Rossi','Secretary',3.9,0,100]
+  ];
+
+  var missed = [
+    ['plain', 'No excuse', [['Jake Morales','3rd miss'],['Tyler Brooks','2nd miss'],['Owen Park'],['Luis Ortega'],['Ben Carver'],['Noah Reyes'],['Zane Price']]],
+    ['soft', 'Excused', [['Sam Whitley'],['Ethan Cole'],['Ravi Menon'],['Jordan Pike']]]
+  ];
+
+  var drawers = [
+    ['Timeline','timeline','sky', [['event','Brotherhood Retreat','Sat Nov 21 · Lake Hartwell · 34 going','in 11 days',['NOV',21]]]],
+    ['Tasks','clip','butter', [['task','Book carpool drivers','Leo Grant · due Nov 17','in 7 days'], ['task','Collect signed waivers','No owner · due Nov 19','in 9 days']]],
+    ['Treasury','wallet','mint', [['money','Cabin deposit','Paid Oct 28 · Brotherhood','− $400.00']]],
+    ['Docs','doc','lilac', [['doc','Retreat packing list','Edited Nov 2 by Ava','']]]
+  ];
+
+  /* service events this term, by month: [day, weekday, title, where] */
+  var logged = [
+    ['September', '', [[12,'SAT','Highway cleanup','Route 9']]],
+    ['October', '', [[3,'SAT','Food bank shift','Second Harvest'], [10,'SAT','Blood drive','Student Union'], [17,'SAT','Park cleanup','Riverside Park'], [24,'SAT','Tutoring night','Lincoln Middle School']]],
+    ['November', 'so far', [[7,'SAT','Habitat build day','Elm Street site']]]
+  ];
+
+  /* formal's ledger lines: [date, title, subtitle, cents, pending] */
+  var ledger = [
+    ['Oct 21','Venue hold','Riverside Hall',-50000], ['Oct 30','DJ booking','Paid by Leo Grant · reimbursed',-45000],
+    ['Nov 2','Decorations','Paid by Maya Chen · not reimbursed yet',-18640,true], ['Nov 5','Ticket sales, week 1','31 tickets',77500],
+    ['Nov 6','Invite printing','Campus Print Shop',-9200], ['Nov 9','Ticket sales, week 2','19 tickets',47500]
+  ];
+  function cents(c, sign){ var a = Math.abs(c), t = '$' + Math.floor(a / 100).toLocaleString('en-US') + '.' + ('0' + (a % 100)).slice(-2); return (c < 0 ? '− ' : sign ? '+ ' : '') + t; }
+  /* open and late: [title, owner, due label, days late] */
+  var late = [
+    ['Renew chapter insurance','Daniel Oyelaran','Oct 23',18], ['Submit community service report','Priya Nair','Oct 30',11],
+    ['Pay the venue deposit','Marcus Shaw','Nov 4',6], ['Return composite proofs',null,'Nov 6',4], ['Submit October budget report','Marcus Shaw','Nov 8',2]
+  ];
+  /* advice: [tier, title, why, destination, is a new event] */
+  var plan = [
+    ['high','Make the next two meetings mandatory','People skip what looks optional. Mark them, and an absence needs an excuse.','Timeline'],
+    ['high','Close excuses at meeting time','Right now an excuse can be filed days later, so missing costs nothing.','Settings'],
+    ['medium','Send a reminder the morning of','One message with the time, the room and what\'s on the agenda.','Meetings'],
+    ['medium','Put attendance on the dashboard','Members see their own number every time they open the app.','Dashboard'],
+    ['later','Pair one meeting a month with a dinner','','Events',true],
+    ['later','Ask the three lowest what gets in the way','','Roster']
+  ];
+
+  /* chapter meetings, oldest first: [month, day, % who came] */
+  var meets = [['SEP',13,88],['SEP',20,91],['SEP',27,84],['OCT',4,79],['OCT',11,86],['OCT',18,72],['OCT',25,70],['NOV',1,77],['NOV',8,72]];
+
+  /* what TODAY's list shows for each answer: the same rows, flattened into boxes */
+  var OLD = {
+    ranked: hours.map(function(h){ return ['person', h[0], 'New member', h[1] + ' hrs']; }),
+    meet: meets.map(function(m){ return ['event', 'Chapter Meeting', 'Sun ' + m[0].charAt(0) + m[0].slice(1).toLowerCase() + ' ' + m[1], m[2] + '%']; }),
+    dated: [].concat.apply([], dated.map(function(g){ return g[2].map(function(r){ return [r[5], r[2], r[3], r[0].charAt(0) + r[0].slice(1).toLowerCase() + ' ' + r[1]]; }); })),
+    status: tasks.map(function(t){ return ['task', t[1], t[2], t[0] === 'done' ? 'Done' : t[0] === 'open' ? 'Open' : (t[2] === 'No owner' ? 'Open' : 'Overdue')]; }),
+    logbook: [].concat.apply([], logged.map(function(m){ return m[2].map(function(e){ return ['event', e[2], 'Sat ' + m[0].slice(0, 3) + ' ' + e[0] + ' · ' + e[3], 'Service']; }); })),
+    receipt: ledger.map(function(l){ return ['money', l[1], l[0] + ' · ' + l[2], cents(l[3], true)]; }),
+    pastdue: late.map(function(t){ return ['task', t[0], (t[1] || 'No owner') + ' · due ' + t[2], 'Overdue']; }),
+    plan: plan.map(function(p){ return ['generic', p[1], p[2] || p[3], p[0]]; }),
+    zero: [],
+    yn1: exec.map(function(e){ return ['person', e[0], e[1], e[3] ? '$' + e[3] + ' owed' : 'Paid']; }),
+    yn2: hours.map(function(h){ return ['person', h[0], 'New member', 'Done']; }),
+    yn3: [['task','Pay the venue deposit','Marcus Shaw · due Nov 4','Overdue']],
+    record1: [['event','Chapter Meeting','Sun Nov 15 · 7:00 PM · Student Union 204','Mandatory']],
+    record2: [['person','Daniel Oyelaran','Treasurer',''], ['person','Maya Chen','Asst. Treasurer','']],
+    table: exec.map(function(e){ return ['person', e[0], e[2].toFixed(1) + ' GPA · ' + (e[3] ? '$' + e[3] + ' owed' : 'paid up') + ' · ' + e[4] + '% attendance', e[1]]; }),
+    roll: [].concat.apply([], missed.map(function(g){ return g[2].map(function(p){ return ['person', p[0], g[1] === 'Excused' ? 'Excused' : 'No excuse', p[1] || '']; }); })),
+    mixed: [].concat.apply([], drawers.map(function(d){ return d[3].map(function(r){ return [r[0], r[1], r[2], r[3]]; }); }))
+  };
+
+  /* ---------- 01 standings ---------- */
+  (function(){
+    var max = hours[0][1], html = '', cut = false;
+    hours.forEach(function(h, i){
+      var under = h[1] < BAR;
+      if (under && !cut){ cut = true; html += '<div class="rk-cut" data-a style="--i:' + i + '">Under the bar · ' + hours.filter(function(x){ return x[1] < BAR; }).length + '</div>'; }
+      html += '<button class="rk-r' + (under ? ' under' : '') + (h[1] === 0 ? ' zero' : '') + '" data-a style="--i:' + i + '"><span class="n">' + (i + 1) + '</span>' + av(h[0]) +
+        '<span class="t">' + h[0] + '</span><span class="rk-trk" style="--w:' + (h[1] / max).toFixed(4) + '"><span class="rk-fill"></span><span class="rk-v">' + h[1] + '</span></span>' + ic('chev-r', 'chev') + '</button>';
+    });
+    var el = document.getElementById('rk'); el.style.setProperty('--bar', (BAR / max).toFixed(4)); el.innerHTML = html;
+  })();
+
+  /* ---------- 01b standings, dated: same bars, date order, no ranks ---------- */
+  document.getElementById('rk2').innerHTML = meets.map(function(m, i){
+    return '<button class="rk-r' + (m[2] < 75 ? ' under' : '') + '" data-a style="--i:' + i + '"><span class="stub"><b>' + m[0] + '</b><i>' + m[1] + '</i></span><span class="t">Chapter Meeting</span><span class="rk-trk" style="--w:' + (m[2] / 100) + '"><span class="rk-fill"></span><span class="rk-v">' + m[2] + '%</span></span>' + ic('chev-r', 'chev') + '</button>';
+  }).join('');
+  document.getElementById('rk2').style.setProperty('--bar', '.75');
+
+  /* ---------- 02 today line ---------- */
+  (function(){
+    var html = '', i = 0;
+    dated.forEach(function(g){
+      if (g[0] === 'now') html += '<div class="td-now" data-a style="--i:' + i + '"><span>Today · Tue Nov 10</span></div>';
+      var nl = g[2].filter(function(r){ return r[6] === 'late'; }).length;
+      html += '<div class="td-g ' + g[0] + '">' + (g[0] === 'now' ? '' : '<span class="td-l kicker" data-a style="--i:' + i + '">' + g[1] + ' · ' + g[2].length + (nl ? ' · <b>' + nl + ' late</b>' : '') + '</span>');
+      g[2].forEach(function(r){
+        html += '<button class="td-r' + (r[6] ? ' ' + r[6] : '') + '" data-a style="--i:' + (i++) + '"><span class="stub"><b>' + r[0] + '</b><i>' + r[1] + '</i></span><span><span class="t">' + r[2] + '</span><span class="s">' + r[3] + '</span></span><span class="d">' + r[4] + '</span>' + ic('chev-r', 'chev') + '</button>';
+      });
+      html += '</div>';
+    });
+    document.getElementById('td').innerHTML = html;
+  })();
+
+  /* ---------- logbook ---------- */
+  function logbook(id, months){
+    var n = 0, i = 0;
+    months.forEach(function(m){ n += m[2].length; });
+    var html = '<div class="lg-head" data-a><b>' + n + '</b><span class="kicker">Service event' + (n === 1 ? '' : 's') + ' · Fall 26</span></div>';
+    months.forEach(function(m){
+      html += '<div class="lg-m" data-a style="--i:' + i + '"><div class="lg-ml"><span><span class="m">' + m[0] + '</span>' + (m[1] ? '<small>' + m[1] + '</small>' : '') + '</span><span class="c">' + m[2].length + '</span></div>';
+      html += '<div class="lg-tk">' + m[2].map(function(e){
+        return '<button class="tk" data-a style="--i:' + (++i) + '"><span class="dt"><u>' + e[1] + '</u><i>' + e[0] + '</i></span><span class="nm"><span class="t">' + e[2] + '</span><span class="s">' + e[3] + '</span></span></button>';
+      }).join('') + '</div>';
+      html += '</div>'; i++;
+    });
+    document.getElementById(id).innerHTML = html;
+  }
+  logbook('lg', logged);
+  /* the same question asked earlier in the term: fewer rows, same form */
+  logbook('lg-w1', [['September', 'so far', logged[0][2]]]);
+  logbook('lg-w2', [logged[0], ['October', 'so far', logged[1][2].slice(0, 1)]]);
+  logbook('lg-w3', logged);
+
+  /* ---------- 03 progress ---------- */
+  (function(){
+    var MARK = { done: ic('check'), open: '', stuck: '!' }, LABEL = { stuck:'Stuck', open:'In motion', done:'Done' };
+    var n = { done:0, open:0, stuck:0 };
+    tasks.forEach(function(t){ n[t[0]]++; });
+    document.getElementById('sx-strip').innerHTML = tasks.map(function(t, k){
+      return '<button class="sx-b ' + t[0] + '" data-k="' + k + '" data-a style="--i:' + k + '" aria-label="' + t[1] + ', ' + LABEL[t[0]] + '">' + MARK[t[0]] + '</button>';
+    }).join('');
+    document.getElementById('sx-key').innerHTML = ['done','open','stuck'].map(function(s){ return '<span style="flex:' + n[s] + '"><b>' + n[s] + '</b>' + LABEL[s].toLowerCase() + '</span>'; }).join('');
+    function row(t, k){
+      return '<button class="sx-r ' + t[0] + '" data-k="' + k + '" data-a style="--i:' + (k % 5) + '"><span class="sx-m">' + MARK[t[0]] + '</span><span><span class="t">' + t[1] + '</span>' + (t[0] === 'done' ? '' : '<span class="s">' + t[2] + '</span>') + '</span><span class="d">' + (t[0] === 'stuck' && t[2] === 'No owner' ? 'no owner' : t[3]) + '</span>' + ic('chev-r', 'chev') + '</button>';
+    }
+    var html = '';
+    ['stuck','open'].forEach(function(s){
+      html += '<div class="sx-grp ' + s + '"><span class="sx-gl kicker">' + LABEL[s] + ' · ' + n[s] + '</span>';
+      tasks.forEach(function(t, k){ if (t[0] === s) html += row(t, k); });
+      html += '</div>';
+    });
+    var done = tasks.filter(function(t){ return t[0] === 'done'; });
+    html += '<div class="sx-grp done"><button class="sx-fold" aria-expanded="false" id="sx-fold"><span class="sx-m">' + ic('check') + '</span><span class="tx"><b>' + done.length + ' done</b> · ' + done.slice(0, 3).map(function(t){ return t[1]; }).join(', ') + ', +' + (done.length - 3) + '</span>' + ic('chev-r', 'chev') + '</button><div id="sx-done" hidden>';
+    tasks.forEach(function(t, k){ if (t[0] === 'done') html += row(t, k); });
+    html += '</div></div>';
+    var body = document.getElementById('sx-body'); body.innerHTML = html;
+    var fold = document.getElementById('sx-fold'), list = document.getElementById('sx-done');
+    function open(v){ list.hidden = !v; fold.setAttribute('aria-expanded', String(v)); }
+    fold.addEventListener('click', function(){ open(list.hidden); });
+    /* a block and its row light each other up */
+    var sheet = body.parentNode;
+    function hot(k, on){ sheet.querySelectorAll('[data-k="' + k + '"]').forEach(function(e){ e.classList.toggle('hot', on); }); }
+    sheet.addEventListener('mouseover', function(e){ var t = e.target.closest('[data-k]'); if (t) hot(t.dataset.k, true); });
+    sheet.addEventListener('mouseout', function(e){ var t = e.target.closest('[data-k]'); if (t) hot(t.dataset.k, false); });
+    document.getElementById('sx-strip').addEventListener('click', function(e){
+      var b = e.target.closest('.sx-b'); if (!b) return;
+      if (b.classList.contains('done')) open(true);
+      var r = body.querySelector('.sx-r[data-k="' + b.dataset.k + '"]'); if (r) r.focus();
+    });
+  })();
+
+  /* ---------- 05 side by side ---------- */
+  (function(){
+    var COLS = [
+      { k:2, label:'GPA', bar:'bar 3.0', bad:function(v){ return v < 3; }, fmt:function(v){ return v.toFixed(1); } },
+      { k:3, label:'Dues owed', bar:'bar $0', bad:function(v){ return v > 0; }, fmt:function(v){ return '$' + v; } },
+      { k:4, label:'Attendance', bar:'bar 75%', bad:function(v){ return v < 75; }, fmt:function(v){ return v + '%'; } }
+    ];
+    var sort = null, table = document.getElementById('tb');
+    function misses(e){ return COLS.filter(function(c){ return c.bad(e[c.k]); }).length; }
+    function draw(){
+      var rows = exec.slice();
+      /* default order: whoever is under the most bars first, so the verdict's names lead */
+      if (!sort) rows.sort(function(a, b){ return misses(b) - misses(a); });
+      else rows.sort(function(a, b){ return (a[sort.k] - b[sort.k]) * sort.dir; });
+      var h = '<thead><tr><th><span class="kicker">Exec · 6</span></th>' + COLS.map(function(c){
+        var on = sort && sort.k === c.k;
+        return '<th><button data-k="' + c.k + '"' + (on ? ' aria-sort="' + (sort.dir > 0 ? 'ascending' : 'descending') + '"' : '') + '><span class="kicker">' + c.label + '</span><small>' + c.bar + '</small></button></th>';
+      }).join('') + '<th></th></tr></thead><tbody>';
+      rows.forEach(function(e){
+        h += '<tr tabindex="0"><td><span class="who">' + av(e[0]) + '<span><span class="t">' + e[0] + '</span><span class="s">' + e[1] + '</span></span></span></td>' +
+          COLS.map(function(c){ var bad = c.bad(e[c.k]); return '<td><span class="' + (bad ? 'bad' : 'ok') + '">' + c.fmt(e[c.k]) + '</span></td>'; }).join('') + '<td>' + ic('chev-r', 'chev') + '</td></tr>';
+      });
+      table.innerHTML = h + '</tbody>';
+    }
+    table.addEventListener('click', function(e){
+      var b = e.target.closest('th button'); if (!b) return;
+      var k = +b.dataset.k;
+      sort = sort && sort.k === k ? { k:k, dir:-sort.dir } : { k:k, dir: k === 3 ? -1 : 1 };
+      draw();
+    });
+    draw();
+  })();
+
+  /* ---------- 06 roll call ---------- */
+  document.getElementById('roll-body').innerHTML = missed.map(function(g, gi){
+    return '<div class="roll-g ' + g[0] + '"><div class="roll-n" data-a style="--i:' + gi * 4 + '"><b>' + g[2].length + '</b><span class="kicker">' + g[1] + '</span></div><div class="roll-c">' +
+      g[2].map(function(p, i){ return '<button class="who-chip" data-a style="--i:' + (gi * 4 + i) + '">' + av(p[0], 'avatar--sm') + p[0] + (p[1] ? '<em>' + p[1] + '</em>' : '') + '</button>'; }).join('') + '</div></div>';
+  }).join('');
+
+  /* ---------- 07 by drawer ---------- */
+  document.getElementById('mx').innerHTML = drawers.map(function(d, di){
+    var c = d[2];
+    return '<div class="dr" data-a style="--i:' + di * 2 + '; --c:var(--' + c + '); --cs:var(--' + c + '-soft); --cb:var(--' + c + '-bd); --ci:var(--' + c + '-ink)"><span class="dr-tab">' + ic(d[1]) + d[0] + '<i>' + d[3].length + '</i></span><div class="dr-b">' +
+      d[3].map(function(r){
+        var lead = r[4] ? '<span class="stub" style="--sc:var(--' + c + ')"><b>' + r[4][0] + '</b><i>' + r[4][1] + '</i></span>' : '<span class="glyph">' + ic(GLYPH[r[0]]) + '</span>';
+        return '<button class="res">' + lead + '<span><span class="t">' + r[1] + '</span><span class="s">' + r[2] + '</span></span><span class="val">' + r[3] + '</span>' + ic('chev-r', 'chev') + '</button>';
+      }).join('') + '</div></div>';
+  }).join('');
+
+  /* ---------- 09 receipt ---------- */
+  (function(){
+    var out = 0, inn = 0, no = 0, ni = 0;
+    document.getElementById('rcp').innerHTML = ledger.map(function(l, i){
+      if (l[3] < 0){ out += l[3]; no++; } else { inn += l[3]; ni++; }
+      return '<button class="rcp-r' + (l[3] > 0 ? ' in' : '') + '" data-a style="--i:' + i + '"><span class="dt">' + l[0] + '</span><span><span class="t">' + l[1] + '</span>' + (l[4] ? '<span class="pend">pending</span>' : '') + '<span class="s">' + l[2] + '</span></span><span class="a">' + cents(l[3], true) + '</span></button>';
+    }).join('');
+    document.getElementById('rcp-sum').innerHTML = '<div><span>Paid out · ' + no + '</span><span class="mono">' + cents(out) + '</span></div><div class="in"><span>Came in · ' + ni + '</span><span class="mono">' + cents(inn, true) + '</span></div><div class="net"><span>Net so far</span><span class="mono">' + cents(out + inn, true) + '</span></div>';
+  })();
+
+  /* ---------- 10 past due ---------- */
+  (function(){
+    var WEEKS = Math.ceil(late[0][3] / 7), span = WEEKS * 7, ax = '';
+    for (var w = WEEKS; w >= 1; w--) ax += '<span style="--x:' + (w / WEEKS * 100).toFixed(2) + '%">' + w + ' wk' + (w > 1 ? 's' : '') + '</span>';
+    document.getElementById('pd').innerHTML = '<div class="pd-ax"><span class="pd-trk"><span class="pd-in" style="display:block">' + ax + '<span style="--x:0%">Today</span></span></span></div>' + late.map(function(t, i){
+      var who = t[1] ? av(t[1]) : '<span class="avatar none">?</span>';
+      return '<button class="pd-r' + (t[3] > 14 ? ' old' : '') + '" data-a style="--i:' + i + '">' + who + '<span><span class="t">' + t[0] + '</span><span class="s">' + (t[1] || 'No owner') + ' · was due ' + t[2] + '</span></span>' +
+        '<span class="pd-trk"><span class="pd-in" style="display:block; --w:' + (t[3] / span).toFixed(4) + '"><span class="pd-v">' + t[3] + ' days</span><span class="pd-bar"></span></span></span>' + ic('chev-r', 'chev') + '</button>';
+    }).join('');
+  })();
+
+  /* ---------- 11 game plan ---------- */
+  (function(){
+    var LABEL = { high:'Do first', medium:'Then', later:'When there\'s time' }, html = '', n = 0;
+    function go(p){ return p[4] ? '<span class="go plus">' + ic('plus') + 'Draft the event</span>' : '<span class="go">' + p[3] + ic('arrow-r') + '</span>'; }
+    ['high','medium','later'].forEach(function(tier, ti){
+      var rows = plan.filter(function(p){ return p[0] === tier; }); if (!rows.length) return;
+      html += '<div class="gp-l kicker" data-a style="--i:' + n + '">' + LABEL[tier] + '</div><div class="gp-' + (ti + 1) + '">';
+      rows.forEach(function(p){
+        n++;
+        html += tier === 'high'
+          ? '<button class="gp-c" data-a style="--i:' + n + '"><span class="gp-no">' + n + '</span><span class="t">' + p[1] + '</span><span class="s">' + p[2] + '</span>' + go(p) + '</button>'
+          : '<button class="gp-r" data-a style="--i:' + n + '"><span class="gp-no">' + n + '</span><span><span class="t">' + p[1] + '</span>' + (p[2] ? '<span class="s">' + p[2] + '</span>' : '') + '</span>' + go(p) + '</button>';
+      });
+      html += '</div>';
+    });
+    document.getElementById('gp').innerHTML = html;
+  })();
+
+  /* ---------- 13 yes or no ---------- */
+  (function(){
+    function yn(id, people, noun, hasWord, hasntLabel){
+      var fail = people.filter(function(p){ return !p.pass; }), ok = people.filter(function(p){ return p.pass; }), holds = !fail.length;
+      var html = '<div class="yn-top"><span class="yn-st">' + (holds ? 'Yes' : 'No') + '</span><span class="yn-h"><span class="t">' + (holds ? 'All ' + people.length + ' ' + hasWord : ok.length + ' of ' + people.length + ' ' + hasWord) + '</span><span class="s">' + noun + '</span>' +
+        '<span class="yn-pips">' + people.map(function(p){ return av(p.name, 'avatar--sm' + (p.pass ? '' : ' fail')); }).join('') + '</span></span></div>';
+      if (!holds){
+        html += '<div class="yn-x"><span class="kicker">' + hasntLabel + '</span>' + fail.map(function(p){ return res(['person', p.name, p.sub, p.val]); }).join('') + '</div>';
+        html += '<button class="sx-fold" aria-expanded="false" data-fold><span class="sx-m">' + ic('check') + '</span><span class="tx"><b>' + ok.length + ' who have</b> · ' + ok.map(function(p){ return p.name.split(' ')[0]; }).join(', ') + '</span>' + ic('chev-r', 'chev') + '</button><div class="yn-rest" hidden>' + ok.map(function(p){ return res(['person', p.name, p.sub, p.val]); }).join('') + '</div>';
+      }
+      document.getElementById(id).innerHTML = html;
+    }
+    yn('yn1', exec.map(function(e){ return { name:e[0], sub:e[1], pass:!e[3], val:e[3] ? '$' + e[3] + ' owed' : 'Paid' }; }), 'Exec · dues for Fall 26', 'have paid', 'The one who hasn\'t');
+    yn('yn2', hours.map(function(h){ return { name:h[0], sub:'New member', pass:true, val:'Done' }; }), 'New members · risk training', 'have finished', '');
+    document.querySelectorAll('[data-fold]').forEach(function(b){
+      b.addEventListener('click', function(){ var n = b.nextElementSibling, open = n.hidden; n.hidden = !open; b.setAttribute('aria-expanded', String(open)); });
+    });
+  })();
+
+  /* ---------- shell: dress every turn the way the widget does ---------- */
+  document.querySelectorAll('.spot').forEach(function(spot){
+    spot.dataset.view = 'new';
+    var turns = [].slice.call(spot.querySelectorAll('.ak-turn'));
+    var body = document.createElement('div'); body.className = 'spot-b';
+    turns.forEach(function(t){
+      var d = t.dataset, a = document.createElement('div'); a.className = 'ak-a';
+      while (t.firstChild) a.appendChild(t.firstChild);
+      a.insertAdjacentHTML('beforeend',
+        '<div class="v-old">' + (OLD[d.old].length ? '<div class="res-list">' + OLD[d.old].map(function(r, i){ return res(r, ' data-a style="--i:' + i + '"'); }).join('') + '</div>' : '<p class="cap">Today the sentence is the whole answer. There are no rows, so nothing else is drawn.</p>') + '</div>' +
+        '<div class="ak-meta"><div class="sources"><span class="lbl">Sources</span>' + d.src.split(',').map(function(s){ return '<span class="src"><i></i>' + s + '</span>'; }).join('') + '</div>' +
+        '<div class="fb"><span class="lbl">Helpful?</span><button aria-label="Helpful">' + ic('thumb') + '</button><button aria-label="Not helpful">' + ic('thumb', 'flip') + '</button></div></div>' +
+        '<div class="follows">' + d.follows.split('|').map(function(f){ return '<button>' + f + '</button>'; }).join('') + '</div>');
+      t.insertAdjacentHTML('afterbegin', '<div class="ak-q"><span>' + d.q + '</span></div><div class="trace"><span class="tk">' + ic('check') + '</span>' + d.trace + ic('chev-r', 'chev') + '</div>');
+      t.appendChild(a); body.appendChild(t);
+    });
+    spot.insertAdjacentHTML('afterbegin', '<div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span>' +
+      '<div class="seg" role="group" aria-label="Which picture"><button data-view="old" aria-pressed="false">Today</button><button data-view="new" aria-pressed="true">New</button></div><button class="barbtn">Replay</button></div>');
+    spot.appendChild(body);
+    spot.insertAdjacentHTML('beforeend', '<div class="dock"><span>Ask a follow-up…</span><button class="send" aria-label="Send">' + ic('send') + '</button></div>');
+
+    function play(){
+      var as = spot.querySelectorAll('.ak-a');
+      as.forEach(function(a){ a.classList.remove('in'); });
+      void spot.offsetWidth;
+      as.forEach(function(a, i){ setTimeout(function(){ a.classList.add('in'); }, 60 + i * 260); });
+    }
+    spot.querySelector('.barbtn').addEventListener('click', play);
+    spot.querySelectorAll('.seg button').forEach(function(b){
+      b.addEventListener('click', function(){
+        spot.dataset.view = b.dataset.view;
+        spot.querySelectorAll('.seg button').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+        play();
+      });
+    });
+    if ('IntersectionObserver' in window){
+      var io = new IntersectionObserver(function(es){ if (es[0].isIntersecting){ io.disconnect(); play(); } }, { threshold:.15 });
+      io.observe(spot);
+    } else play();
+  });
+
+  /* theme */
+  document.querySelectorAll('[data-theme-set]').forEach(function(b){
+    b.addEventListener('click', function(){
+      root.dataset.theme = b.dataset.themeSet;
+      document.querySelectorAll('[data-theme-set]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

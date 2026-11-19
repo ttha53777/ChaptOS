@@ -1,0 +1,987 @@
+<!doctype html>
+<html lang="en" data-theme="ivory">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#FFFCF6">
+<title>Minutes · Phone (Paper)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Paper tokens, copied from app/paper-aesthetic.css (day + night). */
+:root{
+  --pp-peach:#FFD5C4;--pp-peach-soft:#FFEDE5;--pp-peach-ink:#C9542D;--pp-peach-bd:#F8D2C2;
+  --pp-sky:#CFE2FF;--pp-sky-soft:#EAF2FF;--pp-sky-ink:#2A66C7;--pp-sky-bd:#CCDFFB;
+  --pp-mint:#C7EFDA;--pp-mint-soft:#E6F8EF;--pp-mint-ink:#1B815B;--pp-mint-bd:#BDE7D2;
+  --pp-butter:#FFE5A0;--pp-butter-soft:#FFF6DC;--pp-butter-ink:#9C6B08;--pp-butter-bd:#F4DFA6;
+  --pp-lilac:#E1D8FF;--pp-lilac-soft:#F1EDFF;--pp-lilac-ink:#6244CC;--pp-lilac-bd:#DCD2FB;
+  --pp-rose:#FFD6E6;--pp-rose-soft:#FFEDF4;--pp-rose-ink:#C23C77;--pp-rose-bd:#F8CEE0;
+  --pp-mark-op:.85;
+  --pp-sh-1:0 1px 2px rgba(38,33,27,.05),0 3px 10px rgba(38,33,27,.045);
+  --paper:#FFFCF6;--paper-2:#FBF5EA;--card:#FFFFFF;--card-2:#FBF5EA;--card-3:#F4ECDD;
+  --ink:#26211B;--ink-soft:#544A3F;--muted:#8A7F71;--faint:#B3A794;
+  --line:#EBE1CF;--line-soft:#F4ECDD;--line-med:#DCD0B9;--rule:rgba(42,102,199,.10);--margin:rgba(194,60,119,.32);
+  --scrim:rgba(38,33,27,.28);--desk:#EFE7D8;--bezel:#1d1915;
+  --kbd-bg:#D1D3D9;--kbd-key:#FFFFFF;--kbd-fn:#ABB0BA;--kbd-ink:#000;--kbd-sh:0 1px 0 rgba(0,0,0,.3);
+  --serif:"Bricolage Grotesque",Inter,system-ui,sans-serif;
+  --sans:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --ease:cubic-bezier(.22,.72,.24,1);--spring:cubic-bezier(.16,.9,.3,1.02);--kb-ease:cubic-bezier(.38,.7,.125,1);
+  --lh:30px;
+}
+html[data-theme="dusk"]{
+  --pp-peach:#E5A28A;--pp-peach-soft:rgba(255,178,148,.085);--pp-peach-ink:#FFB49A;--pp-peach-bd:rgba(255,178,148,.22);
+  --pp-sky:#8DB2EC;--pp-sky-soft:rgba(150,190,255,.085);--pp-sky-ink:#AACBFF;--pp-sky-bd:rgba(150,190,255,.22);
+  --pp-mint:#80CBA4;--pp-mint-soft:rgba(140,220,180,.08);--pp-mint-ink:#8FDDB6;--pp-mint-bd:rgba(140,220,180,.22);
+  --pp-butter:#E3BF66;--pp-butter-soft:rgba(255,214,120,.08);--pp-butter-ink:#F0CC72;--pp-butter-bd:rgba(255,214,120,.22);
+  --pp-lilac:#A593EE;--pp-lilac-soft:rgba(180,160,255,.10);--pp-lilac-ink:#C4B6FF;--pp-lilac-bd:rgba(180,160,255,.26);
+  --pp-rose:#E598B7;--pp-rose-soft:rgba(255,160,200,.08);--pp-rose-ink:#FFAACB;--pp-rose-bd:rgba(255,160,200,.22);
+  --pp-mark-op:.42;
+  --pp-sh-1:0 1px 2px rgba(0,0,0,.35),0 3px 10px rgba(0,0,0,.25);
+  --paper:#15110D;--paper-2:#1B1712;--card:#1F1A15;--card-2:#25201A;--card-3:#2B251E;
+  --ink:#F2EADC;--ink-soft:#CDBFAB;--muted:#948876;--faint:#6E6355;
+  --line:#2F271E;--line-soft:#262019;--line-med:#43382B;--rule:rgba(170,203,255,.07);--margin:rgba(255,170,203,.28);
+  --scrim:rgba(5,4,2,.6);--desk:#0c0a08;--bezel:#000;
+  --kbd-bg:#2B2B2D;--kbd-key:#6B6B6E;--kbd-fn:#464648;--kbd-ink:#fff;--kbd-sh:0 1px 0 rgba(0,0,0,.6);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+button,input,textarea{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+body{background:var(--desk);color:var(--ink);font-family:var(--sans);letter-spacing:-.005em;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- desk + phone frame ---------- */
+.desk{display:flex;flex-wrap:wrap;gap:56px;justify-content:center;align-items:flex-start;padding:28px 24px;min-height:100vh}
+.notes{max-width:100%}
+.pw{width:calc(402px*var(--k,1));height:calc(856px*var(--k,1));flex:none}
+.phone{width:402px;height:856px;transform:scale(var(--k,1));transform-origin:top left;background:var(--bezel);border-radius:58px;padding:6px;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 40px 80px -30px rgba(0,0,0,.55)}
+.screen{position:relative;width:390px;height:844px;border-radius:52px;overflow:hidden;background:var(--paper);isolation:isolate;--sat:47px;--sab:34px;--kb:0px}
+.notes{width:390px;color:var(--ink-soft);font-size:14px;line-height:1.55;padding-top:6px}
+.notes h2{font-family:var(--serif);font-size:24px;color:var(--ink);letter-spacing:-.03em;font-weight:600}
+.notes .sub{color:var(--muted);margin:4px 0 20px}
+.ctl{display:grid;gap:9px;margin-bottom:22px}
+.ctl .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ctl .lab{width:64px;font:600 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.seg{display:inline-flex;gap:3px;padding:3px;border-radius:999px;background:var(--paper-2);border:1.5px solid var(--line)}
+.seg button{padding:5px 12px;border-radius:999px;font-size:13px;font-weight:550;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:var(--pp-sh-1)}
+.notes h3{font:600 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:22px 0 10px}
+.notes ol{list-style:none;display:grid;gap:12px;counter-reset:n}
+.notes li{counter-increment:n;display:grid;grid-template-columns:26px 1fr;gap:8px}
+.notes li::before{content:counter(n);height:22px;border-radius:7px;display:grid;place-items:center;font:600 11px var(--mono);background:var(--pp-sky-soft);color:var(--pp-sky-ink);border:1.5px solid var(--pp-sky-bd)}
+.notes b{color:var(--ink);font-weight:600}
+.notes code{font:12px var(--mono);background:var(--paper-2);border:1px solid var(--line);border-radius:5px;padding:0 4px}
+.notes .fine{margin-top:20px;padding:12px 14px;border:1.5px dashed var(--line-med);border-radius:14px;font-size:12.5px;color:var(--muted)}
+.notes .try{display:flex;flex-wrap:wrap;gap:6px}
+.notes .try button{padding:5px 11px;border-radius:999px;border:1.5px solid var(--line-med);background:var(--card);font-size:12.5px;color:var(--ink-soft)}
+.notes .try button:hover{border-color:var(--pp-sky-ink);color:var(--ink)}
+
+/* ---------- live mode: opened on an actual phone ---------- */
+html.live,html.live body{height:100%;overflow:hidden;background:var(--paper)}
+html.live .desk{display:block;padding:0;min-height:0}
+html.live .notes{display:none}
+html.live .pw,html.live .phone{width:auto;height:auto;transform:none;padding:0;border-radius:0;box-shadow:none;background:none}
+html.live .screen{position:fixed;inset:0;width:auto;height:auto;border-radius:0;--sat:env(safe-area-inset-top);--sab:env(safe-area-inset-bottom)}
+html.live .sbar,html.live .kbd,html.live .homebar{display:none}
+
+/* ---------- status bar (frame only) ---------- */
+.sbar{position:absolute;top:0;left:0;right:0;height:var(--sat);z-index:60;display:flex;justify-content:space-between;align-items:center;padding:6px 34px 0 46px;font:600 15px var(--sans);pointer-events:none;color:var(--ink)}
+.sbar .isl{position:absolute;left:50%;top:11px;width:122px;height:36px;margin-left:-61px;border-radius:20px;background:#000}
+.sbar .ic{display:flex;gap:6px;align-items:center}
+.homebar{position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:var(--ink);opacity:.85;z-index:70;pointer-events:none}
+.kbup .homebar{opacity:0}
+
+/* ======================================================================
+   The minutes page. One column; it is sized to what you can SEE:
+   frame → screen minus the drawn keyboard, live → the visual viewport.
+   ====================================================================== */
+.pg{position:absolute;left:0;right:0;top:0;bottom:var(--kb);display:flex;flex-direction:column;background:var(--paper);transition:bottom .3s var(--kb-ease)}
+.live .pg{top:var(--vvt,0px);bottom:auto;height:var(--vvh,100dvh);transition:none}
+
+/* header — never scrolls away: back, title, who's here, more */
+.hd{flex:none;display:flex;align-items:center;gap:4px;padding:calc(var(--sat) + 4px) 8px 8px 4px;background:var(--card);border-bottom:1.5px solid var(--line);position:relative;z-index:5}
+.ib{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;color:var(--ink-soft);flex:none}
+.ib:active{background:var(--paper-2)}
+.ib svg{width:20px;height:20px}
+.ttl{flex:1;min-width:0;display:grid;line-height:1.2;padding-left:2px}
+.ttl b{font-family:var(--serif);font-weight:600;font-size:16.5px;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ttl small{display:flex;align-items:center;gap:6px;font:500 11px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:15px}
+.ttl small i{width:7px;height:7px;border-radius:50%;background:var(--pp-mint-ink);flex:none;box-shadow:0 0 0 3px var(--pp-mint-soft)}
+.ttl small i.saving{background:var(--pp-butter-ink);box-shadow:0 0 0 3px var(--pp-butter-soft)}
+.ttl small .typ{color:var(--ink-soft)}
+.typ em{font-style:normal;display:inline-flex;gap:2px;margin-left:3px}
+.typ em span{width:3px;height:3px;border-radius:50%;background:currentColor;animation:dot 1s infinite}
+.typ em span:nth-child(2){animation-delay:.15s}.typ em span:nth-child(3){animation-delay:.3s}
+@keyframes dot{0%,60%,100%{opacity:.25}30%{opacity:1}}
+.who{display:flex;align-items:center;height:42px;padding:0 6px 0 4px;border-radius:12px;flex:none}
+.who:active{background:var(--paper-2)}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font:700 11px var(--sans);color:#fff;border:2px solid var(--card);flex:none;position:relative}
+.who .av+.av{margin-left:-9px}
+.who .av.typing::after{content:"";position:absolute;right:-2px;bottom:-2px;width:10px;height:10px;border-radius:50%;background:var(--pp-mint-ink);border:2px solid var(--card)}
+.who .n{margin-left:5px;font:600 12px var(--mono);color:var(--muted)}
+
+/* ticket strip + tabs fold away while you type */
+.chrome{flex:none;display:grid;grid-template-rows:1fr;transition:grid-template-rows .28s var(--kb-ease)}
+.chrome>div{min-height:0;overflow:hidden}
+.kb .chrome{grid-template-rows:0fr}
+.tk{margin:12px 14px 0;display:grid;grid-template-columns:58px 1fr;border:1.5px solid var(--ink);border-radius:18px;background:var(--card);box-shadow:4px 4px 0 var(--pp-sky);overflow:hidden}
+.tk .stub{display:grid;place-content:center;text-align:center;border-right:1.5px dashed var(--line-med);background:var(--pp-sky-soft);padding:8px 0}
+.tk .stub small{font:700 10px var(--mono);letter-spacing:.1em;color:var(--pp-sky-ink)}
+.tk .stub b{font:600 24px/1 var(--serif);letter-spacing:-.04em;margin-top:2px}
+.tk .bd{padding:10px 12px 11px;min-width:0;display:grid;gap:7px}
+.tk .meta{display:flex;flex-wrap:wrap;gap:3px 10px;font-size:13px;color:var(--ink-soft)}
+.tk .meta span{white-space:nowrap}
+.tk .row{display:flex;align-items:center;gap:8px}
+.stamp{font:700 9.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:6px;border:1.5px solid var(--ink);flex:none}
+.stamp.on{background:var(--ink);color:var(--paper)}
+.clk{flex:1;min-width:0;display:grid;gap:4px}
+.clk .bar{height:6px;border-radius:4px;background:var(--line-soft);overflow:hidden;border:1px solid var(--line)}
+.clk .bar i{display:block;height:100%;background:var(--pp-sky-ink);border-radius:4px}
+.clk small{display:flex;justify-content:space-between;font:500 10.5px var(--mono);color:var(--muted)}
+.clk small b{color:var(--ink);font-weight:600}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);margin:12px 14px 0;padding:4px;border-radius:14px;background:var(--paper-2);border:1.5px solid var(--line)}
+.tabs button{height:36px;border-radius:10px;font-size:13.5px;font-weight:600;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:6px}
+.tabs button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:var(--pp-sh-1);outline:1.5px solid var(--line)}
+.tabs .ct{min-width:18px;height:18px;padding:0 5px;border-radius:999px;font:600 10.5px/18px var(--mono);background:var(--pp-lilac-soft);color:var(--pp-lilac-ink)}
+.tabs .ct.g{background:var(--pp-mint-soft);color:var(--pp-mint-ink)}
+.tabs .ct.w{background:var(--pp-butter-soft);color:var(--pp-butter-ink)}
+
+/* body */
+.bd-wrap{flex:1;min-height:0;position:relative}
+.scroll{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:12px 14px 24px}
+.scroll::-webkit-scrollbar{display:none}
+.kb .scroll{padding-top:6px}
+
+/* ---------- the legal pad ---------- */
+.padcard{position:relative;border:1.5px solid var(--line-med);border-radius:20px;background:var(--card);box-shadow:var(--pp-sh-1);overflow:hidden}
+.kb .padcard{border-color:var(--ink);box-shadow:3px 3px 0 var(--pp-sky)}
+.padhd{display:flex;align-items:center;gap:8px;padding:10px 14px 8px 46px;border-bottom:1.5px solid var(--line-soft);font:600 10.5px var(--sans);letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.padhd .from{margin-left:auto;font:500 10.5px var(--mono);letter-spacing:0;text-transform:none;color:var(--faint)}
+.pad{position:relative;outline:none;min-height:360px;padding:0 14px 60px 46px;font-size:17px;line-height:var(--lh);color:var(--ink);caret-color:var(--pp-sky-ink);counter-reset:sec;
+  background:linear-gradient(90deg,transparent 33px,var(--margin) 33px,var(--margin) 34.5px,transparent 34.5px),repeating-linear-gradient(180deg,transparent 0,transparent calc(var(--lh) - 1px),var(--rule) calc(var(--lh) - 1px),var(--rule) var(--lh));background-position:0 0;
+  -webkit-user-select:text;user-select:text;word-break:break-word}
+.pad p{position:relative;min-height:var(--lh)}
+.pad p.h{counter-increment:sec;font-family:var(--serif);font-weight:600;font-size:17.5px;letter-spacing:-.02em;margin-top:var(--lh)}
+.pad p.h:first-child{margin-top:0}
+.pad p.h::before{content:"§" counter(sec);white-space:nowrap;position:absolute;right:calc(100% + 15px);top:0;font:600 11px/var(--lh) var(--mono);color:var(--pp-rose-ink);opacity:.85}
+.pad p.b{padding-left:20px}
+.pad p.b::before{content:"";position:absolute;left:5px;top:calc(var(--lh)/2 - 3px);width:6px;height:6px;border-radius:50%;background:var(--ink)}
+.pad p.t{padding-left:28px}
+.pad p.t::before{content:"";position:absolute;left:0;top:calc(var(--lh)/2 - 9px);width:18px;height:18px;border-radius:5px;border:1.6px solid var(--ink);background:var(--card);box-sizing:border-box}
+.pad p.t.done::before{background:var(--pp-mint);border-color:var(--pp-mint-ink)}
+.pad p.t.done::after{content:"";position:absolute;left:6px;top:calc(var(--lh)/2 - 6px);width:5px;height:9px;border:solid var(--pp-mint-ink);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.pad p.t.done{color:var(--muted)}
+.pad p.ph::after{content:attr(data-ph);position:absolute;left:0;top:0;color:var(--faint);pointer-events:none}
+.pad p.t.ph::after,.pad p.b.ph::after{left:auto;margin-left:0}
+.at{display:inline;padding:1px 6px;margin:0 1px;border-radius:7px;background:var(--pp-lilac-soft);color:var(--pp-lilac-ink);font-weight:600;font-size:.93em;white-space:nowrap;border:1px solid var(--pp-lilac-bd)}
+.pad b,.pad strong{font-weight:650}
+/* someone else's caret, with their name on a flag */
+.rc{display:inline-block;position:relative;width:0;height:22px;vertical-align:-5px;border-left:2px solid var(--c);margin:0 -1px}
+.rc::after{content:attr(data-n);position:absolute;left:-2px;bottom:100%;padding:1px 6px;border-radius:5px 5px 5px 0;background:var(--c);color:#fff;font:600 10px/1.5 var(--sans);white-space:nowrap;pointer-events:none}
+.rc.idle::after{opacity:0;transition:opacity .6s}
+.pad.ro{caret-color:transparent}
+.ronote{display:flex;gap:10px;align-items:flex-start;margin:0 0 12px;padding:10px 12px;border-radius:14px;background:var(--pp-butter-soft);border:1.5px solid var(--pp-butter-bd);font-size:13px;color:var(--ink-soft)}
+.ronote svg{color:var(--pp-butter-ink);margin-top:1px}
+
+/* ---------- the dock (keyboard down) ---------- */
+.dock{flex:none;display:flex;gap:10px;padding:10px 14px calc(var(--sab) + 8px);background:var(--paper);border-top:1.5px solid var(--line)}
+.kb .dock{display:none}
+.btn{height:50px;border-radius:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:600;padding:0 16px;flex:1;transition:transform .12s,box-shadow .12s}
+.btn svg{width:19px;height:19px}
+.btn.ink{background:var(--ink);color:var(--paper);box-shadow:3px 3px 0 var(--pp-sky)}
+.btn.ink:active{transform:translate(1.5px,1.5px);box-shadow:1.5px 1.5px 0 var(--pp-sky)}
+.btn.out{background:var(--card);border:1.5px solid var(--ink);color:var(--pp-lilac-ink);box-shadow:3px 3px 0 var(--pp-lilac)}
+.btn.out:active{transform:translate(1.5px,1.5px);box-shadow:1.5px 1.5px 0 var(--pp-lilac)}
+.btn.out:disabled{opacity:.45;box-shadow:none}
+.btn.fit{flex:none}
+
+/* ---------- the accessory bar (keyboard up) ---------- */
+.acc{flex:none;display:none;flex-direction:column;background:var(--card);border-top:1.5px solid var(--line)}
+.kb .acc{display:flex}
+.acc .tools{display:flex;align-items:center;gap:2px;padding:6px 6px 6px 8px}
+.acc .t{height:40px;min-width:40px;padding:0 8px;border-radius:11px;display:grid;place-items:center;color:var(--ink-soft);font-weight:600;font-size:15px}
+.acc .t svg{width:19px;height:19px}
+.acc .t.on{background:var(--ink);color:var(--paper)}
+.acc .t:active{background:var(--paper-2)}
+.acc .t.on:active{background:var(--ink)}
+.acc .t .sec{font:700 16px var(--mono);color:inherit}
+.acc .t b{font:700 16px var(--serif)}
+.acc .t em{font:italic 600 17px var(--serif)}
+.acc .sep{width:1.5px;height:20px;background:var(--line);margin:0 3px;flex:none}
+.acc .done{margin-left:auto;height:36px;padding:0 13px;border-radius:11px;border:1.5px solid var(--ink);font-size:13.5px;font-weight:650;display:flex;align-items:center;gap:6px;background:var(--paper)}
+.acc .done svg{width:16px;height:16px}
+.live .acc .tools{padding-bottom:6px}
+/* the mention strip rides above the tools */
+.ments{display:flex;gap:6px;overflow-x:auto;padding:8px 8px 2px;scrollbar-width:none}
+.ments::-webkit-scrollbar{display:none}
+.ments button{flex:none;display:flex;align-items:center;gap:7px;height:38px;padding:0 12px 0 4px;border-radius:999px;border:1.5px solid var(--pp-lilac-bd);background:var(--pp-lilac-soft);font-size:13.5px;font-weight:600;color:var(--ink)}
+.ments button:first-child{border-color:var(--pp-lilac-ink)}
+.ments button .av{width:28px;height:28px;font-size:10px;border:0}
+.ments button .rl{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--card);color:var(--pp-lilac-ink);font:700 12px var(--mono);border:1.5px solid var(--pp-lilac-bd)}
+.ments button small{font-weight:500;color:var(--muted);font-size:12px}
+.ments .none{padding:9px 8px;font-size:13px;color:var(--muted)}
+
+/* ---------- Summary tab ---------- */
+.card{border-radius:20px;padding:16px;border:1.5px solid var(--line);background:var(--card)}
+.sum{background:var(--pp-lilac-soft);border-color:var(--pp-lilac-bd)}
+.sum.stale{background:var(--pp-butter-soft);border-color:var(--pp-butter-bd)}
+.sum.empty{background:transparent;border-style:dashed;border-color:var(--line-med);text-align:center;padding:26px 18px}
+.sum .chip{display:inline-flex;align-items:center;gap:5px;font:700 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--pp-lilac-ink)}
+.sum .chip svg{width:14px;height:14px}
+.sum .hdr{display:flex;align-items:center;gap:8px}
+.sum .hdr .at2{margin-left:auto;font:500 10.5px var(--mono);color:var(--muted)}
+.sum .stl{margin-top:10px;font-size:13px;color:var(--pp-butter-ink)}
+.sum .stl button{font-weight:650;text-decoration:underline;text-underline-offset:2px;color:inherit}
+.sum .gist{margin-top:12px;font:500 18px/1.38 var(--serif);letter-spacing:-.018em;color:var(--ink)}
+.sum h5{display:flex;align-items:center;gap:8px;margin:18px 0 6px;font:700 10px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.sum h5::before{content:"";width:14px;height:2px;border-radius:2px;background:var(--pp-lilac-ink)}
+.sum h5.a::before{background:var(--pp-butter-ink)}
+.sum ul{list-style:none}
+.dec li{position:relative;padding:5px 0 5px 20px;font-size:14.5px;line-height:1.42;color:var(--ink-soft)}
+.dec li::before{content:"";position:absolute;left:3px;top:12px;width:8px;height:8px;border-radius:2px;background:var(--pp-lilac);transform:rotate(45deg)}
+.ai{width:100%;display:grid;grid-template-columns:24px 1fr;gap:10px;align-items:start;text-align:left;padding:9px 4px;border-radius:12px;font-size:14.5px;line-height:1.38}
+.ai+.ai{border-top:1px dashed var(--pp-lilac-bd)}
+.ai .bx{width:22px;height:22px;border-radius:6px;border:1.6px solid var(--ink);display:grid;place-items:center;background:var(--card);margin-top:-1px}
+.ai .bx svg{width:14px;height:14px;opacity:0;stroke-width:2.6}
+.ai.done .bx{background:var(--pp-lilac-ink);border-color:var(--pp-lilac-ink);color:var(--card)}
+.ai.done .bx svg{opacity:1}
+.ai.done .tx{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line-med)}
+.ai small{display:block;margin-top:3px;font:500 11.5px var(--mono);color:var(--muted)}
+.ai small .late{color:var(--pp-peach-ink)}
+.ai:disabled{cursor:default}
+.ai:disabled .bx{opacity:.5}
+.sum .empty-art{width:64px;height:64px;margin:0 auto 12px;border-radius:18px;display:grid;place-items:center;background:var(--pp-lilac-soft);border:1.5px solid var(--pp-lilac-bd);color:var(--pp-lilac-ink);transform:rotate(-4deg)}
+.sum .empty-art svg{width:30px;height:30px}
+.sum.empty p{font-size:14.5px;color:var(--ink-soft);line-height:1.45;max-width:270px;margin:0 auto}
+.run{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:14px;color:var(--ink-soft)}
+.spin{width:18px;height:18px;border-radius:50%;border:2px solid var(--pp-lilac-bd);border-top-color:var(--pp-lilac-ink);animation:sp .8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+.skel{height:12px;border-radius:6px;background:var(--pp-lilac-bd);opacity:.6;margin-top:10px;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+
+/* ---------- Who came tab ---------- */
+.att .top{display:flex;align-items:baseline;gap:8px}
+.att .big{font:600 34px/1 var(--serif);letter-spacing:-.04em}
+.att .of{font-size:14px;color:var(--muted)}
+.att .q{margin-left:auto;font:700 9.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;padding:4px 8px;border-radius:6px;background:var(--pp-mint-soft);color:var(--pp-mint-ink);border:1.5px solid var(--pp-mint-bd)}
+.att .meter{display:flex;height:10px;border-radius:6px;overflow:hidden;margin:12px 0 4px;background:var(--line-soft)}
+.att .meter i{display:block;height:100%}
+.grp{margin-top:16px}
+.grp h6{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;margin-bottom:8px}
+.grp h6 .d{width:8px;height:8px;border-radius:50%;background:currentColor}
+.grp h6 span.c{font-weight:500;color:var(--muted)}
+.grp.ok h6{color:var(--pp-mint-ink)}.grp.gold h6{color:var(--pp-butter-ink)}.grp.rose h6{color:var(--pp-peach-ink)}
+.nms{display:flex;flex-wrap:wrap;gap:6px}
+.nm{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 11px 0 3px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);font-size:13.5px;font-weight:550}
+.nm .av{width:26px;height:26px;font-size:9.5px;border:0}
+.att.none{text-align:center;padding:26px 18px;border-style:dashed;border-color:var(--line-med);background:transparent}
+.att.none p{font-size:14.5px;color:var(--ink-soft);margin-top:6px}
+
+/* ---------- sheets ---------- */
+.scrim{position:absolute;inset:0;z-index:30;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity .25s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sh{position:absolute;left:0;right:0;bottom:0;z-index:40;max-height:86%;display:flex;flex-direction:column;background:var(--paper);border-radius:26px 26px 0 0;border-top:1.5px solid var(--ink);transform:translateY(105%);transition:transform .34s var(--spring);padding-bottom:var(--sab)}
+.sh.on{transform:none}
+.sh.drag{transition:none}
+.sh .grab{flex:none;padding:10px 0 4px;display:grid;place-items:center;touch-action:none;cursor:grab}
+.sh .grab i{width:38px;height:5px;border-radius:3px;background:var(--line-med)}
+.sh .sh-hd{flex:none;display:flex;align-items:center;gap:10px;padding:2px 18px 10px;touch-action:none}
+.sh .sh-hd b{font:600 19px var(--serif);letter-spacing:-.03em}
+.sh .sh-hd small{display:block;font-size:12.5px;color:var(--muted);margin-top:1px}
+.sh .sh-bd{flex:1;min-height:0;overflow-y:auto;padding:0 14px 14px}
+.mrow{width:100%;display:flex;align-items:center;gap:13px;height:54px;padding:0 10px;border-radius:14px;font-size:15.5px;font-weight:550;text-align:left}
+.mrow:active{background:var(--paper-2)}
+.mrow svg{width:20px;height:20px;color:var(--muted)}
+.mrow.danger,.mrow.danger svg{color:var(--pp-peach-ink)}
+.mrow small{margin-left:auto;font:500 12px var(--mono);color:var(--faint)}
+.mhr{height:1.5px;background:var(--line);margin:6px 10px}
+.peer{display:flex;align-items:center;gap:12px;padding:10px 6px}
+.peer+.peer{border-top:1.5px dashed var(--line)}
+.peer .av{width:40px;height:40px;font-size:13px;border:0}
+.peer .tx{flex:1;min-width:0}
+.peer .tx b{display:block;font-size:15px;font-weight:600}
+.peer .tx small{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted)}
+.peer .tx small i{width:7px;height:7px;border-radius:50%;background:var(--pp-mint-ink)}
+.peer .tx small i.v{background:var(--line-med)}
+.peer .go{height:34px;padding:0 12px;border-radius:999px;border:1.5px solid var(--line-med);font-size:13px;font-weight:600;color:var(--ink-soft)}
+.roll{display:flex;align-items:center;gap:10px;padding:8px 4px}
+.roll+.roll{border-top:1px solid var(--line-soft)}
+.roll .av{width:32px;height:32px;font-size:11px;border:0}
+.roll .nmx{flex:1;font-size:15px;font-weight:550;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pea{display:flex;gap:4px}
+.pea button{width:38px;height:34px;border-radius:10px;border:1.5px solid var(--line);font:700 12px var(--mono);color:var(--muted);background:var(--card)}
+.pea button.on.P{background:var(--pp-mint);border-color:var(--pp-mint-ink);color:var(--pp-mint-ink)}
+.pea button.on.E{background:var(--pp-butter);border-color:var(--pp-butter-ink);color:var(--pp-butter-ink)}
+.pea button.on.A{background:var(--pp-peach);border-color:var(--pp-peach-ink);color:var(--pp-peach-ink)}
+html[data-theme="dusk"] .pea button.on{color:#15110D}
+.sh .ft{flex:none;padding:10px 14px 8px;border-top:1.5px solid var(--line);display:flex;gap:10px}
+
+/* toast */
+.toast{position:absolute;left:50%;top:calc(var(--sat) + 64px);z-index:80;transform:translate(-50%,-12px);opacity:0;pointer-events:none;padding:9px 14px;border-radius:999px;background:var(--ink);color:var(--paper);font-size:13.5px;font-weight:600;transition:all .25s var(--spring);white-space:nowrap}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ---------- drawn keyboard (frame only) ---------- */
+.kbd{position:absolute;left:0;right:0;bottom:0;z-index:50;background:var(--kbd-bg);transform:translateY(100%);transition:transform .3s var(--kb-ease);padding:0 3px;user-select:none;-webkit-user-select:none;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",var(--sans)}
+.kbd.up{transform:none}
+.kbd .pred{height:44px;display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;color:var(--kbd-ink);font-size:16px;text-align:center}
+.kbd .pred span+span{border-left:1px solid color-mix(in srgb,var(--kbd-ink) 18%,transparent)}
+.kbd .rows{display:grid;gap:11px;padding:6px 0 0}
+.kbd .r{display:flex;gap:6px;justify-content:center}
+.kbd .k{flex:0 0 33px;height:42px;border-radius:5px;background:var(--kbd-key);box-shadow:var(--kbd-sh);color:var(--kbd-ink);font-size:22px;display:grid;place-items:center}
+.kbd .k.fn{background:var(--kbd-fn);flex-basis:42px;font-size:15px}
+.kbd .k.fn svg{width:20px;height:20px}
+.kbd .k.sp{flex:1}
+.kbd .k.ret{flex-basis:88px;font-size:15px}
+.kbd .k:active{background:var(--kbd-fn)}
+.kbd .r.mid{padding:0 19px}
+.kbd .r.bot .k{font-size:15px}
+.kbd .foot{height:76px}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/></symbol>
+  <symbol id="spark" viewBox="0 0 24 24"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z"/></symbol>
+  <symbol id="pen" viewBox="0 0 24 24"><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="tick" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="kbdn" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="11" rx="2"/><path d="M7 8h.01M11 8h.01M15 8h.01M8 11.5h8M9 19l3 2.5 3-2.5"/></symbol>
+  <symbol id="dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="box" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/></symbol>
+  <symbol id="atsym" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.6"/><path d="M15.6 12v1.4a2.6 2.6 0 005.2 0V12a8.8 8.8 0 10-3.5 7"/></symbol>
+  <symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/></symbol>
+  <symbol id="down" viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="print" viewBox="0 0 24 24"><path d="M7 9V3.5h10V9M7 17H5a2 2 0 01-2-2v-4a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2h-2"/><rect x="7" y="14" width="10" height="6.5" rx="1"/></symbol>
+  <symbol id="edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></symbol>
+  <symbol id="trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M5.5 7l1 12.2A2 2 0 008.5 21h7a2 2 0 002-1.8L18.5 7M9.5 7V4.5a1 1 0 011-1h3a1 1 0 011 1V7"/></symbol>
+  <symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></symbol>
+  <symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><path d="M16 5.5a3 3 0 010 5.6M18 14.4c1.6.7 2.6 2.2 3 4.6"/></symbol>
+  <symbol id="del" viewBox="0 0 24 24"><path d="M9 6h11v12H9l-6-6z"/><path d="M12 10l4 4M16 10l-4 4"/></symbol>
+  <symbol id="shift" viewBox="0 0 24 24"><path d="M12 4l8 8h-4.5v7h-7v-7H4z"/></symbol>
+</svg>
+
+<div class="desk">
+  <div class="pw"><div class="phone"><div class="screen frame" id="screen">
+    <div class="sbar"><span>7:40</span><span class="isl"></span><span class="ic">
+      <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5" width="3" height="7" rx="1" fill="currentColor"/><rect x="10" y="2.5" width="3" height="9.5" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>
+      <svg width="26" height="12" viewBox="0 0 26 12"><rect x=".5" y=".5" width="22" height="11" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="16" height="8" rx="2" fill="currentColor"/><rect x="24" y="4" width="1.6" height="4" rx=".8" fill="currentColor" opacity=".4"/></svg>
+    </span></div>
+
+    <div class="pg" id="pg">
+      <header class="hd">
+        <button class="ib" id="backBtn" aria-label="Back to meetings"><svg class="i"><use href="#back"/></svg></button>
+        <div class="ttl"><b id="ttl">Chapter Meeting — Week 6</b><small id="sub"></small></div>
+        <button class="who" id="whoBtn" aria-label="Who's on this page"></button>
+        <button class="ib" id="moreBtn" aria-label="More"><svg class="i"><use href="#more"/></svg></button>
+      </header>
+
+      <div class="chrome"><div>
+        <div class="tk" id="tk"></div>
+        <div class="tabs" role="tablist" id="tabs"></div>
+      </div></div>
+
+      <div class="bd-wrap"><div class="scroll" id="scroll">
+        <section id="vMin">
+          <div class="ronote" id="ronote" hidden><svg class="i"><use href="#lock"/></svg><span>Officers keep the minutes. You can read along live and tick off your own action items in Summary.</span></div>
+          <div class="padcard">
+            <div class="padhd"><span>Meeting minutes</span><span class="from" id="from"></span></div>
+            <div class="pad" id="pad" contenteditable="true" spellcheck="true" autocapitalize="sentences" enterkeyhint="enter" role="textbox" aria-multiline="true" aria-label="Meeting minutes"></div>
+          </div>
+        </section>
+        <section id="vSum" hidden></section>
+        <section id="vAtt" hidden></section>
+      </div></div>
+
+      <div class="dock" id="dock"></div>
+
+      <div class="acc" id="acc">
+        <div class="ments" id="ments" hidden></div>
+        <div class="tools" id="tools">
+          <button class="t" data-ty="h" aria-label="Section heading"><span class="sec">§</span></button>
+          <button class="t" data-ty="b" aria-label="Point"><svg class="i"><use href="#dot"/></svg></button>
+          <button class="t" data-ty="t" aria-label="To-do"><svg class="i"><use href="#box"/></svg></button>
+          <button class="t" data-act="at" aria-label="Mention someone"><svg class="i"><use href="#atsym"/></svg></button>
+          <span class="sep"></span>
+          <button class="t" data-act="bold" aria-label="Bold"><b>B</b></button>
+          <button class="t" data-act="italic" aria-label="Italic"><em>I</em></button>
+          <button class="done" data-act="done"><svg class="i"><use href="#kbdn"/></svg>Done</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="scrim" id="scrim"></div>
+    <div class="sh" id="sh" role="dialog" aria-modal="true">
+      <div class="grab"><i></i></div>
+      <div class="sh-hd" id="shHd"></div>
+      <div class="sh-bd" id="shBd"></div>
+      <div class="ft" id="shFt" hidden></div>
+    </div>
+    <div class="toast" id="toast"></div>
+    <div class="kbd" id="kbd" aria-hidden="true"></div>
+    <div class="homebar"></div>
+  </div></div></div>
+
+  <aside class="notes">
+    <h2>Minutes, on a phone</h2>
+    <p class="sub">The meeting sheet rebuilt for one thumb and a keyboard. Same legal pad, same Summary and Attendance as desktop — the margin column becomes tabs.</p>
+    <div class="ctl">
+      <div class="row"><span class="lab">Scene</span><div class="seg" data-ctl="scene"><button data-v="live">Mid-meeting</button><button data-v="fresh">From agenda</button></div></div>
+      <div class="row"><span class="lab">Viewer</span><div class="seg" data-ctl="viewer"><button data-v="officer">Secretary</button><button data-v="member">Member</button></div></div>
+      <div class="row"><span class="lab">Theme</span><div class="seg" data-ctl="theme"><button data-v="ivory">Day</button><button data-v="dusk">Night</button></div></div>
+    </div>
+    <h3>Try</h3>
+    <div class="try">
+      <button data-try="write">Start writing</button>
+      <button data-try="mention">Type @</button>
+      <button data-try="nia">Nia types</button>
+      <button data-try="summarize">Summarize</button>
+      <button data-try="who">Who's here</button>
+      <button data-try="more">⋯ menu</button>
+    </div>
+    <h3>What changed</h3>
+    <ol>
+      <li><div><b>The header never leaves.</b> Back, the live dot, who's here and ⋯ sit in a bar outside the scroller, and the page is sized to what's visible (<code>visualViewport</code>), so neither Safari's toolbar nor the keyboard can push it off.</div></li>
+      <li><div><b>The margin becomes tabs.</b> Desktop's pad + margin (Summary, Attendance) is <b>Minutes · Summary · Who came</b>. The meta strip becomes a ticket with the meeting clock.</div></li>
+      <li><div><b>Typing folds the chrome.</b> When the keyboard opens the ticket and tabs fold away, the pad takes the room, and the caret is kept above the keyboard.</div></li>
+      <li><div><b>Formatting is one tap, not syntax.</b> An accessory bar on the keyboard: § heading, • point, ☐ to-do, @ mention, B, I and Done. Typing <code>## </code>, <code>- </code> or <code>[] </code> still works. Return continues a list; Return on an empty point ends it.</div></li>
+      <li><div><b>@ is a chip strip, not a popup.</b> People and roles scroll sideways above the keyboard where your thumb already is.</div></li>
+      <li><div><b>You can see who else is writing.</b> Their caret carries a flag in the pad, the header says "Nia is writing in Philanthropy", and Who's here can jump to them.</div></li>
+      <li><div><b>Big targets at the bottom.</b> Write and Summarize live in a thumb dock while the keyboard is down.</div></li>
+    </ol>
+    <p class="fine">Open this file on a phone (or any window ≤600px) and it drops the frame and uses your real keyboard. <code>?frame</code> forces the frame. New vs desktop: the ticket's meeting clock bar and "Jump to" in Who's here; everything else maps to something the overlay already does.</p>
+  </aside>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const root = document.documentElement;
+const qs = new URLSearchParams(location.search);
+const LIVE = !qs.has("frame") && matchMedia("(max-width: 600px)").matches;
+if (LIVE) {
+  root.classList.add("live");
+  $("#screen").classList.remove("frame");
+}
+if (matchMedia("(prefers-color-scheme: dark)").matches) root.dataset.theme = "dusk";
+const screen = $("#screen"), pg = $("#pg"), pad = $("#pad"), scroll = $("#scroll"), kbd = $("#kbd"), ments = $("#ments");
+const K = () => LIVE ? 1 : (parseFloat(getComputedStyle(root).getPropertyValue("--k")) || 1);
+const ic = id => `<svg class="i"><use href="#${id}"/></svg>`;
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ---------------------------------------------------------------- people
+const COLORS = ["#C9542D", "#2A66C7", "#1B815B", "#6244CC", "#C23C77", "#9C6B08", "#0f8073", "#7a5c2e"];
+const ROSTER = ["Dev Patel", "Nia Okafor", "Marcus Lee", "Jordan Reyes", "Priya Shah", "Sam Whitfield", "Ethan Brooks", "Leo Martins", "Omar Haddad", "Chris Tan", "Ben Alvarez", "Kai Nakamura",
+  "Ryan Cole", "Theo Grant", "Isaac Moore", "Noah Fields", "Adam Kerr", "Luis Romero", "Jake Pruitt", "Will Osei", "Tyler Dunn", "Max Lindqvist", "Andre Silva", "Zane Porter"]
+  .map((n, i) => ({ id: i + 1, name: n, ini: n.split(" ").map(w => w[0]).join(""), c: COLORS[i % COLORS.length] }));
+const ROLES = [{ r: "President", who: "Nia Okafor" }, { r: "Treasurer", who: "Marcus Lee" }, { r: "Service Chair", who: "Priya Shah" }, { r: "Secretary", who: "Dev Patel" }];
+const P = n => ROSTER.find(p => p.name === n);
+const av = (p, cls = "") => `<span class="av ${cls}" style="background:${p.c}">${p.ini}</span>`;
+
+// ---------------------------------------------------------------- state
+const S = {
+  scene: "live", viewer: "officer", tab: "min",
+  save: "saved", savedAt: Date.now() - 120000, rev: 1,
+  sum: null, sumRev: 0, running: false,
+  att: null, kb: false, mq: null,
+  peers: [{ who: "Nia Okafor", state: "idle", line: null }, { who: "Marcus Lee", state: "viewing" }],
+};
+const canEdit = () => S.viewer === "officer";
+
+const SEEDS = {
+  live: [
+    ["h", "Call to order"],
+    ["x", "Called to order at 7:02 PM by @Nia Okafor. Quorum met — 18 of 24."],
+    ["x", "Minutes from Sept 30 approved as read."],
+    ["h", "Treasury report"],
+    ["x", "Balance is <b>$4,820</b> after the formal deposit cleared."],
+    ["b", "Six members still owe spring dues."],
+    ["t", "@Marcus Lee to send the dues reminder by Oct 10"],
+    ["h", "Philanthropy", "phil"],
+    ["x", "Hall cleanup moves to Saturday the 18th.", "nia"],
+    ["t!", "Voted 17–3–1 to put $300 from social toward the cleanup"],
+    ["t", "@Service Chair to book the van by Friday"],
+    ["h", "New business"],
+    ["x", ""],
+  ],
+  fresh: [
+    ["h", "Call to order"], ["x", ""],
+    ["h", "Officer reports"], ["x", ""],
+    ["h", "Old business"], ["x", ""],
+    ["h", "New business"], ["x", ""],
+    ["h", "Announcements"], ["x", ""],
+  ],
+};
+function mentionHTML(s) {
+  const names = [...ROSTER.map(p => p.name), ...ROLES.map(r => r.r)].sort((a, b) => b.length - a.length);
+  return s.replace(/@([A-Z][\w]*(?: [A-Z][\w]*)?)/g, (m) => {
+    const hit = names.find(n => m.slice(1).startsWith(n));
+    return hit ? `<span class="at" contenteditable="false">@${hit}</span>${esc(m.slice(1 + hit.length))}` : m;
+  });
+}
+function loadPad() {
+  pad.innerHTML = SEEDS[S.scene].map(([t, txt, id]) => {
+    const done = t.endsWith("!"); t = t.replace("!", "");
+    return `<p class="${t}${done ? " done" : ""}"${id ? ` data-id="${id}"` : ""}>${txt ? mentionHTML(txt) : "<br>"}</p>`;
+  }).join("");
+  placeholders();
+}
+function placeholders() {
+  [...pad.children].forEach(p => {
+    const empty = lineText(p) === "" && !p.querySelector(".at");
+    const prev = p.previousElementSibling;
+    const ph = empty && p.classList.contains("x") && prev?.classList.contains("h") ? (S.scene === "fresh" ? "Notes for this section…" : "")
+      : empty && p.classList.contains("t") ? "To-do — @someone to … by …" : empty && p.classList.contains("b") ? "Point" : empty && p.classList.contains("h") ? "Section" : "";
+    p.classList.toggle("ph", !!ph); if (ph) p.dataset.ph = ph; else delete p.dataset.ph;
+  });
+}
+
+// ---------------------------------------------------------------- render: chrome
+function render() {
+  const fresh = S.scene === "fresh";
+  pg.classList.toggle("kb", S.kb);
+  screen.classList.toggle("kbup", S.kb);
+  $("#ttl").textContent = fresh ? "Chapter Meeting — Week 7" : "Chapter Meeting — Week 6";
+  renderSub(); renderWho();
+  const pct = fresh ? 0 : 42;
+  $("#tk").innerHTML = `<div class="stub"><small>${fresh ? "OCT" : "OCT"}</small><b>${fresh ? 14 : 7}</b></div>
+    <div class="bd"><div class="meta"><span>${fresh ? "Tue" : "Tue"} · 7:00–8:30 PM</span><span>Chapter room, 2nd floor</span></div>
+    <div class="row"><span class="stamp on">Required</span><div class="clk">${fresh
+      ? `<small><span>Starts in <b>6 days</b></span><span></span></small><div class="bar"><i style="width:0"></i></div>`
+      : `<small><span><b>38 min</b> in</span><span>52 left</span></small><div class="bar"><i style="width:${pct}%"></i></div>`}</div></div></div>`;
+  const attN = S.att ? S.att.filter(a => a.s === "P").length : 0;
+  const nItems = S.sum ? S.sum.actions.filter(a => !a.done).length : 0;
+  const stale = S.sum && S.sumRev !== S.rev;
+  $("#tabs").innerHTML = [["min", "Minutes", ""], ["sum", "Summary", S.running ? `<span class="ct">…</span>` : S.sum ? `<span class="ct${stale ? " w" : ""}">${stale ? "!" : nItems}</span>` : ""],
+    ["att", "Who came", S.att ? `<span class="ct g">${attN}</span>` : ""]]
+    .map(([k, l, ct]) => `<button role="tab" data-tab="${k}" aria-selected="${S.tab === k}">${l}${ct}</button>`).join("");
+  $("#vMin").hidden = S.tab !== "min"; $("#vSum").hidden = S.tab !== "sum"; $("#vAtt").hidden = S.tab !== "att";
+  $("#from").textContent = fresh ? "from Chapter meeting agenda" : "";
+  pad.contentEditable = canEdit() ? "true" : "false";
+  pad.classList.toggle("ro", !canEdit());
+  $("#ronote").hidden = canEdit();
+  if (S.tab === "sum") renderSum();
+  if (S.tab === "att") renderAtt();
+  renderDock();
+}
+function ago(t) { const s = Math.round((Date.now() - t) / 1000); return s < 10 ? "just now" : s < 60 ? `${s}s ago` : `${Math.round(s / 60)}m ago`; }
+function renderSub() {
+  const nia = S.peers.find(p => p.who === "Nia Okafor");
+  const typing = nia && nia.state === "typing";
+  let html;
+  if (typing && (S.kb || S.tab !== "min")) html = `<i></i><span class="typ">Nia is writing in ${esc(nia.sec || "the minutes")}<em><span></span><span></span><span></span></em></span>`;
+  else if (S.save === "saving") html = `<i class="saving"></i>Live · Saving…`;
+  else html = `<i></i>Live · Saved ${ago(S.savedAt)}`;
+  $("#sub").innerHTML = html;
+}
+function renderWho() {
+  const on = S.peers.filter(p => p.state !== "gone");
+  $("#whoBtn").innerHTML = on.map(p => av(P(p.who), p.state === "typing" ? "typing" : "")).join("") + `<span class="n">${on.length + 1}</span>`;
+}
+function renderDock() {
+  const d = $("#dock");
+  const hasNotes = noteLines() > 0;
+  if (S.tab === "min") {
+    d.hidden = !canEdit();
+    d.innerHTML = `<button class="btn ink" data-act="write">${ic("pen")}Write</button>
+      <button class="btn out fit" data-act="summarize" ${hasNotes && !S.running ? "" : "disabled"}>${ic("spark")}${S.sum ? "Re-summarize" : "Summarize"}</button>`;
+  } else if (S.tab === "sum") {
+    d.hidden = !canEdit() || !S.sum;
+    d.innerHTML = `<button class="btn ink fit" data-act="tab-min">${ic("pen")}Minutes</button><button class="btn out" data-act="summarize" ${S.running ? "disabled" : ""}>${ic("spark")}${S.running ? "Summarizing…" : "Re-summarize"}</button>`;
+  } else {
+    d.hidden = !canEdit();
+    d.innerHTML = `<button class="btn ink" data-act="take">${ic("users")}${S.att ? "Edit attendance" : "Take attendance"}</button>`;
+  }
+}
+
+// ---------------------------------------------------------------- Summary
+function noteLines() { return [...pad.children].filter(p => !p.classList.contains("h") && lineText(p).trim()).length; }
+function lineText(p) { let t = ""; p.childNodes.forEach(n => { if (n.nodeType === 3) t += n.nodeValue; else if (n.nodeType === 1 && !n.classList.contains("rc")) t += n.textContent; }); return t.replace(/​/g, ""); }
+function secOf(p) { let q = p; while (q && !q.classList.contains("h")) q = q.previousElementSibling; return q ? lineText(q) : ""; }
+function buildSum() {
+  const lines = [...pad.children];
+  const actions = [], decisions = [];
+  const prev = S.sum ? Object.fromEntries(S.sum.actions.map(a => [a.text, a.done])) : {};
+  lines.forEach(p => {
+    const t = lineText(p).trim(); if (!t) return;
+    if (p.classList.contains("t") && /@/.test(t)) {
+      const m = t.match(/@([A-Z][\w]*(?: [A-Z][\w]*)?)/); const who = m ? m[1] : "";
+      const role = ROLES.find(r => r.r === who); const owner = role ? role.who : who;
+      const due = (t.match(/by ((?:Oct|Nov|Dec) \d+|Friday|Monday|tomorrow)/) || [])[1] || "";
+      const text = t.replace(/@[A-Z][\w]*(?: [A-Z][\w]*)?\s*(to\s+)?/, "").replace(/\s*by .*$/, "");
+      const key = text; actions.push({ text: text.charAt(0).toUpperCase() + text.slice(1), owner, due, done: prev[key.charAt(0).toUpperCase() + key.slice(1)] ?? p.classList.contains("done") });
+    } else if (/(approved|voted|moves|passed)/i.test(t)) decisions.push(t.replace(/@/g, ""));
+  });
+  return {
+    at: Date.now(), actions, decisions,
+    gist: S.scene === "fresh" ? "Short meeting so far — nothing decided yet." : "Dues reminders go out by Oct 10, and the hall cleanup moves to Saturday the 18th with $300 from social behind it.",
+  };
+}
+function summarize() {
+  if (!canEdit() || S.running || !noteLines()) return;
+  if (document.activeElement === pad) pad.blur();
+  S.running = true; S.tab = "sum"; render(); scroll.scrollTop = 0;
+  setTimeout(() => { S.sum = buildSum(); S.sumRev = S.rev; S.running = false; render(); }, 1700);
+}
+function renderSum() {
+  const v = $("#vSum");
+  if (S.running) {
+    v.innerHTML = `<div class="card sum"><div class="hdr"><span class="chip">${ic("spark")}Summarizing</span></div>
+      <p class="run"><span class="spin"></span>Reading ${noteLines()} lines of minutes for decisions and owners…</p>
+      <div class="skel" style="width:92%"></div><div class="skel" style="width:74%"></div><div class="skel" style="width:58%"></div></div>`;
+    return;
+  }
+  if (!S.sum) {
+    v.innerHTML = `<div class="card sum empty"><div class="empty-art">${ic("spark")}</div>
+      <p>${noteLines() ? "Not summarized yet. <b>Summarize</b> pulls out the decisions and who owes what." : "Write the minutes, then Summarize pulls out the decisions and who owes what."}</p>
+      ${canEdit() ? `<button class="btn out" style="margin-top:16px;width:100%" data-act="summarize" ${noteLines() ? "" : "disabled"}>${ic("spark")}Summarize</button>` : ""}</div>`;
+    return;
+  }
+  const s = S.sum, stale = S.sumRev !== S.rev;
+  const t = new Date(s.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  v.innerHTML = `<div class="card sum${stale ? " stale" : ""}">
+    <div class="hdr"><span class="chip">${ic("spark")}Summary</span><span class="at2">Generated ${t}</span></div>
+    ${stale ? `<p class="stl">Notes changed since — ${canEdit() ? `<button data-act="summarize">Re-summarize</button>` : "an officer can re-run it"}</p>` : ""}
+    <p class="gist">${esc(s.gist)}</p>
+    <h5>Decisions</h5>${s.decisions.length ? `<ul class="dec">${s.decisions.map(d => `<li>${esc(d)}</li>`).join("")}</ul>` : `<p class="dec" style="font-size:14px;color:var(--muted)">None recorded.</p>`}
+    <h5 class="a">Action items</h5>${s.actions.length ? `<ul>${s.actions.map((a, i) => {
+      const mine = S.viewer === "member" ? a.owner === "Jordan Reyes" : true;
+      return `<li><button class="ai${a.done ? " done" : ""}" data-ai="${i}" aria-pressed="${a.done}" ${mine ? "" : "disabled"}><span class="bx">${ic("tick")}</span><span><span class="tx">${esc(a.text)}</span><small>${esc(a.owner.split(" ")[0] || "Unassigned")}${a.due ? ` · due ${esc(a.due)}` : ""}</small></span></button></li>`;
+    }).join("")}</ul>` : `<p style="font-size:14px;color:var(--muted)">None recorded.</p>`}
+  </div>`;
+}
+
+// ---------------------------------------------------------------- Who came
+function seedAtt() {
+  return ROSTER.map((p, i) => ({ id: p.id, s: i < 18 ? "P" : i < 20 ? "E" : "A" }));
+}
+function renderAtt() {
+  const v = $("#vAtt");
+  if (!S.att) {
+    v.innerHTML = `<div class="card att none"><div class="empty-art" style="width:60px;height:60px;margin:0 auto 10px;border-radius:18px;display:grid;place-items:center;background:var(--pp-mint-soft);border:1.5px solid var(--pp-mint-bd);color:var(--pp-mint-ink);transform:rotate(3deg)">${ic("users")}</div>
+      <b style="font:600 18px var(--serif);letter-spacing:-.02em">No roll yet</b><p>${canEdit() ? "Take attendance when the meeting starts — it counts toward everyone's standing." : "An officer takes the roll at the meeting."}</p></div>`;
+    return;
+  }
+  const by = s => S.att.filter(a => a.s === s).map(a => ROSTER[a.id - 1]);
+  const pN = by("P").length, eN = by("E").length, aN = by("A").length, tot = S.att.length;
+  const grp = (lab, tone, list) => list.length ? `<div class="grp ${tone}"><h6><span class="d"></span>${lab} <span class="c">${list.length}</span></h6><div class="nms">${list.map(p => `<span class="nm">${av(p)}${esc(p.name.split(" ")[0])}</span>`).join("")}</div></div>` : "";
+  v.innerHTML = `<div class="card att"><div class="top"><span class="big">${pN}</span><span class="of">of ${tot} here</span>${pN / tot >= .5 ? `<span class="q">Quorum met</span>` : ""}</div>
+    <div class="meter"><i style="width:${pN / tot * 100}%;background:var(--pp-mint-ink)"></i><i style="width:${eN / tot * 100}%;background:var(--pp-butter-ink)"></i><i style="width:${aN / tot * 100}%;background:var(--pp-peach-ink)"></i></div>
+    ${grp("Present", "ok", by("P"))}${grp("Excused", "gold", by("E"))}${grp("Absent", "rose", by("A"))}</div>`;
+}
+
+// ---------------------------------------------------------------- sheets
+const sh = $("#sh"), scrim = $("#scrim");
+let onCloseSheet = null;
+function openSheet({ hd, bd, ft, onClose }) {
+  if (document.activeElement === pad) pad.blur();
+  $("#shHd").innerHTML = hd; $("#shBd").innerHTML = bd;
+  $("#shFt").hidden = !ft; $("#shFt").innerHTML = ft || "";
+  onCloseSheet = onClose || null;
+  sh.classList.add("on"); scrim.classList.add("on");
+}
+function closeSheet() { sh.classList.remove("on"); scrim.classList.remove("on"); sh.style.transform = ""; const f = onCloseSheet; onCloseSheet = null; f?.(); }
+scrim.addEventListener("click", closeSheet);
+(() => { // drag the grabber or header down to dismiss
+  let y0 = null, dy = 0;
+  const down = e => { y0 = e.clientY; dy = 0; sh.classList.add("drag"); e.currentTarget.setPointerCapture(e.pointerId); };
+  const move = e => { if (y0 == null) return; dy = Math.max(0, (e.clientY - y0) / K()); sh.style.transform = `translateY(${dy}px)`; };
+  const up = () => { if (y0 == null) return; y0 = null; sh.classList.remove("drag"); if (dy > 90) closeSheet(); else sh.style.transform = ""; };
+  [sh.querySelector(".grab"), $("#shHd")].forEach(el => { el.addEventListener("pointerdown", down); el.addEventListener("pointermove", move); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); });
+})();
+function openWho() {
+  const me = P("Dev Patel");
+  const rows = [
+    `<div class="peer">${av(me)}<div class="tx"><b>${S.viewer === "member" ? "Jordan Reyes" : "Dev Patel"} <span style="color:var(--muted);font-weight:500">(you)</span></b><small><i></i>${S.viewer === "member" ? "Reading" : "Writing"}</small></div></div>`,
+    ...S.peers.filter(p => p.state !== "gone").map(p => {
+      const typing = p.state === "typing", viewing = p.state === "viewing";
+      return `<div class="peer">${av(P(p.who))}<div class="tx"><b>${esc(p.who)}</b><small><i class="${viewing ? "v" : ""}"></i>${typing ? `Writing in ${esc(p.sec || "the minutes")}` : viewing ? "Viewing" : `In ${esc(p.sec || "the minutes")}`}</small></div>${viewing ? "" : `<button class="go" data-jump="${esc(p.who)}">Jump to</button>`}</div>`;
+    })];
+  openSheet({ hd: `<div><b>On this page</b><small>${S.peers.filter(p => p.state !== "gone").length + 1} people · edits merge live</small></div>`, bd: rows.join("") });
+}
+function openMore() {
+  const row = (act, icon, label, extra = "") => `<button class="mrow ${extra}" data-act="${act}">${ic(icon)}${label}</button>`;
+  openSheet({
+    hd: `<div><b>${esc($("#ttl").textContent)}</b><small>Tue, Oct ${S.scene === "fresh" ? 14 : 7} · 7:00 PM</small></div>`,
+    bd: row("copy", "copy", "Copy as text") + row("md", "down", "Download .md") + row("print", "print", "Print") +
+      (canEdit() ? `<div class="mhr"></div>` + row("editm", "edit", "Edit meeting") + row("delm", "trash", "Delete meeting", "danger") : ""),
+  });
+}
+function openTake() {
+  if (!S.att) S.att = ROSTER.map(p => ({ id: p.id, s: "A" }));
+  const draft = S.att.map(a => ({ ...a }));
+  const rows = () => draft.map((a, i) => { const p = ROSTER[a.id - 1]; return `<div class="roll">${av(p)}<span class="nmx">${esc(p.name)}</span><span class="pea">${["P", "E", "A"].map(s => `<button class="${s}${a.s === s ? " on" : ""}" data-roll="${i}" data-s="${s}">${s}</button>`).join("")}</span></div>`; }).join("");
+  openSheet({
+    hd: `<div><b>Attendance</b><small>Tap P, E or A · <button data-act="allp" style="color:var(--pp-sky-ink);font-weight:600">Everyone present</button></small></div>`,
+    bd: rows(), ft: `<button class="btn ink" data-act="saveroll">${ic("tick")}Save the roll</button>`,
+  });
+  sh._draft = draft; sh._rows = rows;
+}
+sh.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.roll != null) { sh._draft[+b.dataset.roll].s = b.dataset.s; $("#shBd").innerHTML = sh._rows(); return; }
+  const a = b.dataset.act;
+  if (a === "allp") { sh._draft.forEach(d => d.s = "P"); $("#shBd").innerHTML = sh._rows(); return; }
+  if (a === "saveroll") { S.att = sh._draft; closeSheet(); S.tab = "att"; render(); toast("Roll saved"); return; }
+  if (b.dataset.jump) { const who = b.dataset.jump; closeSheet(); S.tab = "min"; render(); setTimeout(() => jumpTo(who), 250); return; }
+  const msgs = { copy: "Copied the minutes", md: "Downloaded week-6-minutes.md", print: "Opening print…", editm: "Opens the meeting form", delm: "Asks to confirm, then tears it off the timeline" };
+  if (msgs[a]) { closeSheet(); toast(msgs[a]); }
+});
+function jumpTo(who) {
+  const rc = pad.querySelector(`.rc[data-n="${who.split(" ")[0]}"]`); if (!rc) return;
+  const r = rc.getBoundingClientRect(), b = scroll.getBoundingClientRect();
+  scroll.scrollTo({ top: scroll.scrollTop + (r.top - b.top) / K() - 120, behavior: "smooth" });
+  rc.classList.remove("idle");
+}
+let tT; function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("on"); clearTimeout(tT); tT = setTimeout(() => t.classList.remove("on"), 1800); }
+
+// ---------------------------------------------------------------- editing
+const sel = () => getSelection();
+function curLine() {
+  const s = sel(); if (!s.rangeCount) return null;
+  let n = s.anchorNode; if (!pad.contains(n) || n === pad) return n === pad ? pad.children[Math.min(s.anchorOffset, pad.children.length - 1)] : null;
+  while (n && n.parentNode !== pad) n = n.parentNode;
+  return n && n.nodeType === 1 ? n : null;
+}
+function typeOf(p) { return ["h", "b", "t"].find(c => p.classList.contains(c)) || "x"; }
+function setType(p, t) { p.classList.remove("h", "b", "t", "x", "done"); p.classList.add(t); }
+function caretTo(el, atEnd) {
+  const r = document.createRange();
+  if (atEnd) { r.selectNodeContents(el); r.collapse(false); } else { r.setStart(el, 0); r.collapse(true); }
+  const s = sel(); s.removeAllRanges(); s.addRange(r);
+}
+function fixEmpty(p) { if (lineText(p) === "" && !p.querySelector(".at") && !p.querySelector("br")) p.appendChild(document.createElement("br")); }
+function atLineStart(p) {
+  const s = sel(); if (!s.rangeCount || !s.isCollapsed) return false;
+  const r = document.createRange(); r.setStart(p, 0); r.setEnd(s.anchorNode, s.anchorOffset);
+  const f = r.cloneContents(); f.querySelectorAll(".rc").forEach(n => n.remove());
+  return f.textContent.replace(/​/g, "") === "" && !f.querySelector(".at");
+}
+function splitLine() {
+  const p = curLine(); if (!p) return;
+  const s = sel(), r = s.getRangeAt(0); r.deleteContents();
+  const t = typeOf(p);
+  if (lineText(p).trim() === "" && !p.querySelector(".at") && (t === "b" || t === "t")) { setType(p, "x"); changed(); return; }
+  const tail = document.createRange(); tail.setStart(r.endContainer, r.endOffset); tail.setEnd(p, p.childNodes.length);
+  const frag = tail.extractContents();
+  frag.querySelectorAll?.("br").forEach(b => b.remove());
+  const np = document.createElement("p"); np.className = t === "h" ? "x" : t;
+  np.append(frag);
+  fixEmpty(p); fixEmpty(np); p.after(np); caretTo(np, false); changed();
+}
+function shortcuts() {
+  const p = curLine(); if (!p) return;
+  const t = lineText(p);
+  const rules = [[/^(##|§)\s/, "h"], [/^[-•*]\s/, "b"], [/^\[\s?\]\s/, "t"]];
+  for (const [re, ty] of rules) {
+    const m = t.match(re); if (!m) continue;
+    let n = p.firstChild; while (n && n.nodeType !== 3) n = n.nextSibling;
+    if (!n || !n.nodeValue.startsWith(m[0])) return;
+    n.nodeValue = n.nodeValue.slice(m[0].length);
+    setType(p, ty); if (!n.nodeValue && !p.querySelector(".at")) { n.remove(); fixEmpty(p); }
+    caretTo(p, false); return;
+  }
+}
+function detectMention() {
+  const s = sel(); S.mq = null;
+  if (s.rangeCount && s.isCollapsed && s.anchorNode.nodeType === 3 && pad.contains(s.anchorNode)) {
+    const before = s.anchorNode.nodeValue.slice(0, s.anchorOffset);
+    const m = before.match(/(?:^|[\s ])@([A-Za-z]*(?: [A-Za-z]*)?)$/);
+    if (m && m[1].length <= 18) S.mq = { node: s.anchorNode, end: s.anchorOffset, start: s.anchorOffset - m[1].length - 1, q: m[1].toLowerCase() };
+  }
+  renderMents();
+}
+function renderMents() {
+  if (!S.mq || !S.kb) { ments.hidden = true; return; }
+  const q = S.mq.q.trim();
+  const ppl = ROSTER.filter(p => !q || p.name.toLowerCase().split(" ").some(w => w.startsWith(q)) || p.name.toLowerCase().startsWith(q)).slice(0, 8);
+  const rls = ROLES.filter(r => !q || r.r.toLowerCase().startsWith(q));
+  ments.hidden = false;
+  ments.innerHTML = (ppl.length + rls.length) ? ppl.map(p => `<button data-m="${esc(p.name)}">${av(p)}${esc(p.name)}</button>`).join("") +
+    rls.map(r => `<button data-m="${esc(r.r)}"><span class="rl">@</span>${esc(r.r)} <small>${esc(r.who.split(" ")[0])}</small></button>`).join("")
+    : `<span class="none">No one called “${esc(S.mq.q)}”</span>`;
+}
+ments.addEventListener("pointerdown", e => e.preventDefault());
+ments.addEventListener("click", e => {
+  const b = e.target.closest("[data-m]"); if (!b || !S.mq) return;
+  const { node, start, end } = S.mq;
+  const r = document.createRange(); r.setStart(node, start); r.setEnd(node, end); r.deleteContents();
+  const chip = document.createElement("span"); chip.className = "at"; chip.contentEditable = "false"; chip.textContent = "@" + b.dataset.m;
+  const sp = document.createTextNode(" ");
+  r.insertNode(sp); r.insertNode(chip);
+  const c = document.createRange(); c.setStart(sp, 1); c.collapse(true); sel().removeAllRanges(); sel().addRange(c);
+  S.mq = null; renderMents(); changed();
+});
+let saveT;
+function changed() {
+  S.rev++; S.save = "saving"; placeholders(); renderSub(); syncTools();
+  clearTimeout(saveT); saveT = setTimeout(() => { S.save = "saved"; S.savedAt = Date.now(); renderSub(); if (!S.kb) renderDock(); }, 800);
+  keepCaret();
+}
+pad.addEventListener("beforeinput", e => {
+  if (!canEdit()) { e.preventDefault(); return; }
+  if (e.inputType === "insertParagraph" || e.inputType === "insertLineBreak") { e.preventDefault(); splitLine(); return; }
+  if (e.inputType === "deleteContentBackward") {
+    const p = curLine();
+    if (p && typeOf(p) !== "x" && atLineStart(p)) { e.preventDefault(); setType(p, "x"); changed(); }
+  }
+});
+pad.addEventListener("input", () => { shortcuts(); detectMention(); changed(); });
+pad.addEventListener("click", e => {
+  const p = e.target.closest?.("p.t"); if (!p || !pad.contains(p)) return;
+  const x = (e.clientX - p.getBoundingClientRect().left) / K();
+  if (x < 24 && canEdit()) { p.classList.toggle("done"); changed(); }
+});
+document.addEventListener("selectionchange", () => { if (S.kb) { syncTools(); detectMention(); } });
+
+// the accessory bar
+const tools = $("#tools");
+tools.addEventListener("pointerdown", e => e.preventDefault()); // keep the caret where it is
+tools.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const p = curLine();
+  if (b.dataset.ty && p) { setType(p, typeOf(p) === b.dataset.ty ? "x" : b.dataset.ty); changed(); return; }
+  const a = b.dataset.act;
+  if (a === "done") { pad.blur(); return; }
+  if (a === "at") { const s = sel(); const before = s.anchorNode?.nodeType === 3 ? s.anchorNode.nodeValue.slice(0, s.anchorOffset) : ""; document.execCommand("insertText", false, (before && !/[\s ]$/.test(before) ? " " : "") + "@"); return; }
+  if (a === "bold" || a === "italic") { document.execCommand(a); syncTools(); }
+});
+function syncTools() {
+  const p = curLine(); const t = p ? typeOf(p) : "x";
+  tools.querySelectorAll("[data-ty]").forEach(b => b.classList.toggle("on", b.dataset.ty === t));
+  tools.querySelector('[data-act="bold"]').classList.toggle("on", document.queryCommandState?.("bold"));
+  tools.querySelector('[data-act="italic"]').classList.toggle("on", document.queryCommandState?.("italic"));
+}
+
+// keep the caret above the accessory bar
+function keepCaret() {
+  requestAnimationFrame(() => {
+    const s = sel(); if (!s.rangeCount || !pad.contains(s.anchorNode)) return;
+    let r = s.getRangeAt(0).getBoundingClientRect();
+    if (!r.height) { const p = curLine(); if (!p) return; r = p.getBoundingClientRect(); }
+    const b = scroll.getBoundingClientRect(), k = K(), m = 16 * k;
+    if (r.bottom > b.bottom - m) scroll.scrollTop += (r.bottom - b.bottom + m + 30 * k) / k;
+    else if (r.top < b.top + m) scroll.scrollTop -= (b.top + m - r.top) / k;
+  });
+}
+
+// ---------------------------------------------------------------- keyboard up / down
+function setKb(up) {
+  if (S.kb === up) return;
+  S.kb = up;
+  if (up && S.tab !== "min") S.tab = "min";
+  render(); syncTools();
+  if (!LIVE) {
+    kbd.className = "kbd" + (up ? " up" : "");
+    if (up) kbd.innerHTML = qwerty();
+    screen.style.setProperty("--kb", (up ? 336 : 0) + "px");
+  }
+  if (!up) { S.mq = null; renderMents(); }
+  setTimeout(keepCaret, LIVE ? 350 : 330);
+}
+pad.addEventListener("focus", () => { if (canEdit()) setKb(true); });
+pad.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== pad) setKb(false); }, 0));
+function qwerty() {
+  const row = s => [...s].map(c => `<button class="k" data-key="${c}">${c}</button>`).join("");
+  return `<div class="pred"><span>the</span><span>dues</span><span>meeting</span></div><div class="rows">
+    <div class="r">${row("qwertyuiop")}</div><div class="r mid">${row("asdfghjkl")}</div>
+    <div class="r"><button class="k fn">${ic("shift")}</button>${row("zxcvbnm")}<button class="k fn" data-key="⌫">${ic("del")}</button></div>
+    <div class="r bot"><button class="k fn" data-key="@">@</button><button class="k fn">☺</button><button class="k sp" data-key=" ">space</button><button class="k ret" data-key="⏎">return</button></div></div><div class="foot"></div>`;
+}
+kbd.addEventListener("pointerdown", e => e.preventDefault());
+kbd.addEventListener("click", e => {
+  const k = e.target.closest("[data-key]")?.dataset.key; if (!k || document.activeElement !== pad) return;
+  if (k === "⏎") { splitLine(); return; }
+  if (k === "⌫") { const p = curLine(); if (p && typeOf(p) !== "x" && atLineStart(p)) { setType(p, "x"); changed(); } else document.execCommand("delete"); return; }
+  document.execCommand("insertText", false, k === " " ? " " : k);
+});
+
+// live: size the page to the visual viewport — the actual fix
+if (LIVE && window.visualViewport) {
+  const vv = visualViewport;
+  const sync = () => { screen.style.setProperty("--vvh", vv.height + "px"); screen.style.setProperty("--vvt", vv.offsetTop + "px"); if (S.kb) keepCaret(); };
+  vv.addEventListener("resize", sync); vv.addEventListener("scroll", sync); sync();
+}
+
+// ---------------------------------------------------------------- Nia, writing alongside
+let niaT = null;
+function niaTypes() {
+  if (S.scene !== "live") return;
+  const nia = S.peers.find(p => p.who === "Nia Okafor");
+  const line = pad.querySelector('[data-id="nia"]') || [...pad.children].find(p => p.classList.contains("x") && lineText(p).trim());
+  if (!line) return;
+  pad.querySelectorAll(".rc").forEach(n => n.remove());
+  const rc = document.createElement("span"); rc.className = "rc"; rc.dataset.n = "Nia"; rc.contentEditable = "false"; rc.style.setProperty("--c", P("Nia Okafor").c);
+  const tn = document.createTextNode("");
+  line.querySelector("br")?.remove();
+  line.append(tn, rc);
+  nia.state = "typing"; nia.sec = secOf(line); renderWho(); renderSub();
+  const str = " Van holds 12 — two trips."; let i = 0;
+  clearInterval(niaT);
+  niaT = setInterval(() => {
+    tn.nodeValue += str[i++];
+    if (i >= str.length) { clearInterval(niaT); nia.state = "idle"; rc.classList.add("idle"); S.rev++; renderWho(); renderSub(); if (!S.kb) render(); }
+  }, 90);
+}
+
+// ---------------------------------------------------------------- dock + tabs + header
+$("#tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (!b) return; S.tab = b.dataset.tab; render(); scroll.scrollTop = 0; });
+pg.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || b.closest("#tools")) return;
+  const a = b.dataset.act;
+  if (a === "write") { startWriting(); return; }
+  if (a === "summarize") { summarize(); return; }
+  if (a === "tab-min") { S.tab = "min"; render(); return; }
+  if (a === "take") { openTake(); return; }
+  if (b.dataset.ai != null) { const it = S.sum.actions[+b.dataset.ai]; it.done = !it.done; renderSum(); render(); return; }
+});
+$("#whoBtn").addEventListener("click", openWho);
+$("#moreBtn").addEventListener("click", openMore);
+$("#backBtn").addEventListener("click", () => toast("Back to Meetings"));
+function startWriting() {
+  if (!canEdit()) return;
+  S.tab = "min"; render();
+  // land on the first empty line, else the end
+  const target = [...pad.children].find(p => !p.classList.contains("h") && lineText(p).trim() === "" && !p.querySelector(".at")) || pad.lastElementChild;
+  pad.focus({ preventScroll: true }); caretTo(target, true); syncTools(); keepCaret();
+}
+
+// ---------------------------------------------------------------- scenes + desk controls
+function setScene(v) {
+  S.scene = v; S.sum = null; S.running = false; S.tab = "min"; S.rev = 1; S.sumRev = 0;
+  S.att = v === "live" ? seedAtt() : null;
+  S.peers = v === "live" ? [{ who: "Nia Okafor", state: "idle", sec: "Philanthropy" }, { who: "Marcus Lee", state: "viewing" }] : [{ who: "Nia Okafor", state: "idle", sec: "Call to order" }];
+  if (document.activeElement === pad) pad.blur();
+  loadPad(); render(); scroll.scrollTop = 0;
+}
+function seg(name, v) { document.querySelectorAll(`[data-ctl="${name}"] button`).forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v)); }
+document.querySelectorAll("[data-ctl] button").forEach(b => b.addEventListener("click", () => {
+  const c = b.parentElement.dataset.ctl, v = b.dataset.v;
+  if (c === "theme") root.dataset.theme = v;
+  if (c === "viewer") { S.viewer = v; if (document.activeElement === pad) pad.blur(); render(); }
+  if (c === "scene") setScene(v);
+  seg(c, v);
+}));
+document.querySelectorAll("[data-try]").forEach(b => b.addEventListener("mousedown", e => e.preventDefault()));
+document.querySelectorAll("[data-try]").forEach(b => b.addEventListener("click", () => {
+  const t = b.dataset.try;
+  if (sh.classList.contains("on")) closeSheet();
+  if (t === "write") startWriting();
+  if (t === "mention") { if (S.viewer !== "officer") { S.viewer = "officer"; seg("viewer", "officer"); } startWriting(); setTimeout(() => document.execCommand("insertText", false, "@"), 60); }
+  if (t === "nia") { if (S.scene !== "live") { setScene("live"); seg("scene", "live"); } niaTypes(); }
+  if (t === "summarize") { if (S.viewer !== "officer") { S.viewer = "officer"; seg("viewer", "officer"); } summarize(); }
+  if (t === "who") openWho();
+  if (t === "more") openMore();
+}));
+setInterval(() => { if (S.save === "saved") renderSub(); }, 15000);
+
+function fit() { if (LIVE) return; const k = Math.min(1, (innerHeight - 56) / 856); root.style.setProperty("--k", k.toFixed(3)); }
+addEventListener("resize", fit); fit();
+
+S.att = seedAtt();
+loadPad(); seg("scene", S.scene); seg("viewer", S.viewer); seg("theme", root.dataset.theme); render();
+window.__mock = { S, render, setScene, startWriting, summarize, niaTypes, openWho, openMore, openTake, closeSheet, setKb };
+</script>
+</body>
+</html>

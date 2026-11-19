@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting Notes Carousel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Instagram carousel (7 × 1080×1350) from content/blog/meeting-notes-that-are-actually-useful.md.
+     Paper aesthetic: tokens from app/paper-aesthetic.css, pad/mention/peer cursor from
+     _design/Minutes Editor Paper Mock.html. One story throughout: the grill vote (Sun Oct 12 meeting → Marcus orders by Fri → Sat cookout).
+     Spine: slide 2's three questions (what / who / when) are what slides 5 and 7 answer.
+     Preview: open the file. Export: node _design/meeting-carousel-export.mjs → _design/meeting-carousel/*.png -->
+<style>
+:root{
+  --paper:#FFFCF6;--paper2:#FBF5EA;--card:#fff;--ink:#26211B;--soft:#544A3F;--muted:#776D60;--faint:#A89E90;
+  --line:#EBE1CF;--line2:#DCD0B9;
+  --sky:#CFE2FF;--sky-ink:#2A66C7;--sky-bd:#CCDFFB;--sky-soft:#EAF2FF;
+  --mint:#C7EFDA;--mint-ink:#1B815B;--mint-bd:#BDE7D2;--mint-soft:#E6F8EF;
+  --butter:#FFE5A0;--butter-ink:#9C6B08;--butter-bd:#F4DFA6;--butter-soft:#FFF6DC;
+  --lilac:#E1D8FF;--lilac-ink:#6244CC;--lilac-bd:#DCD2FB;--lilac-soft:#F1EDFF;
+  --rose:#FFD6E6;--rose-ink:#C23C77;--rose-bd:#F8CEE0;--rose-soft:#FFEDF4;
+  --peach:#FFD5C4;--peach-ink:#C9542D;--peach-bd:#F8D2C2;--peach-soft:#FFEDE5;
+  --display:'Bricolage Grotesque',sans-serif;--serif:'Fraunces',serif;--sans:'Inter',sans-serif;--mono:'IBM Plex Mono',monospace;
+  --sh2:0 2px 0 rgba(38,33,27,.04),0 24px 50px -24px rgba(38,33,27,.28);
+  --rule:52px;
+  --z:.46;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#EFE7D8;color:var(--ink);font:400 30px/1.45 var(--sans);letter-spacing:-.012em;-webkit-font-smoothing:antialiased}
+.deck{zoom:var(--z);display:flex;flex-wrap:wrap;gap:48px;padding:64px;justify-content:center}
+svg{flex:none}
+
+/* ── the slide ── */
+.slide{--a:var(--peach);--a-ink:var(--peach-ink);--a-soft:var(--peach-soft);
+  position:relative;width:1080px;height:1350px;overflow:hidden;background:var(--paper);
+  display:flex;flex-direction:column;padding:92px 92px 0}
+.slide::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.6;
+  background:radial-gradient(620px 520px at 104% -4%,var(--a) 0%,transparent 70%),
+             radial-gradient(560px 480px at -10% 108%,var(--a-soft) 0%,transparent 70%)}
+.slide>*{position:relative}
+.s-butter{--a:var(--butter);--a-ink:var(--butter-ink);--a-soft:var(--butter-soft)}
+.s-mint{--a:var(--mint);--a-ink:var(--mint-ink);--a-soft:var(--mint-soft)}
+.s-sky{--a:var(--sky);--a-ink:var(--sky-ink);--a-soft:var(--sky-soft)}
+.s-lilac{--a:var(--lilac);--a-ink:var(--lilac-ink);--a-soft:var(--lilac-soft)}
+.s-rose{--a:var(--rose);--a-ink:var(--rose-ink);--a-soft:var(--rose-soft)}
+
+.eyebrow{display:flex;align-items:center;gap:16px;font:600 21px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--a-ink)}
+.eyebrow::before{content:"";width:40px;height:3px;border-radius:2px;background:currentColor}
+h1{margin:30px 0 0;font:600 98px/.98 var(--display);letter-spacing:-.036em;text-wrap:balance}
+h1.xl{font-size:118px;line-height:.95;letter-spacing:-.034em}
+.hi{position:relative;white-space:nowrap;z-index:0}
+.hi::before{content:"";position:absolute;z-index:-1;left:-.08em;right:-.1em;top:.52em;bottom:.02em;background:var(--a);
+  border-radius:.14em .3em .18em .34em;transform:rotate(-1.2deg);opacity:.95}
+.lede{margin:30px 0 0;font-size:33px;line-height:1.42;color:var(--soft);max-width:820px}
+.stage{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+
+.foot{height:132px;flex:none;display:flex;align-items:center;justify-content:space-between;border-top:2px dashed var(--line2);margin:0 -4px}
+.brand{display:flex;align-items:center;gap:14px;font:700 31px var(--display);letter-spacing:-.03em}
+.brand svg{width:46px;height:46px}
+.pager{display:flex;align-items:center;gap:22px;font:500 21px var(--mono);letter-spacing:.1em;color:var(--muted)}
+.dots{display:flex;gap:9px}.dots i{width:11px;height:11px;border-radius:50%;background:var(--line2)}
+.dots i.on{width:34px;border-radius:6px;background:var(--ink)}
+.swipe{display:inline-flex;align-items:center;gap:10px;color:var(--ink);font-weight:600}
+
+/* ── shared paper objects ── */
+.pad{position:relative;background:var(--card);border:2px solid var(--line);border-radius:10px 26px 12px 22px;box-shadow:var(--sh2)}
+.pad::before{content:"";position:absolute;left:92px;top:0;bottom:0;width:2.5px;background:var(--rose-ink);opacity:.4;z-index:1}
+.tape{position:absolute;width:150px;height:40px;background:color-mix(in srgb,var(--butter) 78%,transparent);border-inline:1.5px dashed rgba(38,33,27,.16);z-index:3}
+.lines{position:relative;padding:22px 52px 34px 126px;font:400 32px/var(--rule) var(--sans);
+  background:linear-gradient(transparent calc(var(--rule) - 2px),var(--sky-bd) calc(var(--rule) - 2px),var(--sky-bd) var(--rule)) 0 22px/100% var(--rule) no-repeat;
+  background-size:100% var(--rule);background-repeat:repeat-y;background-position:0 22px}
+.ln{position:relative;min-height:var(--rule);white-space:nowrap}
+.ln.h{font:600 34px/var(--rule) var(--serif);letter-spacing:-.02em}
+.ln.h::before{content:attr(data-n);position:absolute;right:calc(100% + 46px);font:500 19px/var(--rule) var(--mono);color:var(--rose-ink);opacity:.75}
+.ln.li{padding-left:34px}
+.ln.li::after{content:"";position:absolute;left:6px;top:22px;width:10px;height:10px;border-radius:50%;background:var(--ink)}
+.ln.todo{padding-left:48px}
+.ln.todo::after{content:"";position:absolute;left:0;top:13px;width:26px;height:26px;border:2.5px solid var(--ink);border-radius:7px;background:var(--card)}
+.mention{display:inline-flex;align-items:center;gap:8px;height:42px;line-height:42px;padding:0 15px 0 4px;margin:0 2px;border-radius:999px;font-size:27px;font-weight:600;
+  vertical-align:2px;border:2.5px solid currentColor;background:var(--card);color:var(--sky-ink)}
+.mention i{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:700 13px var(--sans);font-style:normal;color:var(--ink);background:var(--sky)}
+.mention.role{border-style:dashed;border-radius:12px;padding-left:12px;color:var(--butter-ink)}
+.peer{position:relative;display:inline-block;width:0;height:38px;vertical-align:-8px;border-left:3.5px solid var(--c);margin-left:3px}
+.peer b{position:absolute;left:-3.5px;bottom:100%;font:600 18px/1 var(--sans);color:#fff;background:var(--c);padding:6px 9px;border-radius:7px 7px 7px 0;white-space:nowrap}
+.peer::after{content:"";position:absolute;left:-7px;top:-5px;width:10px;height:10px;border-radius:50%;background:var(--c)}
+.stamp{position:absolute;font:700 26px var(--mono);letter-spacing:.16em;text-transform:uppercase;padding:9px 18px;border:3px solid currentColor;border-radius:10px;
+  background:color-mix(in srgb,currentColor 7%,transparent);mix-blend-mode:multiply}
+.stamp::after{content:"";position:absolute;inset:4px;border:1.5px solid currentColor;border-radius:6px;opacity:.5}
+
+/* ── 1 · hook ── */
+.s1 .scrap{width:800px;transform:rotate(-2.6deg);margin:-40px 0 0 -20px}
+.s1 .scrap .tape{left:330px;top:-20px;transform:rotate(3deg)}
+.s1 .torn{position:absolute;left:-2px;right:-2px;bottom:-15px;height:18px;background:var(--card);
+  clip-path:polygon(0 0,100% 0,100% 30%,96% 80%,91% 35%,86% 90%,80% 40%,74% 85%,69% 30%,63% 75%,57% 35%,51% 95%,46% 40%,40% 80%,34% 30%,28% 85%,22% 40%,16% 90%,10% 35%,5% 80%,0 40%)}
+.s1 .fade{color:var(--muted)}
+.s1 .trail{background:linear-gradient(90deg,var(--ink) 55%,transparent);-webkit-background-clip:text;background-clip:text;color:transparent}
+.s1 .circ{position:absolute;left:118px;top:116px;width:640px;height:96px;overflow:visible}
+.s1 .note{position:absolute;right:-60px;bottom:-96px;transform:rotate(4deg);width:330px;padding:30px 30px 34px;background:var(--rose);
+  box-shadow:0 18px 30px -18px rgba(38,33,27,.4);font:italic 500 38px/1.15 var(--serif);color:var(--ink);letter-spacing:-.02em}
+.s1 .note::before{content:"";position:absolute;left:50%;top:-16px;width:110px;height:32px;transform:translateX(-50%) rotate(-4deg);
+  background:color-mix(in srgb,var(--sky) 80%,transparent);border-inline:1.5px dashed rgba(38,33,27,.16)}
+.s1 .note small{display:block;margin-top:12px;font:600 18px var(--mono);font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:var(--rose-ink)}
+
+/* ── 2 · the test ── */
+.s2 .cards{display:grid;gap:30px;width:100%}
+.qcard{display:flex;align-items:center;gap:34px;padding:34px 40px;background:var(--card);border:2.5px solid var(--ink);border-radius:26px;
+  box-shadow:9px 9px 0 var(--c)}
+.qcard:nth-child(1){transform:rotate(-1.2deg);--c:var(--lilac);--ci:var(--lilac-ink);margin-right:40px}
+.qcard:nth-child(2){transform:rotate(.8deg);--c:var(--sky);--ci:var(--sky-ink);margin-left:40px}
+.qcard:nth-child(3){transform:rotate(-.5deg);--c:var(--mint);--ci:var(--mint-ink);margin-right:20px}
+.qcard .n{width:96px;height:96px;flex:none;border-radius:24px;background:var(--c);display:grid;place-items:center;font:600 50px var(--display);color:var(--ink)}
+.qcard .tag{font:600 19px var(--mono);letter-spacing:.16em;color:var(--ci)}
+.qcard p{margin:6px 0 0;font:600 52px/1.05 var(--display);letter-spacing:-.04em}
+.s2 .after{margin:56px 0 0;font:italic 500 36px/1.3 var(--serif);color:var(--soft);text-align:center;letter-spacing:-.015em}
+
+/* ── 3 · same meeting, different saturday ── */
+.s3 .stage{flex-direction:column;align-items:stretch;justify-content:center;gap:40px}
+.scene{position:relative;background:var(--card);border:2.5px solid var(--ink);border-radius:30px;padding:28px 34px 32px;box-shadow:10px 10px 0 var(--c)}
+.scene.bad{--c:var(--rose);--ci:var(--rose-ink);transform:rotate(-.8deg)}
+.scene.good{--c:var(--mint);--ci:var(--mint-ink);transform:rotate(.6deg)}
+.said{display:flex;align-items:baseline;gap:16px;padding-bottom:20px;border-bottom:2px dashed var(--line2)}
+.said .k{font:600 18px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ci);flex:none}
+.said q{font:500 31px/1.25 var(--serif);letter-spacing:-.02em;color:var(--soft);quotes:"“" "”"}
+.said q .mention{font-family:var(--sans);font-size:23px;height:36px;line-height:36px;vertical-align:1px;padding-right:12px}
+.said q .mention i{width:27px;height:27px;font-size:11px}
+.when{display:flex;align-items:center;gap:10px;margin:22px 0 16px;font:600 18px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.when::after{content:"";flex:1;height:2px;background:var(--line)}
+.chat{display:grid;gap:12px}
+.msg{display:flex;align-items:flex-end;gap:14px}
+.msg .av{margin:0;width:46px;height:46px;font-size:15px;border:0}
+.msg p{margin:0;padding:13px 22px;background:var(--paper2);border:2px solid var(--line);border-radius:22px 22px 22px 6px;font-size:29px;line-height:1.3}
+.msg.urgent p{background:var(--rose-soft);border-color:var(--rose-bd);font-weight:600}
+.msg .r{margin-left:auto;align-self:center;font:600 17px var(--mono);color:var(--muted)}
+.item{display:flex;align-items:center;gap:18px;padding:18px 22px;border:2px solid var(--mint-bd);background:var(--mint-soft);border-radius:20px;font-size:30px}
+.item .box{width:36px;height:36px;flex:none;border-radius:9px;background:var(--mint);border:2.5px solid var(--mint-ink);display:grid;place-items:center}
+.item .box svg{width:24px;height:24px;color:var(--mint-ink)}
+.item .what{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)}
+.item .own{display:inline-flex;align-items:center;gap:8px;padding:3px 14px 3px 3px;border-radius:999px;border:2px solid var(--sky-ink);font:600 21px var(--sans);color:var(--sky-ink);background:var(--card)}
+.item .own i{width:30px;height:30px;border-radius:50%;background:var(--sky);display:grid;place-items:center;font:700 12px var(--sans);font-style:normal;color:var(--ink)}
+.item .got{margin-left:auto;font:600 19px var(--mono);letter-spacing:.06em;color:var(--mint-ink)}
+.relax{margin:16px 4px 0;font:italic 500 27px var(--serif);color:var(--soft)}
+/* ── 4 · shared notes ── */
+.sheet{position:relative;width:100%;background:var(--paper);border:2.5px solid var(--ink);border-radius:36px;box-shadow:12px 12px 0 var(--sky);overflow:hidden}
+.bar{display:flex;align-items:center;gap:16px;padding:22px 28px;border-bottom:2px solid var(--line);background:var(--card)}
+.bar .dot{width:14px;height:14px;border-radius:50%;background:var(--sky-ink)}
+.bar .ttl{font:600 28px var(--sans);letter-spacing:-.02em;flex:1}
+.live{display:inline-flex;align-items:center;gap:10px;font:600 17px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mint-ink);
+  padding:7px 15px;border-radius:999px;border:2px solid var(--mint-bd);background:var(--mint-soft)}
+.live i{width:10px;height:10px;border-radius:50%;background:var(--mint-ink);box-shadow:0 0 0 5px rgba(27,129,91,.16)}
+.peers{display:flex;padding-left:10px}
+.av{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;font:600 17px var(--sans);border:3px solid var(--card);margin-left:-12px;color:var(--ink)}
+.tools{display:flex;align-items:center;gap:14px;padding:14px 28px;border-bottom:2px dashed var(--line);background:var(--paper2);font-size:22px;color:var(--soft)}
+.tools .tpl{display:inline-flex;align-items:center;gap:10px;font-weight:600}
+.tools .tpl svg{width:24px;height:24px}
+.tools .k{margin-left:auto;font:500 18px var(--mono);color:var(--muted)}
+.tools kbd{font:500 17px var(--mono);border:1.5px solid var(--line2);border-radius:7px;padding:1px 8px;background:var(--card);color:var(--soft)}
+.s4 .pad{margin:24px;border-radius:10px 22px 12px 18px;box-shadow:none}
+.s4 .lines{font-size:29px;padding-top:26px;padding-bottom:26px}
+.fig{font-weight:600;font-variant-numeric:tabular-nums}
+
+/* ── 5 · summarize ── */
+.s5 .stage{position:relative;flex-direction:column;justify-content:center;gap:0;padding-bottom:20px}
+.s5 .press{position:relative;z-index:2}
+.s5 .sumbtn{display:inline-flex;align-items:center;gap:16px;padding:24px 46px;border-radius:999px;border:3px solid var(--lilac-ink);background:var(--card);color:var(--lilac-ink);
+  font:700 40px var(--sans);letter-spacing:-.02em;box-shadow:7px 7px 0 var(--lilac)}
+.s5 .sumbtn svg{width:42px;height:42px}
+.s5 .rays{position:absolute;left:-70px;top:-60px;width:calc(100% + 140px);height:calc(100% + 120px);pointer-events:none}
+.s5 .cursor{position:absolute;right:-30px;bottom:-40px;width:64px;height:64px;filter:drop-shadow(2px 3px 0 rgba(38,33,27,.15))}
+.s5 .fan{width:100%;height:150px;margin-top:-4px}
+.s5 .notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px;width:100%}
+.s5 .sticky{position:relative;min-height:280px;padding:42px 28px 26px;background:var(--c);display:flex;flex-direction:column;
+  box-shadow:0 2px 0 rgba(38,33,27,.05),0 22px 34px -20px rgba(38,33,27,.38)}
+.s5 .sticky::before{content:"";position:absolute;left:50%;top:-16px;width:104px;height:32px;transform:translateX(-50%) rotate(var(--tr,-3deg));
+  background:color-mix(in srgb,var(--paper) 70%,transparent);border-inline:1.5px dashed rgba(38,33,27,.18)}
+.s5 .sticky:nth-child(1){--c:var(--lilac);--ci:var(--lilac-ink);transform:rotate(-3deg) translateY(6px)}
+.s5 .sticky:nth-child(2){--c:var(--sky);--ci:var(--sky-ink);transform:rotate(1.5deg) translateY(-10px);--tr:4deg}
+.s5 .sticky:nth-child(3){--c:var(--mint);--ci:var(--mint-ink);transform:rotate(-1deg) translateY(10px)}
+.s5 .sticky .k{display:flex;align-items:center;gap:12px;font:700 17px var(--mono);letter-spacing:.16em;color:var(--ci)}
+.s5 .sticky .k b{width:36px;height:36px;border-radius:10px;background:var(--card);border:2px solid var(--ink);display:grid;place-items:center;font:600 20px var(--display);letter-spacing:0;color:var(--ink)}
+.s5 .sticky p{margin:14px 0 0;font:500 38px/1.1 var(--serif);letter-spacing:-.025em;flex:1}
+.s5 .sticky .who{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:18px;padding-top:16px;border-top:2px dashed rgba(38,33,27,.16);font:600 18px var(--mono);color:var(--ci)}
+.s5 .own{display:inline-flex;align-items:center;gap:7px;padding:3px 12px 3px 3px;border-radius:999px;border:2px solid var(--ink);background:var(--card);font:600 19px var(--sans);color:var(--ink)}
+.s5 .own i{width:26px;height:26px;border-radius:50%;background:var(--paper2);display:grid;place-items:center;font:700 11px var(--sans);font-style:normal}
+.s5 .own.role{border-style:dashed;border-radius:9px;padding-left:10px}
+
+/* ── 6 · the record ── */
+.s-rec .win{box-shadow:12px 12px 0 var(--butter)}
+.s-rec .page{padding:26px 28px 30px;background:var(--paper)}
+.s-rec .ph{display:flex;align-items:baseline;justify-content:space-between;margin:0 4px 18px}
+.s-rec .ph b{font:600 40px var(--display);letter-spacing:-.04em}
+.s-rec .ph span{font:500 18px var(--mono);color:var(--muted);letter-spacing:.04em}
+.mtg{display:flex;gap:22px;align-items:flex-start;padding:22px 24px;background:var(--card);border:2px solid var(--line);border-radius:22px;margin-top:14px}
+.mtg.top{border:2.5px solid var(--ink);box-shadow:6px 6px 0 var(--butter)}
+.mtg.old{opacity:.62}
+.mtg .dt{width:78px;flex:none;text-align:center;border:2px solid var(--line2);border-radius:14px;padding:8px 0 10px;background:var(--paper)}
+.mtg .dt small{display:block;font:600 15px var(--mono);letter-spacing:.14em;color:var(--rose-ink)}
+.mtg .dt b{display:block;font:600 38px/1 var(--display);letter-spacing:-.03em;margin-top:4px}
+.mtg .bd{flex:1;min-width:0}
+.mtg .bd p{margin:0;font:500 29px/1.25 var(--serif);letter-spacing:-.02em}
+.mtg .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.mtg .chips span{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:999px;font:600 18px var(--mono);letter-spacing:.02em;border:2px solid var(--c-bd);background:var(--c-bg);color:var(--c-ink)}
+.mtg .chips svg{width:18px;height:18px}
+.c-dec{--c-bd:var(--mint-bd);--c-bg:var(--mint-soft);--c-ink:var(--mint-ink)}
+.c-ai{--c-bd:var(--lilac-bd);--c-bg:var(--lilac-soft);--c-ink:var(--lilac-ink)}
+.c-here{--c-bd:var(--sky-bd);--c-bg:var(--sky-soft);--c-ink:var(--sky-ink)}
+/* ── 6 · ask ── */
+.s6 .stage{flex-direction:column;gap:0}
+.ask{width:100%;background:var(--card);border:2.5px solid var(--ink);border-radius:34px;box-shadow:12px 12px 0 var(--rose);overflow:hidden}
+.ask .q{display:flex;align-items:center;gap:18px;padding:30px 34px;border-bottom:2px solid var(--line);font:500 33px var(--sans);letter-spacing:-.02em}
+.ask .q svg{width:34px;height:34px;color:var(--rose-ink)}
+.ask .q .caret{width:3px;height:38px;background:var(--rose-ink);margin-left:-12px}
+.ask .q kbd{margin-left:auto;font:500 18px var(--mono);border:1.5px solid var(--line2);border-radius:8px;padding:3px 10px;color:var(--muted);background:var(--paper)}
+.ask .a{padding:34px 38px 38px}
+.ask .who{display:flex;align-items:center;gap:12px;font:600 19px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ask .who svg{width:30px;height:30px}
+.ask .verdict{margin:16px 0 0;font:600 66px/1.02 var(--display);letter-spacing:-.045em}
+.ask .verdict span{color:var(--mint-ink)}
+.ask .rows{margin-top:28px;border:2px solid var(--line);border-radius:20px;overflow:hidden}
+.ask .row{display:flex;align-items:center;gap:20px;padding:18px 24px;font-size:27px;border-top:2px solid var(--line)}
+.ask .row:first-child{border-top:0}
+.ask .row .rk{width:150px;font:600 17px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ask .row .done{margin-left:auto;font:600 17px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mint-ink);background:var(--mint-soft);border:2px solid var(--mint-bd);border-radius:999px;padding:3px 12px}
+.ask .src{display:inline-flex;align-items:center;gap:12px;margin-top:26px;padding:10px 18px;border-radius:14px;background:var(--paper2);border:2px dashed var(--line2);font:500 21px var(--mono);color:var(--soft)}
+.ask .src svg{width:24px;height:24px;color:var(--sky-ink)}
+.cta{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:64px}
+.cta p{margin:0;font:600 44px/1.05 var(--display);letter-spacing:-.04em}
+.cta p small{display:block;margin-top:8px;font:400 25px var(--sans);letter-spacing:-.01em;color:var(--soft)}
+.cta a{display:inline-flex;align-items:center;gap:14px;padding:22px 32px;border-radius:999px;background:var(--ink);color:var(--paper);text-decoration:none;
+  font:600 30px var(--display);letter-spacing:-.02em;box-shadow:7px 7px 0 var(--rose)}
+.cta a svg{width:28px;height:28px}
+
+
+/* ── product reveal ── */
+.by{position:absolute;right:26px;top:-24px;display:inline-flex;align-items:center;gap:10px;padding:8px 16px 8px 10px;border-radius:999px;background:var(--ink);color:var(--paper);
+  font:700 21px var(--display);letter-spacing:-.02em;transform:rotate(3deg);box-shadow:4px 4px 0 var(--mint)}
+.by svg{width:30px;height:30px}
+.win{width:100%;border:2.5px solid var(--ink);border-radius:30px;background:var(--paper2);box-shadow:12px 12px 0 var(--sky);overflow:hidden}
+.win .chrome{display:flex;align-items:center;gap:10px;padding:16px 22px;border-bottom:2px solid var(--line2)}
+.win .chrome i{width:15px;height:15px;border-radius:50%;border:2px solid rgba(38,33,27,.25)}
+.win .chrome i:nth-child(1){background:var(--peach)}.win .chrome i:nth-child(2){background:var(--butter)}.win .chrome i:nth-child(3){background:var(--mint)}
+.win .url{margin-left:18px;flex:1;display:flex;align-items:center;gap:10px;padding:7px 16px;border-radius:12px;background:var(--card);border:2px solid var(--line);font:500 19px var(--mono);color:var(--muted)}
+.win .url b{color:var(--ink);font-weight:600}
+.win .url svg{width:22px;height:22px}
+.win .sheet{border:0;border-radius:0;box-shadow:none}
+.eyebrow .pm{display:inline-flex;align-items:center;gap:10px;color:var(--ink)}
+.eyebrow .pm svg{width:30px;height:30px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="brand" viewBox="0 0 40 40">
+    <rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="#FFE5A0" stroke="#26211B" stroke-width="2.4"/>
+    <path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="#26211B" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="14.6" cy="16" r="1.9" fill="#26211B"/><circle cx="25.4" cy="16" r="1.9" fill="#26211B"/>
+  </symbol>
+  <symbol id="arr" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" fill="currentColor"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="seal" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="currentColor" opacity=".16"/><path d="M7.5 12.3l3 3 6-6.3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="page" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z M14 3v4h4 M10 12h5 M10 16h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="tpl" viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 8.5h8M8 12.5h8M8 16.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+</svg>
+
+<main class="deck">
+
+<!-- ═══ 1 · HOOK ═══ -->
+<section class="slide s1" data-n="1">
+  <div class="eyebrow">Meeting notes</div>
+  <h1 class="xl">Every meeting starts by <span class="hi">remembering</span> the last&nbsp;one.</h1>
+  <div class="stage">
+    <div class="pad scrap">
+      <span class="tape"></span>
+      <div class="lines">
+        <div class="ln h" data-n="§3">Old business</div>
+        <div class="ln li">discussed the grill</div>
+        <div class="ln li"><span class="trail">Marcus said he could probably…</span></div>
+        <div class="ln">&nbsp;</div>
+      </div>
+      <svg class="circ" viewBox="0 0 640 96" fill="none" aria-hidden="true">
+        <path d="M70 14C190 -4 470 0 590 20c52 9 50 52-12 64C430 104 170 100 60 82 8 73 2 40 40 24c40-16 120-20 190-22" stroke="#C23C77" stroke-width="4" stroke-linecap="round" opacity=".85"/>
+      </svg>
+      <span class="torn"></span>
+      <div class="note">…probably what? By when?<small>Next Sunday, 7:02pm</small></div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><span class="swipe">Swipe <svg width="26" height="26"><use href="#arr"/></svg></span></div>
+  </div>
+</section>
+
+<!-- ═══ 2 · THE TEST ═══ -->
+<section class="slide s2 s-butter" data-n="2">
+  <div class="eyebrow">The test</div>
+  <h1>Useful minutes answer <span class="hi">three</span> questions.</h1>
+  <div class="stage">
+    <div>
+      <div class="cards">
+        <div class="qcard"><div class="n">1</div><div><div class="tag">WHAT</div><p>What did we decide?</p></div></div>
+        <div class="qcard"><div class="n">2</div><div><div class="tag">WHO</div><p>Who’s doing the work?</p></div></div>
+        <div class="qcard"><div class="n">3</div><div><div class="tag">WHEN</div><p>By when?</p></div></div>
+      </div>
+      <p class="after">If your notes can’t answer these,<br>next week’s meeting has to.</p>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 3 · SAME MEETING, DIFFERENT SATURDAY ═══ -->
+<section class="slide s3 s-mint" data-n="3">
+  <div class="eyebrow">Why it matters</div>
+  <h1>Same meeting. Different <span class="hi">Saturday</span>.</h1>
+  <div class="stage">
+    <div class="scene bad">
+      <div class="said"><span class="k">Notes said</span><q>discussed the grill.</q></div>
+      <div class="when">Sat · 9:14 am · group chat</div>
+      <div class="chat">
+        <div class="msg"><span class="av" style="background:var(--butter)">JR</span><p>did anyone order the grill??</p></div>
+        <div class="msg"><span class="av" style="background:var(--lilac)">SK</span><p>i thought marcus was</p></div>
+        <div class="msg urgent"><span class="av" style="background:var(--peach)">PS</span><p>the cookout is in 3 hours 😭</p></div>
+      </div>
+    </div>
+    <div class="scene good">
+      <div class="said"><span class="k">Notes said</span><q><span class="mention"><i>MB</i>Marcus Bell</span> orders it by Fri, max $300.</q></div>
+      <div class="when">Sat · 9:14 am · action items</div>
+      <div class="item"><span class="box"><svg><use href="#check"/></svg></span><span class="what">Order the grill</span><span class="own"><i>MB</i>Marcus</span><span class="got">THU · $284</span></div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+<!-- ═══ 4 · SHARED NOTES ═══ -->
+<section class="slide s4 s-sky" data-n="4">
+  <div class="eyebrow">Meet <span class="pm"><svg><use href="#brand"/></svg>ChaptOS</span></div>
+  <h1>One set of minutes. <span class="hi">Everyone</span> writing.</h1>
+  <div class="stage">
+    <div class="win">
+    <div class="chrome"><i></i><i></i><i></i><span class="url"><svg><use href="#brand"/></svg><span>chaptos.com/<b>your-chapter</b>/chapter</span></span></div>
+    <div class="sheet">
+      <div class="bar">
+        <span class="dot"></span><span class="ttl">Chapter meeting · Oct 12</span>
+        <span class="live"><i></i>Live</span>
+        <span class="peers">
+          <span class="av" style="background:var(--lilac)">JR</span>
+          <span class="av" style="background:var(--rose)">PS</span>
+          <span class="av" style="background:var(--mint)">SK</span>
+        </span>
+      </div>
+      <div class="tools">
+        <span class="tpl"><svg><use href="#tpl"/></svg>Weekly chapter template</span>
+        <span class="k"><kbd>/</kbd> blocks &nbsp; <kbd>@</kbd> people</span>
+      </div>
+      <div class="pad">
+        <div class="lines">
+          <div class="ln h" data-n="§1">Treasurer’s report</div>
+          <div class="ln li">Balance <span class="fig">$4,210</span> · cookout budget <span class="fig">$600</span><span class="peer" style="--c:#6244CC"><b>Jordan · Treasurer</b></span></div>
+          <div class="ln h" data-n="§2">Social</div>
+          <div class="ln li">Cookout · Sat noon, Riverside Park<span class="peer" style="--c:#C23C77"><b>Priya</b></span></div>
+          <div class="ln h" data-n="§3">Motions</div>
+          <div class="ln li">Buy a grill, max <span class="fig">$300</span> — passed 24–3<span class="peer" style="--c:#1B815B"><b>Sam · Secretary</b></span></div>
+          <div class="ln todo"><span class="mention"><i>MB</i>Marcus Bell</span> orders it by Fri</div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 5 · SUMMARIZE ═══ -->
+<section class="slide s5 s-lilac">
+  <div class="eyebrow">ChaptOS · Summarize</div>
+  <h1>Press one button. Get all <span class="hi">three answers</span>.</h1>
+  <div class="stage">
+    <div class="press">
+      <svg class="rays" viewBox="0 0 560 240" fill="none" preserveAspectRatio="none" aria-hidden="true">
+        <g stroke="#6244CC" stroke-width="3.5" stroke-linecap="round" opacity=".7">
+          <path d="M40 70l28 16"/><path d="M24 122h34"/><path d="M44 172l26-14"/>
+          <path d="M520 70l-28 16"/><path d="M536 122h-34"/><path d="M516 172l-26-14"/>
+        </g>
+      </svg>
+      <span class="sumbtn"><svg><use href="#spark"/></svg>Summarize</span>
+      <svg class="cursor" viewBox="0 0 24 24"><path d="M5 3l14 7.5-6.2 1.6L10 18.5z" fill="#fff" stroke="#26211B" stroke-width="1.7" stroke-linejoin="round"/></svg>
+    </div>
+    <svg class="fan" viewBox="0 0 896 150" fill="none" preserveAspectRatio="none" aria-hidden="true">
+      <g stroke="#6244CC" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 10" opacity=".75">
+        <path d="M448 6C430 70 220 60 150 140"/><path d="M448 6v134"/><path d="M448 6C466 70 676 60 746 140"/>
+      </g>
+    </svg>
+    <div class="notes">
+      <div class="sticky"><span class="k"><b>1</b>WHAT</span><p>Buy a grill, up to $300</p><div class="who">PASSED 24–3</div></div>
+      <div class="sticky"><span class="k"><b>2</b>WHO</span><p>Marcus orders it</p><div class="who"><span class="own"><i>MB</i>Marcus</span>OWNER</div></div>
+      <div class="sticky"><span class="k"><b>3</b>WHEN</span><p>Ordered by Friday</p><div class="who">FRI · OCT 17</div></div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 6 · THE RECORD ═══ -->
+<section class="slide s-rec s-butter">
+  <div class="eyebrow">ChaptOS · Chapter page</div>
+  <h1>Notes worth <span class="hi">looking back</span> at.</h1>
+  <p class="lede">Every meeting keeps its summary, decisions and who was there. Scan a semester in a minute.</p>
+  <div class="stage">
+    <div class="win">
+      <div class="chrome"><i></i><i></i><i></i><span class="url"><svg><use href="#brand"/></svg><span>chaptos.com/<b>your-chapter</b>/chapter</span></span></div>
+      <div class="page">
+        <div class="ph"><b>Past meetings</b><span>FALL TERM · 7 MEETINGS</span></div>
+        <div class="mtg top"><div class="dt"><small>OCT</small><b>12</b></div><div class="bd"><p>Grill approved up to $300. Cookout set for Sat.</p>
+          <div class="chips"><span class="c-dec"><svg><use href="#check"/></svg>2 decisions</span><span class="c-ai">2 action items</span><span class="c-here">31 here</span></div></div></div>
+        <div class="mtg"><div class="dt"><small>OCT</small><b>05</b></div><div class="bd"><p>Formal moved to Apr 18. New member dues set.</p>
+          <div class="chips"><span class="c-dec"><svg><use href="#check"/></svg>2 decisions</span><span class="c-ai">3 action items</span><span class="c-here">28 here</span></div></div></div>
+        <div class="mtg old"><div class="dt"><small>SEP</small><b>28</b></div><div class="bd"><p>Philanthropy goal set at $2,000.</p>
+          <div class="chips"><span class="c-dec"><svg><use href="#check"/></svg>1 decision</span><span class="c-here">30 here</span></div></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+<!-- ═══ 7 · ASK + CTA ═══ -->
+<section class="slide s6 s-rose" data-n="6">
+  <div class="eyebrow">ChaptOS · Ask Chapt</div>
+  <h1>Forgot what you decided? Just <span class="hi">ask</span>.</h1>
+  <div class="stage">
+    <div class="ask">
+      <div class="q"><svg><use href="#search"/></svg>What did we decide about the grill?<span class="caret"></span><kbd>⌘K</kbd></div>
+      <div class="a">
+        <div class="who"><svg><use href="#brand"/></svg>Ask Chapt</div>
+        <p class="verdict"><span>Approved,</span> up to $300.</p>
+        <div class="rows">
+          <div class="row"><span class="rk">Who</span>Marcus Bell<span class="done">Ordered</span></div>
+          <div class="row"><span class="rk">When</span>Thu, Oct 16 · $284 of $300</div>
+        </div>
+        <span class="src"><svg><use href="#page"/></svg>Chapter meeting · Oct 12 · §3 Motions</span>
+      </div>
+    </div>
+    <div class="cta">
+      <p>Next Sunday starts<br>where this one ended.<small>Agenda, minutes and next steps, in one place.</small></p>
+      <a href="https://chaptos.com">chaptos.com <svg><use href="#arr"/></svg></a>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+</main>
+<script>
+const all=[...document.querySelectorAll(".slide")];
+all.forEach((sl,i)=>{sl.dataset.n=i+1;const d=sl.querySelector(".dots");if(d)d.innerHTML=all.map((_,j)=>`<i${j===i?' class="on"':''}></i>`).join("")});
+</script>
+</body>
+</html>

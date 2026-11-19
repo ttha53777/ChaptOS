@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check-In Cancel</title>
+<!--
+  Ending a live check-in window: "Close & record" vs "Cancel — don't record".
+
+  The band keeps the shape of ledger/LiveCheckIn.tsx in paper (app/paper-checkin.css):
+  ticket stub | draining rule | kicker, title, meta + officer links | tally | one action.
+  Ending it slides a fork out of the bottom of the same band: two slips, each
+  previewing the whole roster as it will be filed. Names are synthetic.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D; --peach-bd:#F6C3AE;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F2D68A;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;
+  --wash-op:.55;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+    --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+    --line:#2F271E; --line-2:#43382B;
+    --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.28);
+    --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;
+    --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;
+    --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72; --butter-bd:rgba(255,214,120,.28);
+    --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF;
+    --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;
+    --wash-op:.9;
+    --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.28);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72; --butter-bd:rgba(255,214,120,.28);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF;
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;
+  --wash-op:.9;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  color-scheme: dark;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased; overflow-x:clip; min-height:100vh;
+}
+body::before{
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:var(--wash-op);
+  background:
+    radial-gradient(40vw 30vw at 8% 4%, var(--peach-soft), transparent 70%),
+    radial-gradient(36vw 30vw at 96% 10%, var(--lilac-soft), transparent 70%),
+    radial-gradient(40vw 34vw at 90% 92%, var(--mint-soft), transparent 70%),
+    radial-gradient(30vw 26vw at 6% 88%, var(--butter-soft), transparent 70%);
+}
+button{font:inherit; color:inherit; cursor:pointer}
+p{margin:0}
+.wrap{max-width:1120px; margin:0 auto; padding:44px 24px 90px}
+
+/* ── Header ─────────────────────────────────────────────── */
+.eyebrow{display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:11.5px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--rose-ink)}
+.eyebrow::before{content:""; width:22px; height:2px; background:currentColor; border-radius:2px}
+h1{font-family:var(--display); font-weight:600; font-size:clamp(32px,4.6vw,50px); letter-spacing:-.035em; line-height:1.02; margin:14px 0 14px; max-width:18ch}
+.hi{position:relative; white-space:nowrap}
+.hi::before{content:""; position:absolute; inset:.08em -.12em .02em; z-index:-1; background:var(--rose); border-radius:.3em .5em .35em .45em; transform:rotate(-.8deg); opacity:.85}
+.lede{max-width:64ch; color:var(--ink-2); font-size:16.5px}
+.lede b{color:var(--ink); font-weight:600}
+
+/* ── Controls ───────────────────────────────────────────── */
+.controls{margin-top:30px; display:flex; flex-wrap:wrap; align-items:center; gap:10px}
+.tab{
+  display:flex; align-items:center; gap:10px; padding:10px 16px 10px 12px; border-radius:14px;
+  border:1.5px solid var(--line); background:var(--card); box-shadow:var(--sh-1); text-align:left;
+  transition:transform .25s var(--ease-spring), box-shadow .25s, border-color .2s;
+}
+.tab:hover{transform:translateY(-1px)}
+.tab[aria-selected="true"]{border-color:var(--ink); box-shadow:3px 3px 0 var(--lilac)}
+.tab .k{display:grid; place-items:center; width:26px; height:26px; border-radius:8px; background:var(--lilac-soft); color:var(--lilac-ink); font-family:var(--mono); font-weight:600; font-size:12px}
+.tab b{display:block; font-weight:600; font-size:14px}
+.tab small{display:block; color:var(--ink-3); font-size:12px; line-height:1.3}
+.reset{margin-left:auto; border:1.5px solid var(--line-2); background:var(--paper); border-radius:999px; padding:8px 14px; font-size:13px; font-weight:600; color:var(--ink-2)}
+.reset:hover{border-color:var(--ink); color:var(--ink)}
+
+.lbl{margin:34px 0 0; display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.lbl span{color:var(--ink-2)}
+.lbl::after{content:""; flex:1; height:1.5px; background:var(--line)}
+
+/* ── The band (mirrors app/paper-checkin.css) ───────────── */
+.live{
+  --ci:var(--mint-ink); --ci-s:var(--mint);
+  position:relative; margin-top:14px; border:1.5px solid var(--ink); border-radius:22px;
+  background:var(--card); box-shadow:5px 5px 0 var(--ci-s); overflow:hidden;
+  display:grid; grid-template-columns:128px minmax(0,1fr);
+  transition:box-shadow .3s, border-color .3s;
+}
+.live.closing{--ci:var(--butter-ink); --ci-s:var(--butter)}
+.live.ending{--ci-s:var(--line-2)}
+.live.closed{--ci:var(--ink-3); --ci-s:var(--paper-3); border-color:var(--line-2); box-shadow:var(--sh-1)}
+.live.void{--ci:var(--rose-ink); --ci-s:var(--rose-soft); border-color:var(--line-2); border-style:dashed; box-shadow:var(--sh-1)}
+
+.stub{
+  position:relative; grid-row:1 / span 2; display:flex; flex-direction:column; align-items:center; gap:0; padding:22px 0 0;
+  background:var(--sky-soft); color:var(--sky-ink); border-right:2px dashed var(--line-2); line-height:1;
+  border-radius:20.5px 0 0 20.5px; transition:filter .4s, opacity .4s;
+}
+.stub .adm{font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:.16em; opacity:.8; margin-bottom:10px}
+.stub small{font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.1em}
+.stub b{font-family:var(--display); font-size:3rem; font-weight:600; letter-spacing:-.05em; margin:4px 0}
+.stub::before,.stub::after{content:""; position:absolute; right:-11px; width:20px; height:20px; border-radius:50%; background:var(--paper); border:1.5px solid var(--ink)}
+.stub::before{top:-11px}
+.stub::after{bottom:-11px}
+.live.closed .stub::before,.live.closed .stub::after,.live.void .stub::before,.live.void .stub::after{border-color:var(--line-2)}
+.live.closed .stub{filter:grayscale(.75); opacity:.8}
+.live.void .stub{filter:grayscale(1); opacity:.55}
+.stamp{
+  position:absolute; z-index:3; left:18px; bottom:16px; padding:3px 8px; border:2px solid var(--mint-ink); border-radius:6px;
+  font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.12em; white-space:nowrap; color:var(--mint-ink);
+  background:color-mix(in srgb, var(--card) 72%, transparent); transform:rotate(-9deg);
+}
+.stamp.shut{border-color:var(--ink-3); color:var(--ink-3)}
+/* the void stamp sits OUTSIDE the greyed stub so it keeps its colour */
+.void-stamp{
+  position:absolute; z-index:4; left:10px; top:50%; padding:5px 10px 4px; border:2.5px solid var(--rose-ink); border-radius:7px;
+  font-family:var(--mono); font-size:.95rem; font-weight:700; letter-spacing:.16em; color:var(--rose-ink);
+  background:color-mix(in srgb, var(--card) 80%, transparent); transform:translateY(-50%) rotate(-14deg);
+  animation:stamp .45s var(--ease-spring) both; pointer-events:none;
+}
+.void-stamp small{display:block; font-size:.5rem; letter-spacing:.14em; font-weight:600; margin-top:1px}
+@keyframes stamp{from{opacity:0; transform:translateY(-50%) rotate(-14deg) scale(1.9)}}
+
+.rule{position:absolute; left:140px; top:16px; bottom:16px; width:5px; border-radius:3px; background:var(--paper-3); overflow:hidden}
+.rule i{position:absolute; inset:0; background:var(--ci); transform-origin:bottom; border-radius:3px; transition:transform 1s linear, background .3s}
+
+.body{display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:14px 28px; align-items:center; padding:20px 22px 20px 32px}
+.kicker{display:flex; align-items:center; flex-wrap:wrap; gap:8px; color:var(--ci); font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase}
+.kicker .el{font-size:12px; font-weight:500; letter-spacing:0; text-transform:none; color:var(--ink-3)}
+.kicker .el::before{content:"· "}
+.dot{width:8px; height:8px; border-radius:50%; background:var(--ci); box-shadow:0 0 0 0 var(--ci-s); animation:pulse 1.8s ease-out infinite}
+.live:is(.closed,.void,.ending) .dot{animation:none}
+.live.void .dot{background:none; border:1.5px solid var(--rose-ink); width:9px; height:9px}
+@keyframes pulse{0%{box-shadow:0 0 0 0 var(--ci-s)}70%,100%{box-shadow:0 0 0 8px transparent}}
+.title{margin-top:6px; font-family:var(--display); font-weight:600; font-size:clamp(22px,2.2vw,27px); letter-spacing:-.03em; line-height:1.1; position:relative; display:inline-block}
+/* cancelled: struck through by hand, in the stamp's ink */
+.title .strike{position:absolute; left:-4px; right:-4px; top:52%; height:3px; border-radius:2px; background:var(--rose-ink); transform:rotate(-1.2deg); transform-origin:left; animation:strike .45s var(--ease-out) .15s both}
+@keyframes strike{from{transform:rotate(-1.2deg) scaleX(0)}}
+.live.void .title{color:var(--ink-3)}
+
+.meta{margin-top:10px; display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; font-size:13px; color:var(--ink-3)}
+.meta b{color:var(--ink-2); font-weight:600}
+.meta .ds{color:var(--line-2)}
+.pill{display:inline-flex; align-items:center; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:600; border:1px solid}
+.pill.req{color:var(--peach-ink); background:var(--peach-soft); border-color:var(--peach-bd)}
+.alt{border:0; background:none; padding:0; font-size:13px; font-weight:600; color:var(--ink-2); text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:4px}
+.alt:hover{color:var(--ink); text-decoration-color:var(--ink-3)}
+.alt.end{color:var(--peach-ink)}
+.alt.undo{color:var(--rose-ink)}
+.nudge{margin-top:9px; font-size:13.5px; line-height:1.4; color:var(--butter-ink)}
+.nudge b{font-weight:650}
+.nudge button{border:0; background:none; padding:0; font:inherit; font-weight:650; color:var(--ink-2); text-decoration:underline; text-underline-offset:3px}
+
+.count{text-align:right; min-width:128px}
+.count .n{font-family:var(--display); font-weight:600; font-size:37px; letter-spacing:-.05em; line-height:1}
+.count .n small{font-size:16px; color:var(--ink-3); letter-spacing:-.02em}
+.count .k{margin-top:3px; font-family:var(--mono); font-size:10.5px; color:var(--ink-3)}
+.track{display:block; height:6px; border-radius:3px; margin-top:8px; background:var(--paper-3); overflow:hidden}
+.track i{display:block; height:100%; background:var(--ci); border-radius:3px; transition:width .4s var(--ease-out)}
+.live.void .count .n{color:var(--ink-3)}
+.stack{margin-top:9px; display:flex; justify-content:flex-end; align-items:center; gap:7px; min-height:24px; font-size:11.5px; color:var(--ink-3)}
+.stack .s{display:flex}
+.av{width:24px; height:24px; margin-left:-7px; border-radius:50%; display:grid; place-items:center; background:var(--mint); color:#26211B; border:2px solid var(--card); font-size:9px; font-weight:700}
+.av:first-child{margin-left:0}
+.av:nth-child(2){background:var(--sky)} .av:nth-child(3){background:var(--butter)} .av:nth-child(4){background:var(--lilac)}
+
+.btn{
+  --hs:var(--ci-s); display:inline-flex; align-items:center; gap:8px; padding:13px 20px; border-radius:999px; border:1.5px solid var(--ink);
+  background:var(--ink); color:var(--paper); font-size:15px; font-weight:600; letter-spacing:-.01em; white-space:nowrap;
+  box-shadow:2.5px 2.5px 0 var(--hs); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring);
+}
+.btn:hover:not(:disabled){transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.btn:active:not(:disabled){transform:translate(1px,1px); box-shadow:1px 1px 0 var(--hs)}
+.btn.ghost{background:var(--card); color:var(--ink)}
+.btn svg{width:16px; height:16px}
+.btn:disabled{opacity:.4; cursor:default}
+
+/* ── The fork: slides out of the band's own bottom edge ─── */
+.fork{grid-column:2; position:relative; z-index:2; background:var(--card); display:grid; grid-template-rows:0fr; transition:grid-template-rows .42s var(--ease-out)}
+.fork.open{grid-template-rows:1fr}
+.fork > div{overflow:hidden; min-height:0}
+.fork-in{margin:0 22px 22px 32px; padding-top:18px; border-top:1.5px dashed var(--line-2)}
+.fork-h{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+.fork-h h3{margin:0; font-family:var(--display); font-weight:600; font-size:19px; letter-spacing:-.02em}
+.fork-h p{font-size:13px; color:var(--ink-3)}
+.fork-h .keep{margin-left:auto}
+.slips{margin-top:14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px}
+
+.slip{
+  --c:var(--mint-ink); --cs:var(--mint); --cb:var(--mint-soft);
+  position:relative; display:flex; flex-direction:column; gap:12px; padding:16px 16px 14px; border-radius:18px;
+  border:1.5px solid var(--line); background:var(--paper); text-align:left;
+  transition:transform .22s var(--ease-spring), box-shadow .22s var(--ease-spring), border-color .2s;
+  animation:slip-in .4s var(--ease-spring) both;
+}
+.slip.cancel{--c:var(--rose-ink); --cs:var(--rose); --cb:var(--rose-soft); animation-delay:.06s}
+.slip:hover{border-color:var(--ink); box-shadow:4px 4px 0 var(--cs); transform:translate(-1px,-1px)}
+.slip.suggest{border-color:var(--ink); box-shadow:4px 4px 0 var(--cs)}
+@keyframes slip-in{from{opacity:0; transform:translateY(10px) rotate(var(--r,0deg))}}
+.slip .top{display:flex; align-items:center; gap:10px}
+.slip .ic{width:34px; height:34px; flex:none; border-radius:11px; display:grid; place-items:center; background:var(--cb); color:var(--c); border:1.5px solid color-mix(in srgb, var(--c) 30%, transparent)}
+.slip .ic svg{width:17px; height:17px}
+.slip h4{margin:0; font-size:15.5px; font-weight:650; letter-spacing:-.01em}
+.slip .when{font-size:12.5px; color:var(--ink-3); line-height:1.3}
+.tag{margin-left:auto; align-self:flex-start; padding:2px 8px; border-radius:999px; font-size:10.5px; font-weight:650; letter-spacing:.02em; white-space:nowrap; color:var(--butter-ink); background:var(--butter-soft); border:1px solid var(--butter-bd)}
+
+/* the roster as it will be filed: one dot per eligible member */
+.sheet{position:relative; padding:12px; border-radius:12px; background:var(--card); border:1.5px solid var(--line)}
+.dots{display:grid; grid-template-columns:repeat(13, 1fr); gap:5px}
+.dots i{aspect-ratio:1; border-radius:50%; display:block}
+.dots i.p{background:var(--mint-ink)}
+.dots i.a{background:var(--peach-soft); box-shadow:inset 0 0 0 1.5px var(--peach-ink); position:relative}
+.dots i.a::after{content:""; position:absolute; inset:28% 46%; background:var(--peach-ink); transform:rotate(45deg); border-radius:1px}
+.dots i.n{box-shadow:inset 0 0 0 1.5px var(--line-2)}
+.dots i.gone{box-shadow:inset 0 0 0 1.5px var(--line-2); background:repeating-linear-gradient(135deg, var(--line-2) 0 1.5px, transparent 1.5px 4px)}
+.sheet .vs{position:absolute; inset:0; display:grid; place-items:center; pointer-events:none}
+.sheet .vs span{padding:3px 9px; border:2px solid var(--rose-ink); border-radius:6px; font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:.14em; color:var(--rose-ink); background:color-mix(in srgb, var(--card) 85%, transparent); transform:rotate(-8deg)}
+.legend{margin-top:10px; display:flex; flex-wrap:wrap; gap:4px 14px; font-size:12.5px; color:var(--ink-2)}
+.legend span{display:inline-flex; align-items:center; gap:6px}
+.legend i{width:9px; height:9px; border-radius:50%; display:inline-block}
+.legend b{font-family:var(--mono); font-weight:600; color:var(--ink)}
+.legend i.p{background:var(--mint-ink)}
+.legend i.a{background:var(--peach-soft); box-shadow:inset 0 0 0 1.5px var(--peach-ink)}
+.legend i.n{box-shadow:inset 0 0 0 1.5px var(--line-2)}
+.slip .fx{font-size:13px; line-height:1.4; color:var(--ink-2)}
+.slip .fx b{color:var(--ink); font-weight:600}
+.slip .go{
+  margin-top:auto; align-self:stretch; justify-content:center; display:inline-flex; align-items:center; gap:8px; padding:11px 16px; border-radius:999px;
+  border:1.5px solid var(--ink); background:var(--ink); color:var(--paper); font-size:14.5px; font-weight:600;
+  box-shadow:2.5px 2.5px 0 var(--cs); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring);
+}
+.slip .go:hover{transform:translate(-1.5px,-1.5px); box-shadow:4px 4px 0 var(--cs)}
+.slip.cancel .go{background:var(--card); color:var(--rose-ink); border-color:var(--rose-ink)}
+.slip .go svg{width:15px; height:15px}
+
+/* undo strip after a cancel */
+.undo-row{display:flex; align-items:center; gap:10px; margin-top:10px; font-size:13px; color:var(--ink-2)}
+.undo-row .ring{width:18px; height:18px; flex:none}
+.undo-row .ring circle{fill:none; stroke-width:2.5}
+.undo-row .ring .bg{stroke:var(--line)}
+.undo-row .ring .fg{stroke:var(--rose-ink); stroke-linecap:round; transform:rotate(-90deg); transform-origin:center; transition:stroke-dashoffset 1s linear}
+
+/* ── Member view (compact band) ─────────────────────────── */
+.mem{max-width:640px}
+.mem .live{grid-template-columns:84px minmax(0,1fr)}
+.mem .stub b{font-size:2.2rem}
+.mem .stub .adm{display:none}
+.mem .rule{left:96px}
+.mem .body{grid-template-columns:minmax(0,1fr) auto}
+.receipt{margin-top:9px; display:flex; align-items:center; gap:9px; font-size:14px; color:var(--ink-2)}
+.receipt b{color:var(--ink); font-weight:650}
+.chk{width:22px; height:22px; flex:none; border-radius:50%; display:grid; place-items:center; background:var(--mint-ink); color:var(--card)}
+.chk svg{width:12px; height:12px}
+.chk.x{background:var(--card); color:var(--rose-ink); box-shadow:inset 0 0 0 1.5px var(--rose-ink)}
+.mem-none{margin-top:14px; padding:18px 20px; border:1.5px dashed var(--line-2); border-radius:18px; font-size:13.5px; color:var(--ink-3); max-width:640px}
+
+.notes{margin-top:44px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px}
+.note{padding:16px 18px; border-radius:16px; background:var(--card); border:1.5px solid var(--line); box-shadow:var(--sh-1)}
+.note h5{margin:0 0 6px; font-size:13.5px; font-weight:650}
+.note p{font-size:13px; color:var(--ink-2); line-height:1.5}
+.note code{font-family:var(--mono); font-size:12px; background:var(--paper-2); padding:1px 5px; border-radius:5px}
+
+@media (max-width:860px){
+  .notes{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:760px){
+  .wrap{padding:30px 16px 70px}
+  .reset{margin-left:0}
+}
+/* the band's own breakpoints are container queries, so a phone frame on a
+   desktop screen gets the same layout a real phone does */
+.host{container-type:inline-size}
+@container (max-width:760px){
+  .live{grid-template-columns:84px minmax(0,1fr)}
+  .rule{left:96px}
+  .stub b{font-size:2.2rem}
+  .stub .adm{display:none}
+  .stamp{left:4px; font-size:.5rem; padding:2px 5px; letter-spacing:.08em}
+  .void-stamp{left:2px; font-size:.7rem; padding:4px 6px 3px}
+  .body,.mem .body{grid-template-columns:minmax(0,1fr); padding:18px 18px 18px 30px}
+  .count{min-width:0; text-align:left; display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:14px; align-items:end}
+  .count .n{grid-row:1 / 3}
+  .count .track,.count .stack{grid-column:1 / -1}
+  .stack{justify-content:flex-start}
+  .act .btn{width:100%; justify-content:center}
+  /* on a phone the fork spans the whole card, under the stub too */
+  .fork{grid-column:1 / -1}
+  .fork-in{margin:0 16px 16px; }
+  .slips{grid-template-columns:minmax(0,1fr)}
+  .fork-h .keep{margin-left:0}
+}
+/* ── View switch ─────────────────────────────────────────── */
+.seg{display:inline-flex; padding:3px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--paper)}
+.seg button{border:0; background:none; padding:7px 14px; border-radius:999px; font-size:13px; font-weight:600; color:var(--ink-3)}
+.seg button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+.controls .seg{margin-left:auto}
+.controls .seg + .reset{margin-left:0}
+[hidden]{display:none !important}
+
+/* ── Phone frames ────────────────────────────────────────── */
+.phones{margin-top:18px; display:flex; flex-wrap:wrap; justify-content:center; gap:28px 36px}
+.pcol{display:grid; gap:10px; justify-items:center; width:min(390px,100%)}
+.pcol .lbl{margin:0; width:100%}
+.phone{
+  position:relative; width:100%; height:812px; border-radius:48px; overflow:hidden;
+  background:var(--paper); border:10px solid #1C1915; box-shadow:0 0 0 1.5px #3A332B, 0 30px 60px -24px rgba(38,33,27,.45);
+}
+.phone .screen{position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; padding:50px 14px 100px; scrollbar-width:none}
+.phone .screen::-webkit-scrollbar{display:none}
+.sbar{position:absolute; z-index:20; top:0; left:0; right:0; height:44px; display:flex; align-items:center; justify-content:space-between; padding:0 26px; font-size:14px; font-weight:600; background:color-mix(in srgb, var(--paper) 88%, transparent)}
+.sbar .isl{position:absolute; left:50%; top:9px; width:104px; height:28px; margin-left:-52px; border-radius:20px; background:#1C1915}
+.sbar .bt{display:flex; gap:5px; align-items:center}
+.sbar .bt i{display:block; width:22px; height:11px; border:1.5px solid currentColor; border-radius:3.5px; position:relative}
+.sbar .bt i::after{content:""; position:absolute; inset:1.5px; right:5px; background:currentColor; border-radius:1.5px}
+.ph-head{display:flex; align-items:center; gap:10px; padding:6px 2px 4px}
+.ph-org{display:flex; align-items:center; gap:8px; font-weight:650; font-size:15px}
+.ph-org .lg{width:28px; height:28px; border-radius:9px; display:grid; place-items:center; background:var(--lilac); color:#26211B; font-family:var(--display); font-weight:700; font-size:13px; border:1.5px solid var(--ink)}
+.ph-head .me{margin-left:auto; width:30px; height:30px; border-radius:50%; background:var(--butter); border:1.5px solid var(--ink); display:grid; place-items:center; font-size:11px; font-weight:700; color:#26211B}
+.ph-hi{margin:12px 2px 0; font-family:var(--display); font-weight:600; font-size:26px; letter-spacing:-.03em; line-height:1.1}
+.ph-sub{margin:4px 2px 0; font-size:13.5px; color:var(--ink-3)}
+.phone .host .live{margin-top:16px}
+.ph-card{margin-top:18px; padding:14px 16px; border-radius:18px; border:1.5px solid var(--line); background:var(--card); box-shadow:var(--sh-1)}
+.ph-card h6{margin:0 0 8px; font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.ph-row{display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1.5px solid var(--line); font-size:14px}
+.ph-row:first-of-type{border-top:0}
+.ph-row i{width:9px; height:9px; border-radius:50%; flex:none}
+.ph-row span{margin-left:auto; font-family:var(--mono); font-size:11.5px; color:var(--ink-3)}
+.tabbar{position:absolute; z-index:15; left:0; right:0; bottom:0; height:84px; padding:10px 18px 24px; display:flex; justify-content:space-between; align-items:flex-start; border-top:1.5px solid var(--line); background:color-mix(in srgb, var(--card) 94%, transparent)}
+.tabbar span{display:grid; justify-items:center; gap:3px; font-size:10px; font-weight:600; color:var(--ink-3); width:56px}
+.tabbar span.on{color:var(--ink)}
+.tabbar svg{width:22px; height:22px}
+.tabbar .plus{width:42px; height:42px; margin-top:-4px; border-radius:14px; background:var(--ink); color:var(--paper); display:grid; place-items:center; box-shadow:2px 2px 0 var(--lilac)}
+.home-ind{position:absolute; z-index:40; bottom:8px; left:50%; width:130px; height:5px; margin-left:-65px; border-radius:3px; background:var(--ink); opacity:.85}
+
+/* the fork, as a bottom sheet over the dashboard */
+.pscrim{position:absolute; z-index:30; inset:0; background:rgba(28,25,21,.38); backdrop-filter:blur(3px); animation:fade .25s both}
+@keyframes fade{from{opacity:0}}
+.psheet{
+  position:absolute; z-index:31; left:0; right:0; bottom:0; max-height:88%; overflow-y:auto; scrollbar-width:none;
+  padding:10px 16px 34px; border-radius:26px 26px 0 0; border:1.5px solid var(--ink); border-bottom:0;
+  background:var(--card); box-shadow:0 -5px 0 var(--line-2); animation:sheet-up .38s var(--ease-spring) both;
+}
+.psheet::-webkit-scrollbar{display:none}
+@keyframes sheet-up{from{transform:translateY(100%)}}
+.grab{width:40px; height:5px; border-radius:3px; background:var(--line-2); margin:0 auto 12px}
+.ps-ev{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:14px; background:var(--paper-2); border:1.5px solid var(--line)}
+.ps-ev .d{width:38px; text-align:center; line-height:1.05; padding:3px 0; border-radius:9px; background:var(--sky-soft); color:var(--sky-ink); border:1.5px solid var(--line)}
+.ps-ev .d small{display:block; font-family:var(--mono); font-size:8.5px; font-weight:600; letter-spacing:.08em}
+.ps-ev .d b{font-family:var(--display); font-size:17px; font-weight:600}
+.ps-ev .t{font-weight:650; font-size:14.5px; line-height:1.2}
+.ps-ev .m{font-size:12px; color:var(--ink-3)}
+.ps-ev .live-n{margin-left:auto; text-align:right; font-family:var(--mono); font-size:11px; color:var(--mint-ink); font-weight:600; display:flex; align-items:center; gap:6px; white-space:nowrap}
+.ps-ev .live-n .dot{--ci:var(--mint-ink); --ci-s:var(--mint)}
+.psheet h3{margin:14px 2px 2px; font-family:var(--display); font-weight:600; font-size:22px; letter-spacing:-.03em; line-height:1.15}
+.psheet .sub{margin:0 2px; font-size:13px; color:var(--ink-3)}
+.psheet .slips{grid-template-columns:minmax(0,1fr); gap:12px; margin-top:14px}
+/* both answers must be on screen at once: the roster runs as two long rows,
+   and the explainer line folds into the legend */
+.psheet .slip{padding:12px 12px 12px; gap:9px}
+.psheet .slip .top{gap:9px}
+.psheet .slip .top > div{flex:1; min-width:0}
+.psheet .slip .ic{width:30px; height:30px; border-radius:9px}
+.psheet .slip h4{font-size:14.5px}
+.psheet .slip .when{font-size:12px}
+.psheet .tag{position:absolute; top:-9px; right:12px; margin:0; background:var(--card)}
+.psheet .slip .tag{background:var(--butter-soft)}
+.psheet .slip.record .tag{background:var(--peach-soft)}
+.psheet .sheet{padding:8px}
+.psheet .dots{grid-template-columns:repeat(26,1fr); gap:3px}
+.psheet .sheet .vs span{font-size:9.5px; padding:2px 7px}
+.psheet .legend{margin-top:0; font-size:12px}
+.psheet .slip .fx{display:none}
+.psheet .slip .go{padding:12px 16px; font-size:15px}
+.psheet h3{margin-top:12px}
+.psheet .keep2{display:block; width:100%; margin-top:14px; padding:12px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--paper); font-size:14.5px; font-weight:600; color:var(--ink-2)}
+
+/* undo, as a snackbar above the tab bar */
+.snack{
+  position:absolute; z-index:25; left:12px; right:12px; bottom:96px; display:flex; align-items:center; gap:10px;
+  padding:12px 12px 12px 14px; border-radius:16px; background:var(--ink); color:var(--paper); font-size:13.5px; line-height:1.3;
+  box-shadow:3px 3px 0 var(--rose); animation:snack .35s var(--ease-spring) both;
+}
+@keyframes snack{from{opacity:0; transform:translateY(16px)}}
+.snack .ring .bg{stroke:rgba(255,255,255,.18)}
+.snack .ring .fg{stroke:var(--rose)}
+.snack p{flex:1; min-width:0}
+.snack p small{display:block; opacity:.7; font-size:12px}
+.snack button{border:0; background:var(--rose); color:#26211B; padding:8px 14px; border-radius:999px; font-size:13.5px; font-weight:700}
+.ph-gone{margin-top:16px; padding:16px; border:1.5px dashed var(--line-2); border-radius:18px; font-size:13px; color:var(--ink-3); text-align:center}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important; transition:none !important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Mock · Live check-in</p>
+  <h1>Ending check-in <span class="hi">shouldn't</span> always mean absences</h1>
+  <p class="lede">Today the band's only way out is <b>Close &amp; record attendance</b>, so a window opened on the wrong event marks the whole roster absent. Ending it now asks one question, right in the band: <b>did this happen?</b> Each answer shows the roster exactly as it will be filed before you commit.</p>
+
+  <div class="controls" role="tablist" aria-label="Scenario">
+    <button class="tab" role="tab" data-sc="wrong" aria-selected="true"><span class="k">A</span><span><b>Wrong event</b><small>2 of 52 checked in</small></span></button>
+    <button class="tab" role="tab" data-sc="real" aria-selected="false"><span class="k">B</span><span><b>Real meeting</b><small>38 of 52 checked in</small></span></button>
+    <button class="tab" role="tab" data-sc="closing" aria-selected="false"><span class="k">C</span><span><b>About to expire</b><small>auto-close in 4 min</small></span></button>
+    <div class="seg" role="group" aria-label="View"><button data-view="desk" aria-pressed="true">Desktop</button><button data-view="phone" aria-pressed="false">Phone</button></div>
+    <button class="reset" id="reset">Reset</button>
+  </div>
+
+  <div id="desk">
+    <p class="lbl"><span>Officer</span> dashboard</p>
+    <div id="officer" class="host"></div>
+
+    <p class="lbl"><span>Member</span> who checked in · same moment</p>
+    <div id="member" class="mem host"></div>
+  </div>
+
+  <div id="phoneview" hidden>
+    <div class="phones">
+      <div class="pcol"><p class="lbl"><span>Officer</span> phone</p><div class="phone" id="p-off"></div></div>
+      <div class="pcol"><p class="lbl"><span>Member</span> phone</p><div class="phone" id="p-mem"></div></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><h5>Same band, one extra link</h5><p>The resting band is unchanged except the officer row: <b>End check-in…</b> replaces <b>Close &amp; record</b>. It opens the fork instead of acting, because only the officer knows whether the meeting happened.</p></div>
+    <div class="note"><h5>The suggestion is a hint, not a default</h5><p>When under 10% of the roster checked in, the cancel slip is outlined and tagged. Both buttons stay equal weight. Nothing is pre-selected and nothing auto-submits.</p></div>
+    <div class="note"><h5>What cancel writes</h5><p>Window stamped closed with a <code>checkInCancelledAt</code>. No absence rows. Its check-in rows are deleted, but kept in memory so <b>Undo</b> (10s) restores the window as it was. Auto-expiry still records, and the nudge says so.</p></div>
+  </div>
+</div>
+
+<script>
+const SC = {
+  wrong:   { title:"Philanthropy Planning", time:"7:30 PM", loc:"Room 204", day:4, wd:"WED", mon:"NOV", present:2,  opened:6,  remaining:.9,  state:"open",
+             arrivals:[["JR","Jordan R."],["AK","Aisha K."]] },
+  real:    { title:"Chapter Meeting",       time:"7:00 PM", loc:"Chapter Room", day:4, wd:"WED", mon:"NOV", present:38, opened:22, remaining:.63, state:"open",
+             arrivals:[["MT","Marcus T."],["DL","Dev L."],["SO","Sam O."],["PB","Priya B."]] },
+  closing: { title:"Chapter Meeting",       time:"7:00 PM", loc:"Chapter Room", day:4, wd:"WED", mon:"NOV", present:41, opened:56, remaining:.07, state:"closing",
+             arrivals:[["NC","Nia C."],["MT","Marcus T."],["DL","Dev L."],["SO","Sam O."]] },
+};
+const ELIGIBLE = 52, UNDO_S = 10;
+let sc = "wrong", phase = "open", undoLeft = 0, undoTimer = null;
+
+const I = {
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  people:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14.6c2.3.1 3.9 1.5 4.5 4.4"/></svg>',
+  file:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="m9.5 14.5 2 2 3.5-4"/></svg>',
+  void:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="m6 6 12 12"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+};
+
+function dots(kind, present){
+  let h = "";
+  for (let i = 0; i < ELIGIBLE; i++){
+    const cls = i < present ? (kind === "record" ? "p" : "gone") : (kind === "record" ? "a" : "n");
+    h += `<i class="${cls}"></i>`;
+  }
+  return `<div class="dots">${h}</div>`;
+}
+
+function stub(d, extra){
+  return `<div class="stub" aria-hidden="true"><span class="adm">ADMIT ONE</span><small>${d.wd}</small><b>${d.day}</b><small>${d.mon}</small>${extra}</div>`;
+}
+
+function slipsHTML(d, low, absent){
+  return `<div class="slips">
+        <div class="slip record${!low ? "" : ""}" style="--r:-.6deg">
+          <div class="top"><span class="ic">${I.file}</span><div><h4>Yes — close &amp; record</h4><p class="when">The meeting happened. File the roll.</p></div>${low ? `<span class="tag" style="color:var(--peach-ink);background:var(--peach-soft);border-color:var(--peach-bd)">${absent} absences</span>` : ""}</div>
+          <div class="sheet">${dots("record", d.present)}</div>
+          <div class="legend"><span><i class="p"></i><b>${d.present}</b> present</span><span><i class="a"></i><b>${absent}</b> marked absent</span></div>
+          <p class="fx">Counts toward <b>everyone’s attendance</b> this semester.</p>
+          <button class="go" data-a="record">${I.check}Close &amp; record</button>
+        </div>
+        <div class="slip cancel${low ? " suggest" : ""}" style="--r:.6deg">
+          <div class="top"><span class="ic">${I.void}</span><div><h4>No — cancel, don’t record</h4><p class="when">Wrong event, a test, or it got called off.</p></div>${low ? `<span class="tag">Only ${d.present} of ${ELIGIBLE} here</span>` : ""}</div>
+          <div class="sheet">${dots("cancel", d.present)}<div class="vs"><span>NOT FILED</span></div></div>
+          <div class="legend"><span><i class="n"></i><b>0</b> absences</span><span><i class="gone" style="background:repeating-linear-gradient(135deg,var(--line-2) 0 1.5px,transparent 1.5px 3px);box-shadow:inset 0 0 0 1.5px var(--line-2)"></i><b>${d.present}</b> check-in${d.present===1?"":"s"} thrown out</span></div>
+          <p class="fx"><b>Nobody’s attendance changes.</b> You can undo for ${UNDO_S} seconds.</p>
+          <button class="go" data-a="void">${I.void}Cancel check-in</button>
+        </div>
+      </div>`;
+}
+
+function officer(mode){
+  const d = SC[sc], absent = ELIGIBLE - d.present, pct = Math.round(d.present/ELIGIBLE*100);
+  const low = d.present / ELIGIBLE < .1;
+  const live = phase === "open" || phase === "ending";
+  const cls = phase === "recorded" ? "closed" : phase === "void" ? "void" : phase === "ending" ? "ending" : d.state === "closing" ? "closing" : "";
+
+  const stamp = phase === "recorded" ? `<span class="stamp shut">CHECK-IN CLOSED</span>`
+              : phase === "void" ? "" : `<span class="stamp">CHECK-IN OPEN</span>`;
+  const voidStamp = phase === "void" ? `<span class="void-stamp">VOID<small>NOT RECORDED</small></span>` : "";
+
+  const kicker =
+      phase === "recorded" ? `<span class="dot"></span><span>Check-in closed</span><span class="el">ended 7:52 PM by you</span>`
+    : phase === "void"     ? `<span class="dot"></span><span>Check-in cancelled</span><span class="el">nothing recorded</span>`
+    : phase === "ending"   ? `<span class="dot"></span><span>Ending check-in</span><span class="el">still open while you decide</span>`
+    : d.state === "closing" ? `<span class="dot"></span><span>Check-in closing</span><span class="el">opened ${d.opened} min ago</span>`
+    : `<span class="dot"></span><span>Happening now</span><span class="el">opened ${d.opened} min ago</span>`;
+
+  const nudge = live && d.state === "closing"
+    ? `<p class="nudge">Closing soon — <b>anyone who hasn’t checked in will be marked absent</b> when it ends. Wrong event? <button data-a="end">Cancel it instead</button>.</p>` : "";
+
+  let links = "";
+  if (live) links = `<button class="alt">Fix a mark</button>${phase === "open" ? `<button class="alt end" data-a="end">End check-in…</button>` : ""}`;
+  if (phase === "recorded") links = `<button class="alt">Take attendance</button><button class="alt" data-a="reset">Reopen check-in</button>`;
+
+  const undo = phase === "void" && mode !== "phone" ? `
+    <div class="undo-row">
+      <svg class="ring" viewBox="0 0 20 20"><circle class="bg" cx="10" cy="10" r="8"/><circle class="fg" cx="10" cy="10" r="8" stroke-dasharray="50.3" stroke-dashoffset="${(50.3*(1-undoLeft/UNDO_S)).toFixed(1)}"/></svg>
+      ${undoLeft > 0
+        ? `<span>${d.present} check-in${d.present===1?"":"s"} thrown out · nobody’s attendance changed</span><button class="alt undo" data-a="undo">Undo</button>`
+        : `<span>${d.present} check-in${d.present===1?"":"s"} thrown out · nobody’s attendance changed</span>`}
+    </div>` : "";
+
+  const count = phase === "void"
+    ? `<div class="count"><p class="n">${d.present}<small>/${ELIGIBLE}</small></p><p class="k">not counted</p><span class="track"><i style="width:0%"></i></span></div>`
+    : `<div class="count"><p class="n">${d.present}<small>/${ELIGIBLE}</small></p><p class="k">${phase==="recorded" ? `final tally · ${absent} absent` : "here now"}</p>
+         <span class="track"><i style="width:${pct}%"></i></span>
+         <div class="stack"><span class="s">${d.arrivals.map(a=>`<span class="av" title="${a[1]}">${a[0]}</span>`).join("")}</span><span>${d.arrivals[0][1].split(" ")[0]} · 7:4${d.present%10} PM</span></div></div>`;
+
+  const act = phase === "void"
+    ? `<div class="act"><button class="btn" data-a="reset">${I.plus}Open the right event</button></div>`
+    : `<div class="act"><button class="btn ghost">${I.people}See who’s here</button></div>`;
+
+  const fork = `
+    <div class="fork${phase === "ending" ? " open" : ""}"><div><div class="fork-in">
+      <div class="fork-h"><h3>Did ${d.title} happen?</h3><p>Check-ins keep coming in until you pick.</p><button class="alt keep" data-a="keep">Keep it open</button></div>
+      ${slipsHTML(d, low, absent)}
+    </div></div></div>`;
+
+  return `<section class="live ${cls}" aria-label="Live event check-in">
+    ${stub(d, stamp)}${voidStamp}
+    <div class="rule"><i style="transform:scaleY(${phase==="recorded"||phase==="void" ? 0 : d.remaining})"></i></div>
+    <div class="body">
+      <div class="what">
+        <p class="kicker">${kicker}</p>
+        <h2 class="title">${d.title}${phase==="void" ? `<span class="strike"></span>` : ""}</h2>
+        ${nudge}
+        ${undo}
+        <p class="meta"><span>${d.time}</span><span class="ds">·</span><span><b>${d.loc}</b></span><span class="ds">·</span><span class="pill req">Mandatory</span>${links}</p>
+      </div>
+      ${count}
+      ${act}
+    </div>
+    ${mode === "phone" ? "" : fork}
+  </section>`;
+}
+
+function member(){
+  const d = SC[sc];
+  if (phase === "void" && undoLeft === 0) {
+    return `<div class="mem-none">Band gone. Nothing to show; ${d.title} never reaches their attendance record.</div>`;
+  }
+  const cls = phase === "recorded" ? "closed" : phase === "void" ? "void" : d.state === "closing" ? "closing" : "";
+  const stamp = phase === "recorded" ? `<span class="stamp shut">CLOSED</span>` : phase === "void" ? "" : `<span class="stamp">OPEN</span>`;
+  const kicker = phase === "recorded" ? `<span class="dot"></span><span>Check-in closed</span>`
+               : phase === "void" ? `<span class="dot"></span><span>Check-in cancelled</span><span class="el">by an officer</span>`
+               : `<span class="dot"></span><span>You’re checked in</span>`;
+  const receipt = phase === "void"
+    ? `<div class="receipt"><span class="chk x">${I.void.replace('stroke-width="2"','stroke-width="2.6"')}</span><p><b>Not counted</b> — this check-in was cancelled, so it won’t show on your attendance either way.</p></div>`
+    : `<div class="receipt"><span class="chk">${I.check}</span><p><b>Present</b> — 7:34 PM</p></div>`;
+  return `<section class="live ${cls}">
+    ${stub(d, stamp)}${phase==="void" ? `<span class="void-stamp" style="font-size:.7rem;left:6px">VOID</span>` : ""}
+    <div class="rule"><i style="transform:scaleY(${phase==="recorded"||phase==="void" ? 0 : d.remaining})"></i></div>
+    <div class="body">
+      <div class="what"><p class="kicker">${kicker}</p><h2 class="title">${d.title}${phase==="void" ? `<span class="strike"></span>` : ""}</h2>${receipt}</div>
+      <div class="act"><button class="btn ghost">${I.people}See who’s here</button></div>
+    </div>
+  </section>`;
+}
+
+const TAB = {
+  home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg>',
+  tl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
+  ppl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14.6c2.3.1 3.9 1.5 4.5 4.4"/></svg>',
+  more:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+};
+function chrome(inner, overlay){
+  return `<div class="sbar"><span>7:52</span><span class="isl"></span><span class="bt">5G <i></i></span></div>
+    <div class="screen">
+      <div class="ph-head"><span class="ph-org"><span class="lg">ΛΦ</span>Lambda Phi</span><span class="me">MR</span></div>
+      ${inner}
+      <div class="ph-card"><h6>On your plate</h6>
+        <div class="ph-row"><i style="background:var(--peach-ink)"></i>Approve 2 excuses<span>today</span></div>
+        <div class="ph-row"><i style="background:var(--butter-ink)"></i>Upload Oct minutes<span>Fri</span></div>
+      </div>
+      <div class="ph-card"><h6>This week</h6>
+        <div class="ph-row"><i style="background:var(--sky-ink)"></i>Chapter Meeting<span>Wed 7:00</span></div>
+        <div class="ph-row"><i style="background:var(--lilac-ink)"></i>Philanthropy Planning<span>Wed 7:30</span></div>
+        <div class="ph-row"><i style="background:var(--mint-ink)"></i>Food bank shift<span>Sat 9:00</span></div>
+      </div>
+    </div>
+    <div class="tabbar"><span class="on">${TAB.home}Home</span><span>${TAB.tl}Timeline</span><span><b class="plus">${I.plus}</b></span><span>${TAB.ppl}Members</span><span>${TAB.more}More</span></div>
+    ${overlay}
+    <span class="home-ind"></span>`;
+}
+function ring(){
+  return `<svg class="ring" viewBox="0 0 20 20" width="20" height="20"><circle class="bg" cx="10" cy="10" r="8" fill="none" stroke-width="2.5"/><circle class="fg" cx="10" cy="10" r="8" fill="none" stroke-width="2.5" stroke-dasharray="50.3" stroke-dashoffset="${(50.3*(1-undoLeft/UNDO_S)).toFixed(1)}"/></svg>`;
+}
+function phoneOfficer(){
+  const d = SC[sc], absent = ELIGIBLE - d.present, low = d.present / ELIGIBLE < .1;
+  let overlay = "";
+  if (phase === "ending") overlay = `
+    <div class="pscrim" data-a="keep"></div>
+    <div class="psheet" role="dialog" aria-label="End check-in">
+      <div class="grab"></div>
+      <div class="ps-ev"><span class="d"><small>${d.wd}</small><b>${d.day}</b></span><div><p class="t">${d.title}</p><p class="m">${d.time} · ${d.loc}</p></div><span class="live-n"><span class="dot"></span>${d.present}/${ELIGIBLE}</span></div>
+      <h3>Did it happen?</h3>
+      <p class="sub">Check-ins keep coming in until you pick.</p>
+      ${slipsHTML(d, low, absent)}
+      <button class="keep2" data-a="keep">Keep it open</button>
+    </div>`;
+  if (phase === "void" && undoLeft > 0) overlay = `
+    <div class="snack">${ring()}<p>Check-in cancelled<small>${d.present} check-in${d.present===1?"":"s"} thrown out · no absences</small></p><button data-a="undo">Undo</button></div>`;
+  const hi = phase === "void" ? "Nothing was recorded" : phase === "recorded" ? "Attendance filed" : "Happening now";
+  const sub = phase === "void" ? "Open check-in again on the right event." : phase === "recorded" ? `${d.present} present · ${absent} absent` : `${d.title} · ${d.loc}`;
+  return chrome(`<p class="ph-hi">${hi}</p><p class="ph-sub">${sub}</p><div class="host">${officer("phone")}</div>`, overlay);
+}
+function phoneMember(){
+  const d = SC[sc];
+  const band = phase === "void" && undoLeft === 0
+    ? `<div class="ph-gone">No check-in right now.</div>`
+    : `<div class="host mem">${member()}</div>`;
+  return chrome(`<p class="ph-hi">Hey Jordan</p><p class="ph-sub">Wednesday, Nov 4</p>${band}`, "");
+}
+
+let view = "desk";
+function render(){
+  document.getElementById("officer").innerHTML = officer();
+  document.getElementById("member").innerHTML = member();
+  document.getElementById("p-off").innerHTML = phoneOfficer();
+  document.getElementById("p-mem").innerHTML = phoneMember();
+  document.getElementById("desk").hidden = view !== "desk";
+  document.getElementById("phoneview").hidden = view !== "phone";
+}
+
+function stopUndo(){ clearInterval(undoTimer); undoTimer = null; }
+function go(p){
+  stopUndo();
+  phase = p;
+  if (p === "void") {
+    undoLeft = UNDO_S;
+    undoTimer = setInterval(() => {
+      undoLeft--;
+      if (undoLeft <= 0) { undoLeft = 0; stopUndo(); }
+      // only the undo strip and member band change; re-render without replaying the stamp
+      if (undoLeft > 0) document.querySelectorAll(".ring .fg").forEach(fg => fg.setAttribute("stroke-dashoffset", (50.3*(1-undoLeft/UNDO_S)).toFixed(1)));
+      if (undoLeft === 0) render();
+    }, 1000);
+  }
+  render();
+}
+
+document.addEventListener("click", e => {
+  const tab = e.target.closest(".tab");
+  if (tab) {
+    sc = tab.dataset.sc;
+    document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t === tab));
+    go("open"); return;
+  }
+  if (e.target.closest("#reset")) { go("open"); return; }
+  const v = e.target.closest("[data-view]");
+  if (v) {
+    view = v.dataset.view;
+    document.querySelectorAll("[data-view]").forEach(b => b.setAttribute("aria-pressed", b === v));
+    render(); return;
+  }
+  const a = e.target.closest("[data-a]")?.dataset.a;
+  if (!a) return;
+  if (a === "end") go("ending");
+  else if (a === "keep" || a === "reset" || a === "undo") go("open");
+  else if (a === "record") go("recorded");
+  else if (a === "void") go("void");
+});
+
+render();
+</script>
+</body>
+</html>

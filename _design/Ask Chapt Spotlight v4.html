@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask Chapt Spotlight v4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── Tokens (Paper) ─────────────────────────────────────────────── */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --hi:#FFE5A0; --hi-op:.9;
+  --scrim:rgba(38,33,27,.26);
+  --sh-soft:0 2px 4px rgba(38,33,27,.05), 0 30px 70px -20px rgba(38,33,27,.28);
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --spring:cubic-bezier(.16,.9,.3,1.02);
+  --out:cubic-bezier(.22,.72,.24,1);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+    --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876; --line:#2F271E; --line-2:#43382B;
+    --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+    --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+    --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+    --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+    --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+    --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+    --hi:#E3BF66; --hi-op:.32; --scrim:rgba(0,0,0,.5);
+    --sh-soft:0 2px 4px rgba(0,0,0,.2), 0 30px 70px -20px rgba(0,0,0,.6);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876; --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --hi:#E3BF66; --hi-op:.32; --scrim:rgba(0,0,0,.5);
+  --sh-soft:0 2px 4px rgba(0,0,0,.2), 0 30px 70px -20px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+svg{display:block}
+
+/* ── Backdrop: a quiet, blurred dashboard so the spotlight has somewhere to sit ── */
+.desk{position:fixed;inset:0;display:grid;grid-template-columns:232px minmax(0,1fr);gap:28px;padding:22px;filter:blur(3px);opacity:.8}
+.desk .side{border-radius:22px;background:var(--paper-2);border:1.5px solid var(--line)}
+.desk .main{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:150px;gap:20px;align-content:start;padding-top:70px}
+.desk .main i{border-radius:20px;background:var(--card);border:1.5px solid var(--line)}
+.desk .main i:nth-child(1){grid-column:span 2;background:var(--butter-soft);border-color:var(--butter-bd)}
+.desk .main i:nth-child(4){grid-column:span 2;grid-row:span 2}
+.desk .main i:nth-child(5){background:var(--sky-soft);border-color:var(--sky-bd)}
+.scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(2px)}
+
+/* mock-only controls */
+.mockbar{position:fixed;top:14px;right:16px;z-index:5;display:flex;gap:8px}
+.mockbar button{font:500 12px var(--mono);padding:6px 10px;border-radius:999px;border:1.5px dashed var(--line-2);background:var(--paper);color:var(--ink-2)}
+
+/* ── The spotlight ─────────────────────────────────────────────── */
+.stage{position:fixed;inset:0;display:flex;justify-content:center;align-items:flex-start;padding:12vh 16px 24px}
+.spot{
+  width:min(680px,100%);max-height:min(720px,82vh);display:flex;flex-direction:column;
+  background:var(--card);border:1.5px solid var(--ink);border-radius:26px;
+  box-shadow:7px 7px 0 var(--lilac), var(--sh-soft);
+  overflow:hidden;animation:pop .5s var(--spring) both;
+}
+@keyframes pop{from{opacity:0;transform:translateY(14px) scale(.97)}}
+
+/* search row */
+.ask{display:flex;align-items:center;gap:14px;padding:18px 18px 18px 20px}
+.orb{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--lilac);color:var(--lilac-ink);position:relative}
+:root[data-theme="dark"] .orb{color:#1F1A15}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .orb{color:#1F1A15}}
+.orb.busy::after{content:"";position:absolute;inset:-5px;border-radius:15px;border:1.5px solid var(--lilac-ink);opacity:.5;animation:ring 1.3s var(--out) infinite}
+@keyframes ring{from{transform:scale(.85);opacity:.7}to{transform:scale(1.15);opacity:0}}
+.ask input{flex:1;min-width:0;border:0;outline:0;background:none;color:var(--ink);font:500 21px/1.3 var(--display);letter-spacing:-.015em}
+.ask input::placeholder{color:var(--ink-3);opacity:.9}
+.key{font:500 11px var(--mono);color:var(--ink-3);border:1.5px solid var(--line);border-bottom-width:2.5px;border-radius:7px;padding:2px 7px;white-space:nowrap}
+.newq{display:none;align-items:center;gap:6px;font:600 12.5px var(--sans);color:var(--ink-2);padding:7px 11px;border-radius:999px;background:var(--paper-2);border:1.5px solid var(--line)}
+.newq:hover{border-color:var(--ink)}
+.spot.has-q .newq{display:inline-flex}
+.spot.has-q .ask .key{display:none}
+.rule{height:1.5px;background:var(--line);margin:0 18px}
+
+.body{overflow:auto;padding:22px 22px 8px;flex:1;scrollbar-width:thin}
+.foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;border-top:1.5px solid var(--line);background:var(--paper-2);font:12px var(--sans);color:var(--ink-3)}
+.foot .keys{display:flex;gap:12px;align-items:center}
+.foot .keys span{display:inline-flex;gap:5px;align-items:center}
+.foot .key{padding:0 5px;font-size:10.5px}
+.lock{display:inline-flex;gap:6px;align-items:center}
+
+/* ── Welcome ───────────────────────────────────────────────────── */
+.hello{font:600 13px var(--sans);color:var(--ink-3);margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.hello::before{content:"";width:18px;height:2px;border-radius:2px;background:var(--lilac-ink)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.tile{
+  --c:var(--sky);--cs:var(--sky-soft);--cb:var(--sky-bd);--ci:var(--sky-ink);
+  text-align:left;display:flex;flex-direction:column;gap:14px;padding:16px;border-radius:18px;
+  background:var(--cs);border:1.5px solid var(--cb);min-height:132px;position:relative;
+  transition:transform .25s var(--spring), box-shadow .25s var(--spring), border-color .2s;
+  animation:rise .5s var(--spring) both;
+}
+.tile:nth-child(2){animation-delay:.04s}.tile:nth-child(3){animation-delay:.08s}.tile:nth-child(4){animation-delay:.12s}
+.tile:hover,.tile.sel{border-color:var(--ink);transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--c)}
+.tile .ic{width:36px;height:36px;border-radius:11px;background:var(--c);color:var(--ci);display:grid;place-items:center}
+:root[data-theme="dark"] .tile .ic{color:#1F1A15}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .tile .ic{color:#1F1A15}}
+.tile .q{font:600 16.5px/1.25 var(--display);letter-spacing:-.01em;color:var(--ink)}
+.tile .peek{margin-top:auto;font:500 11.5px var(--mono);color:var(--ci)}
+.tile .arrow{position:absolute;top:16px;right:16px;color:var(--ci);opacity:0;transform:translateX(-4px);transition:.2s var(--out)}
+.tile:hover .arrow,.tile.sel .arrow{opacity:1;transform:none}
+.t-peach{--c:var(--peach);--cs:var(--peach-soft);--cb:var(--peach-bd);--ci:var(--peach-ink)}
+.t-mint{--c:var(--mint);--cs:var(--mint-soft);--cb:var(--mint-bd);--ci:var(--mint-ink)}
+.t-butter{--c:var(--butter);--cs:var(--butter-soft);--cb:var(--butter-bd);--ci:var(--butter-ink)}
+.t-sky{--c:var(--sky);--cs:var(--sky-soft);--cb:var(--sky-bd);--ci:var(--sky-ink)}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}}
+
+.recent{margin:20px 0 6px}
+.recent h4{font:600 12px var(--sans);color:var(--ink-3);margin:0 0 6px}
+.recent button{display:flex;width:100%;align-items:center;gap:10px;padding:9px 10px;border-radius:11px;color:var(--ink-2);font-size:14px;text-align:left}
+.recent button:hover{background:var(--paper-2);color:var(--ink)}
+.recent svg{color:var(--ink-3);flex:none}
+
+/* ── Asked question echo ───────────────────────────────────────── */
+.echo{font:500 12.5px var(--mono);color:var(--ink-3);margin:0 0 10px;display:flex;gap:8px;align-items:center}
+
+/* ── Thinking: a reading trail through the chapter's records ───── */
+.trail{display:flex;align-items:flex-start;gap:0;margin:8px 0 6px;padding:22px 6px 6px}
+.stop{flex:1;display:flex;flex-direction:column;align-items:center;gap:9px;position:relative;text-align:center;min-width:0}
+.stop+.stop::before{content:"";position:absolute;top:21px;right:calc(50% + 26px);left:calc(-50% + 26px);border-top:2px dashed var(--line-2)}
+.stop.done+.stop::before,.stop.done+.stop.on::before{border-top-style:solid;border-color:var(--ink)}
+.dot{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--paper-2);border:1.5px solid var(--line-2);color:var(--ink-3);transition:.35s var(--spring);position:relative}
+.stop.on .dot{background:var(--lilac-soft);border-color:var(--lilac-ink);color:var(--lilac-ink);transform:scale(1.08)}
+.stop.on .dot::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:1.5px solid var(--lilac-ink);animation:ring 1.2s var(--out) infinite}
+.stop.done .dot{background:var(--mint);border-color:var(--ink);color:var(--ink)}
+.stop .lbl{font:600 13px var(--sans);color:var(--ink-3);transition:color .2s}
+.stop.on .lbl,.stop.done .lbl{color:var(--ink)}
+.stop .find{font:500 11.5px var(--mono);color:var(--mint-ink);background:var(--mint-soft);border:1.5px solid var(--mint-bd);padding:2px 8px;border-radius:999px;opacity:0;transform:translateY(-4px);transition:.3s var(--spring);white-space:nowrap}
+.stop.done .find{opacity:1;transform:none}
+.composing{margin:22px auto 4px;display:flex;gap:10px;align-items:center;justify-content:center;font:500 13px var(--sans);color:var(--ink-3);opacity:0;transition:opacity .3s}
+.composing.on{opacity:1}
+.composing i{width:6px;height:6px;border-radius:50%;background:var(--lilac-ink);animation:blink 1s infinite}
+.composing i:nth-child(2){animation-delay:.15s}.composing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+
+/* ── Answer ────────────────────────────────────────────────────── */
+.ans>*{animation:rise .5s var(--spring) both}
+.ans>*:nth-child(2){animation-delay:.06s}.ans>*:nth-child(3){animation-delay:.14s}.ans>*:nth-child(4){animation-delay:.22s}.ans>*:nth-child(5){animation-delay:.3s}
+.verdict{font:600 27px/1.22 var(--display);letter-spacing:-.022em;margin:0 0 18px;text-wrap:balance}
+.hi{position:relative;white-space:nowrap;z-index:0}
+.hi::before{content:"";position:absolute;z-index:-1;left:-.12em;right:-.12em;top:.16em;bottom:.02em;background:var(--hi);opacity:var(--hi-op);border-radius:.18em .5em .3em .45em;transform:rotate(-.8deg) scaleX(0);transform-origin:left;animation:mark .55s .35s var(--out) forwards}
+@keyframes mark{to{transform:rotate(-.8deg) scaleX(1)}}
+
+.panel{border:1.5px solid var(--line);border-radius:18px;background:var(--paper);overflow:hidden}
+
+/* people bars */
+.who{display:flex;align-items:center;gap:12px;padding:10px 14px;width:100%;text-align:left;transition:background .15s}
+.who+.who{border-top:1.5px solid var(--line)}
+.who:hover{background:var(--paper-2)}
+.av{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:600 11.5px var(--sans);color:rgba(38,33,27,.75);border:1.5px solid rgba(38,33,27,.12)}
+.who .nm{width:150px;flex:none;min-width:0}
+.who .nm b{display:block;font:600 14px var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who .nm span{display:block;font-size:12px;color:var(--ink-3)}
+.bar{flex:1;height:10px;border-radius:99px;background:var(--paper-3);overflow:hidden;min-width:40px}
+.bar i{display:block;height:100%;border-radius:99px;background:var(--peach);transform-origin:left;transform:scaleX(0);animation:grow .7s var(--spring) forwards}
+@keyframes grow{to{transform:scaleX(1)}}
+.who .amt{font:600 13.5px var(--mono);width:52px;text-align:right;font-variant-numeric:tabular-nums}
+.total{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;background:var(--paper-2);border-top:1.5px solid var(--line);font:600 13px var(--sans);color:var(--ink-2)}
+.total b{font:600 14px var(--mono);color:var(--ink)}
+
+/* attendance chart */
+.chart{padding:18px 16px 12px}
+.cols{position:relative;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;align-items:end;height:180px}
+.col{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px}
+.col .v{display:block;padding-top:7px;text-align:center;font:600 11px var(--mono);color:var(--mint-ink)}
+.col .b{width:100%;max-width:46px;border-radius:9px 9px 4px 4px;background:var(--mint);border:1.5px solid var(--mint-bd);transform-origin:bottom;transform:scaleY(0);animation:growy .7s var(--spring) forwards}
+.col.low .b{background:var(--peach);border-color:var(--ink)}
+.col.low .v{color:#9a3a18}
+:root[data-theme="dark"] .col .v{color:#1F1A15}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .col .v{color:#1F1A15}}
+@keyframes growy{to{transform:scaleY(1)}}
+.bar-line{position:absolute;left:-4px;right:-4px;border-top:2px dashed var(--ink);opacity:.55;pointer-events:none;z-index:0}
+.xl{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;margin-top:8px;border-top:1.5px solid var(--line);padding-top:7px}
+.xl span{font:500 10.5px var(--mono);color:var(--ink-3);text-align:center;white-space:nowrap}
+.legend{display:flex;gap:16px;padding:0 16px 14px;font-size:12px;color:var(--ink-3)}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.legend i{width:10px;height:10px;border-radius:3px;background:var(--mint)}
+.legend i.l{background:var(--peach)}
+.legend i.th{width:16px;height:0;border-radius:0;background:none;border-top:2px dashed var(--ink-3)}
+
+/* meeting ticket */
+.ticket{display:grid;grid-template-columns:120px minmax(0,1fr);border:1.5px solid var(--ink);border-radius:18px;overflow:hidden;background:var(--card);box-shadow:4px 4px 0 var(--sky)}
+.stub{background:var(--sky);color:#26211B;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-right:2px dashed var(--ink);position:relative;padding:16px 8px}
+.stub .m{font:600 12px var(--mono);letter-spacing:.12em}
+.stub .d{font:700 46px/1 var(--display);letter-spacing:-.03em}
+.stub .w{font:600 12px var(--sans)}
+.stub::before,.stub::after{content:"";position:absolute;right:-9px;width:16px;height:16px;border-radius:50%;background:var(--card);border:1.5px solid var(--ink)}
+.stub::before{top:-9px}.stub::after{bottom:-9px}
+.tk{padding:16px 18px;min-width:0}
+.tk h3{margin:0;font:600 18px/1.25 var(--display);letter-spacing:-.01em}
+.tk .meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 12px;font-size:13px;color:var(--ink-2)}
+.tk .meta span{display:inline-flex;gap:6px;align-items:center}
+.agenda{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.agenda li{display:flex;gap:10px;align-items:center;font-size:13.5px}
+.agenda li b{font:600 11px var(--mono);color:var(--sky-ink);background:var(--sky-soft);border:1.5px solid var(--sky-bd);border-radius:6px;padding:0 6px}
+.rsvp{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1.5px dashed var(--line-2);font-size:13px;color:var(--ink-2)}
+.stack{display:flex}
+.stack .av{width:26px;height:26px;font-size:10px;margin-left:-7px;border:2px solid var(--card)}
+.stack .av:first-child{margin-left:0}
+
+/* sources + actions */
+.src{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0 0;font-size:12px;color:var(--ink-3)}
+.chip-src{display:inline-flex;gap:6px;align-items:center;font:500 11.5px var(--mono);color:var(--ink-2);background:var(--paper-2);border:1.5px solid var(--line);border-radius:999px;padding:2px 9px}
+.chip-src svg{color:var(--mint-ink)}
+.next{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 14px}
+.btn{display:inline-flex;gap:8px;align-items:center;font:600 13.5px var(--sans);padding:9px 14px;border-radius:999px;border:1.5px solid var(--line-2);background:var(--card);transition:transform .2s var(--spring), box-shadow .2s var(--spring), border-color .15s}
+.btn:hover{border-color:var(--ink);transform:translate(-1px,-1px);box-shadow:2px 2px 0 var(--line-2)}
+.btn.pri{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn.pri:hover{box-shadow:3px 3px 0 var(--lilac)}
+.btn svg{flex:none}
+
+/* draft note */
+.draft{margin:4px 0 16px;border:1.5px solid var(--ink);border-radius:18px;background:var(--butter-soft);box-shadow:4px 4px 0 var(--butter);overflow:hidden;position:relative;animation:rise .45s var(--spring) both}
+.draft .hd{display:flex;align-items:center;gap:10px;padding:13px 16px 0}
+.draft .hd b{font:600 15px var(--display)}
+.draft .hd span{margin-left:auto;font:500 11.5px var(--mono);color:var(--butter-ink)}
+.draft .to{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px 0}
+.draft .to span{font:500 12px var(--sans);background:var(--card);border:1.5px solid var(--butter-bd);border-radius:999px;padding:1px 9px}
+.draft .msg{margin:10px 16px 0;padding:12px 14px;border-radius:12px;background:var(--card);border:1.5px solid var(--butter-bd);font-size:14px;color:var(--ink-2);outline:0}
+.draft .msg:focus{border-color:var(--ink)}
+.draft .ft{display:flex;align-items:center;gap:8px;padding:12px 16px 14px}
+.draft .ft small{color:var(--ink-3);font-size:12px;margin-right:auto}
+.stamp{position:absolute;right:26px;top:40px;font:700 22px var(--display);letter-spacing:.08em;color:var(--mint-ink);border:3px solid var(--mint-ink);border-radius:10px;padding:2px 12px;transform:rotate(-9deg) scale(1.8);opacity:0;pointer-events:none}
+.draft.sent .stamp{animation:thump .45s var(--spring) forwards}
+.draft.sent .ft .btn{opacity:.4;pointer-events:none}
+@keyframes thump{to{opacity:.9;transform:rotate(-9deg) scale(1)}}
+
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);background:var(--ink);color:var(--paper);font:500 13px var(--sans);padding:9px 14px;border-radius:999px;opacity:0;transition:.3s var(--spring);z-index:9;pointer-events:none}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ── Phone: a bottom sheet ─────────────────────────────────────── */
+@media (max-width:640px){
+  .desk{grid-template-columns:1fr;padding:12px}.desk .side{display:none}
+  .desk .main{grid-template-columns:1fr 1fr;padding-top:40px}
+  .stage{align-items:flex-end;padding:0}
+  .spot{width:100%;max-height:92vh;border-radius:24px 24px 0 0;border-bottom:0;box-shadow:0 -5px 0 var(--lilac), var(--sh-soft);animation-name:sheet}
+  @keyframes sheet{from{transform:translateY(40px);opacity:0}}
+  .spot::before{content:"";display:block;width:40px;height:4px;border-radius:4px;background:var(--line-2);margin:9px auto 0}
+  .ask{padding:12px 14px 14px 16px;gap:12px}
+  .ask input{font-size:18px}
+  .orb{width:34px;height:34px}
+  .body{padding:18px 16px 8px}
+  .tiles{gap:10px}
+  .tile{min-height:122px;padding:13px;gap:10px}
+  .tile .q{font-size:15px}
+  .tile .ic{width:32px;height:32px}
+  .verdict{font-size:23px}
+  .who .nm{width:112px}
+  .who{padding:10px 12px;gap:10px}
+  .cols,.xl{gap:6px}
+  .col .v{font-size:10px}
+  .xl span{font-size:9.5px}
+  .ticket{grid-template-columns:88px minmax(0,1fr)}
+  .stub .d{font-size:36px}
+  .foot .keys{display:none}
+  .foot{padding-bottom:max(12px, env(safe-area-inset-bottom))}
+  .stop .find{font-size:10.5px;padding:2px 6px}
+  .stop .lbl{font-size:12px}
+  .mockbar{top:8px;right:8px}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 3.9 2.6 5.9 6.5 6.5-3.9.6-5.9 2.6-6.5 6.5-.6-3.9-2.6-5.9-6.5-6.5 3.9-.6 5.9-2.6 6.5-6.5Z" fill="currentColor"/><path d="M18.5 15.5c.3 1.6 1.1 2.4 2.5 2.7-1.4.3-2.2 1.1-2.5 2.7-.3-1.6-1.1-2.4-2.5-2.7 1.4-.3 2.2-1.1 2.5-2.7Z" fill="currentColor"/></symbol>
+    <symbol id="i-coin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M14.6 9.2c-.5-.8-1.5-1.3-2.6-1.3-1.5 0-2.6.8-2.6 2s1.1 1.6 2.6 2 2.7.8 2.7 2.1-1.2 2.1-2.7 2.1c-1.2 0-2.2-.5-2.7-1.4M12 6.5v1.4M12 16.1v1.4"/></symbol>
+    <symbol id="i-people" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8"/><circle cx="16.8" cy="9.5" r="2.5"/><path d="M15.6 14.4c2.4-.2 4.3 1.3 4.9 3.9"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="14.5" rx="3"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/><circle cx="12" cy="14.8" r="1.4" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 19.5h15"/><rect x="6" y="11" width="3" height="6" rx="1"/><rect x="10.5" y="7" width="3" height="10" rx="1"/><rect x="15" y="13" width="3" height="4" rx="1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.5 4 4 9-9.5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 1 1 13 0c0 5.4-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2h-14l1.5-2ZM10 20.5h4"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 5.5 4 4L9 19H5v-4l9.5-9.5Z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="10.5" width="13" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5.5A2 2 0 0 1 7 3.5h12v15H7a2 2 0 0 0-2 2v-15Z"/><path d="M5 20.5a2 2 0 0 1 2-2h12v2H7"/></symbol>
+  </defs>
+</svg>
+
+<div class="desk" aria-hidden="true"><div class="side"></div><div class="main"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+<div class="scrim"></div>
+
+<div class="mockbar">
+  <button id="theme" type="button">◐ theme</button>
+  <button id="replay" type="button">↺ reopen</button>
+</div>
+
+<div class="stage">
+  <section class="spot" id="spot" role="dialog" aria-label="Ask Chapt">
+    <form class="ask" id="ask" autocomplete="off">
+      <span class="orb" id="orb"><svg width="20" height="20"><use href="#i-spark"/></svg></span>
+      <input id="q" placeholder="Ask anything about your chapter…" aria-label="Ask a question">
+      <span class="key">esc</span>
+      <button class="newq" id="newq" type="button"><svg width="14" height="14"><use href="#i-back"/></svg>New</button>
+    </form>
+    <div class="rule"></div>
+    <div class="body" id="body"></div>
+    <div class="foot">
+      <span class="lock"><svg width="13" height="13"><use href="#i-lock"/></svg>Answers come only from Lambda Phi's records</span>
+      <span class="keys"><span><span class="key">↵</span> ask</span><span><span class="key">↑↓</span> pick</span></span>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const body = $('#body'), input = $('#q'), spot = $('#spot'), orb = $('#orb');
+const ico = (id, s = 16) => `<svg width="${s}" height="${s}"><use href="#i-${id}"/></svg>`;
+const AV = ['var(--peach)','var(--sky)','var(--mint)','var(--butter)','var(--lilac)','var(--rose)'];
+const av = (name, i) => `<span class="av" style="background:${AV[i % AV.length]}">${name.split(' ').map(w => w[0]).join('')}</span>`;
+
+const STARTERS = [
+  { k:'dues', tone:'t-peach', icon:'coin', q:'Who still owes dues?', peek:'6 people · $840' },
+  { k:'att',  tone:'t-mint',  icon:'chart', q:'How is attendance trending?', peek:'last 8 meetings' },
+  { k:'meet', tone:'t-sky',   icon:'cal', q:'When is our next meeting?', peek:'Sun · 7:00 pm' },
+  { k:'svc',  tone:'t-butter',icon:'people', q:'Who’s behind on service hours?', peek:'goal: 10 hrs' },
+];
+const RECENT = ['Who hasn’t paid for formal?', 'What did we decide about the retreat?'];
+
+/* ── Scenarios ─────────────────────────────────────────────────── */
+const DUES = [['Maya Chen','Social chair',240],['Jordan Reyes','Member',180],['Sam Okafor','Member',150],['Leo Park','New member',120],['Ava Brooks','Member',90],['Nico Alvarez','Member',60]];
+const ATT = [['Sep 21',82],['Sep 28',79],['Oct 5',85],['Oct 12',76],['Oct 19',72],['Oct 26',68],['Nov 2',64],['Nov 9',66]];
+const SVC = [['Leo Park','New member',2],['Ava Brooks','Member',3.5],['Jordan Reyes','Member',4],['Sam Okafor','Member',4.5]];
+
+const S = {
+  dues: {
+    trail: [['people','Roster','52 members'],['book','Dues ledger','$6,240 billed'],['coin','Payments','6 unpaid']],
+    verdict: `<span class="hi">6 members</span> still owe dues — $840 in all.`,
+    visual: () => {
+      const max = Math.max(...DUES.map(d => d[2]));
+      return `<div class="panel">${DUES.map((d, i) => `
+        <button class="who" data-peek="${d[0]}">${av(d[0], i)}
+          <span class="nm"><b>${d[0]}</b><span>${d[1]}</span></span>
+          <span class="bar"><i style="width:${d[2] / max * 100}%;animation-delay:${.2 + i * .06}s"></i></span>
+          <span class="amt">$${d[2]}</span>
+        </button>`).join('')}
+        <div class="total"><span>Outstanding this term</span><b>$840</b></div></div>`;
+    },
+    src: ['Dues ledger','Roster'],
+    actions: [['pri','bell','Remind all 6','draft'],['','arrow','Who paid late last term?','ask'],['','arrow','Open the dues tab','nav']],
+  },
+  att: {
+    trail: [['cal','Meetings','8 this term'],['people','Check-ins','412 records'],['chart','Your bar','70% to pass']],
+    verdict: `Attendance has been <span class="hi">under 70%</span> for three meetings.`,
+    visual: () => {
+      const top = 100;
+      return `<div class="panel"><div class="chart"><div class="cols">
+        <div class="bar-line" style="bottom:${70 / top * 100}%"></div>
+        ${ATT.map((a, i) => `<div class="col ${a[1] < 70 ? 'low' : ''}">
+          <span class="b" style="height:${a[1] / top * 100}%;animation-delay:${.15 + i * .05}s"><span class="v">${a[1]}%</span></span></div>`).join('')}
+        </div><div class="xl">${ATT.map(a => `<span>${a[0]}</span>`).join('')}</div></div>
+        <div class="legend"><span><i></i>Met the bar</span><span><i class="l"></i>Under it</span><span><i class="th"></i>Your 70% bar</span></div></div>`;
+    },
+    src: ['Attendance','Settings → thresholds'],
+    actions: [['','arrow','Who missed the most?','ask'],['','pen','Make next meeting mandatory','draft-off'],['','arrow','Open meetings','nav']],
+  },
+  meet: {
+    trail: [['cal','Timeline','Next: Nov 15'],['book','Agenda','3 items'],['people','RSVPs','31 going']],
+    verdict: `Your next chapter meeting is <span class="hi">Sunday at 7 pm</span>.`,
+    visual: () => `<div class="ticket">
+      <div class="stub"><span class="m">NOV</span><span class="d">15</span><span class="w">Sunday</span></div>
+      <div class="tk"><h3>Weekly chapter meeting</h3>
+        <div class="meta"><span>${ico('clock',14)}7:00 – 8:15 pm</span><span>${ico('pin',14)}Student Union 204</span></div>
+        <ul class="agenda"><li><b>1</b>Treasurer’s report</li><li><b>2</b>Spring formal — venue vote</li><li><b>3</b>Service hours check-in</li></ul>
+        <div class="rsvp"><span class="stack">${['Maya Chen','Leo Park','Ava Brooks','Sam Okafor','Priya Nair'].map(av).join('')}</span>31 of 52 going</div>
+      </div></div>`,
+    src: ['Timeline','Agenda templates'],
+    actions: [['pri','bell','Remind everyone','toast:Reminder drafted for 21 members who haven’t RSVP’d'],['','arrow','What happened last meeting?','ask'],['','arrow','Add it to my calendar','toast:Added to your calendar']],
+  },
+  svc: {
+    trail: [['people','Roster','52 members'],['clock','Service log','318 hours'],['chart','Your goal','10 hrs each']],
+    verdict: `<span class="hi">4 members</span> are under halfway to 10 hours.`,
+    visual: () => `<div class="panel">${SVC.map((d, i) => `
+        <button class="who" data-peek="${d[0]}">${av(d[0], i + 2)}
+          <span class="nm"><b>${d[0]}</b><span>${d[1]}</span></span>
+          <span class="bar"><i style="width:${d[2] / 10 * 100}%;background:var(--butter);animation-delay:${.2 + i * .06}s"></i></span>
+          <span class="amt">${d[2]}h</span>
+        </button>`).join('')}
+        <div class="total"><span>Chapter average</span><b>6.4h</b></div></div>`,
+    src: ['Service log','Settings → goals'],
+    actions: [['','arrow','Any service events coming up?','ask'],['','arrow','Open service','nav']],
+  },
+};
+
+function route(q) {
+  q = q.toLowerCase();
+  if (/due|owe|pay|money|paid/.test(q)) return 'dues';
+  if (/attend|show|turnout|miss/.test(q)) return 'att';
+  if (/service|hour|volunteer/.test(q)) return 'svc';
+  return 'meet';
+}
+
+/* ── Views ─────────────────────────────────────────────────────── */
+let timers = [], sel = -1;
+const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+const clear = () => { timers.forEach(clearTimeout); timers = []; };
+
+function welcome() {
+  clear(); sel = -1;
+  spot.classList.remove('has-q'); orb.classList.remove('busy');
+  input.value = '';
+  body.innerHTML = `
+    <p class="hello">Good evening, Priya — try one of these</p>
+    <div class="tiles">${STARTERS.map(s => `
+      <button class="tile ${s.tone}" data-q="${s.q}">
+        <span class="ic">${ico(s.icon, 19)}</span>
+        <span class="q">${s.q}</span>
+        <span class="peek">${s.peek}</span>
+        <span class="arrow">${ico('arrow', 16)}</span>
+      </button>`).join('')}</div>
+    <div class="recent"><h4>Recently asked</h4>${RECENT.map(r => `<button data-q="${r}">${ico('clock', 15)}${r}</button>`).join('')}</div>`;
+  setTimeout(() => input.focus(), 60);
+}
+
+function ask(q) {
+  clear();
+  const k = route(q), s = S[k];
+  input.value = q; input.blur();
+  spot.classList.add('has-q'); orb.classList.add('busy');
+  body.innerHTML = `
+    <div class="trail">${s.trail.map(t => `
+      <div class="stop"><span class="dot">${ico(t[0], 19)}</span><span class="lbl">${t[1]}</span><span class="find">${t[2]}</span></div>`).join('')}</div>
+    <div class="composing" id="cmp"><i></i><i></i><i></i><span>Putting it together</span></div>`;
+  const stops = [...body.querySelectorAll('.stop')];
+  stops.forEach((el, i) => {
+    later(() => el.classList.add('on'), 150 + i * 650);
+    later(() => { el.classList.remove('on'); el.classList.add('done'); }, 650 + i * 650);
+  });
+  later(() => $('#cmp')?.classList.add('on'), 650 + stops.length * 650 - 300);
+  later(() => answer(q, s), 650 + stops.length * 650 + 450);
+}
+
+function answer(q, s) {
+  orb.classList.remove('busy');
+  body.innerHTML = `<div class="ans">
+    <h2 class="verdict">${s.verdict}</h2>
+    ${s.visual()}
+    <div class="src">${ico('check', 12).replace('<svg', '<svg style="color:var(--mint-ink)"')}Checked ${s.src.map(x => `<span class="chip-src">${x}</span>`).join('')}<span>· just now</span></div>
+    <div class="next">${s.actions.map(([cls, ic, label, act]) => `<button class="btn ${cls}" data-act="${act}" data-label="${label}">${ico(ic, 15)}${label}</button>`).join('')}</div>
+    <div id="slot"></div>
+  </div>`;
+}
+
+function draft() {
+  const slot = $('#slot'); if (!slot || slot.firstChild) return;
+  slot.innerHTML = `<div class="draft" id="draft">
+    <div class="hd">${ico('bell', 17)}<b>Dues reminder</b><span>draft · needs your OK</span></div>
+    <div class="to">${DUES.map(d => `<span>${d[0].split(' ')[0]}</span>`).join('')}</div>
+    <div class="msg" contenteditable="true">Hey! Quick nudge — you still have dues open for this term. You can pay in the app anytime before Nov 22. Thanks 💛</div>
+    <div class="ft"><small>Each person sees only their own amount.</small>
+      <button class="btn" data-act="dismiss">Not now</button>
+      <button class="btn pri" data-act="send">${ico('check', 15)}Send to 6</button></div>
+    <span class="stamp">SENT</span></div>`;
+  slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function toast(t) {
+  const el = $('#toast'); el.textContent = t; el.classList.add('on');
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2200);
+}
+
+/* ── Wiring ────────────────────────────────────────────────────── */
+$('#ask').addEventListener('submit', e => { e.preventDefault(); const q = input.value.trim(); if (q) ask(q); });
+$('#newq').addEventListener('click', welcome);
+body.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.q) return ask(b.dataset.q);
+  if (b.dataset.peek) return toast(`Opens ${b.dataset.peek}’s card`);
+  const a = b.dataset.act; if (!a) return;
+  if (a === 'draft') draft();
+  else if (a === 'ask') ask(b.dataset.label);
+  else if (a === 'nav') toast(`Goes to ${b.dataset.label.replace(/^Open (the )?/, '')}`);
+  else if (a === 'draft-off') toast('Drafts a change for you to approve');
+  else if (a.startsWith('toast:')) toast(a.slice(6));
+  else if (a === 'dismiss') $('#slot').innerHTML = '';
+  else if (a === 'send') { $('#draft').classList.add('sent'); toast('Sent · logged in Approvals'); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { spot.classList.contains('has-q') ? welcome() : toast('Closes the spotlight'); }
+  const tiles = [...body.querySelectorAll('.tile')];
+  if (!tiles.length || !['ArrowDown','ArrowUp','ArrowLeft','ArrowRight','Enter'].includes(e.key)) return;
+  if (e.key === 'Enter') { if (sel >= 0 && !input.value.trim()) { e.preventDefault(); ask(tiles[sel].dataset.q); } return; }
+  e.preventDefault();
+  const step = { ArrowRight:1, ArrowLeft:-1, ArrowDown:2, ArrowUp:-2 }[e.key];
+  sel = sel < 0 ? 0 : (sel + step + tiles.length) % tiles.length;
+  tiles.forEach((t, i) => t.classList.toggle('sel', i === sel));
+});
+$('#theme').addEventListener('click', () => {
+  const r = document.documentElement, dark = r.dataset.theme === 'dark' || (!r.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+  r.dataset.theme = dark ? 'light' : 'dark';
+});
+$('#replay').addEventListener('click', () => { spot.style.animation = 'none'; spot.offsetHeight; spot.style.animation = ''; welcome(); });
+
+if (matchMedia('(max-width:640px)').matches) input.placeholder = 'Ask your chapter…';
+welcome();
+const hq = new URLSearchParams(location.search).get('q'); if (hq) ask(hq);
+</script>
+</body>
+</html>

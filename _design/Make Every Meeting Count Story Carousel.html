@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Make Every Meeting Count — Story</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Instagram carousel #3, story cut (8 × 1080×1350). Same Week 8 thread as "Make Every Meeting Count Carousel.html",
+     reordered so it reads as the hook's Sunday replayed, without saying so: no feature names, no timestamps.
+     hook → minutes as they are → walk in / tap (roll call) → everyone writes their part (live doc) → four lines (summary)
+     → "When’s the next meeting?" add it once, every Sunday (repeat) → "Is there a doc somewhere?" just ask (Ask Chapt) → "Set it up before next Sunday": a blank charter waiting for your chapter’s name + CTA.
+     Eyebrows on 6–7 are the hook's own chat questions; that callback is the whole connective tissue.
+     Export: node _design/make-every-meeting-count-story-carousel-export.mjs → _design/make-every-meeting-count-story-carousel/*.png -->
+<style>
+:root{
+  --paper:#FFFCF6;--paper2:#FBF5EA;--paper3:#F4ECDD;--card:#fff;--ink:#26211B;--soft:#544A3F;--muted:#776D60;--faint:#A89E90;
+  --line:#EBE1CF;--line2:#DCD0B9;
+  --sky:#CFE2FF;--sky-ink:#2A66C7;--sky-bd:#CCDFFB;--sky-soft:#EAF2FF;
+  --mint:#C7EFDA;--mint-ink:#1B815B;--mint-bd:#BDE7D2;--mint-soft:#E6F8EF;
+  --butter:#FFE5A0;--butter-ink:#9C6B08;--butter-bd:#F4DFA6;--butter-soft:#FFF6DC;
+  --lilac:#E1D8FF;--lilac-ink:#6244CC;--lilac-bd:#DCD2FB;--lilac-soft:#F1EDFF;
+  --rose:#FFD6E6;--rose-ink:#C23C77;--rose-bd:#F8CEE0;--rose-soft:#FFEDF4;
+  --peach:#FFD5C4;--peach-ink:#C9542D;--peach-bd:#F8D2C2;--peach-soft:#FFEDE5;
+  --display:'Bricolage Grotesque',sans-serif;--serif:'Fraunces',serif;--sans:'Inter',sans-serif;--mono:'IBM Plex Mono',monospace;
+  --z:.46;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#EFE7D8;color:var(--ink);font:400 30px/1.45 var(--sans);letter-spacing:-.012em;-webkit-font-smoothing:antialiased}
+.deck{zoom:var(--z);display:flex;flex-wrap:wrap;gap:48px;padding:64px;justify-content:center}
+svg{flex:none}
+
+/* ── the slide ── */
+.slide{--a:var(--peach);--a-ink:var(--peach-ink);--a-soft:var(--peach-soft);
+  position:relative;width:1080px;height:1350px;overflow:hidden;background:var(--paper);
+  display:flex;flex-direction:column;padding:92px 92px 0}
+.slide::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.6;
+  background:radial-gradient(620px 520px at 104% -4%,var(--a) 0%,transparent 70%),
+             radial-gradient(560px 480px at -10% 108%,var(--a-soft) 0%,transparent 70%)}
+.slide>*{position:relative}
+.s-butter{--a:var(--butter);--a-ink:var(--butter-ink);--a-soft:var(--butter-soft)}
+.s-mint{--a:var(--mint);--a-ink:var(--mint-ink);--a-soft:var(--mint-soft)}
+.s-sky{--a:var(--sky);--a-ink:var(--sky-ink);--a-soft:var(--sky-soft)}
+.s-lilac{--a:var(--lilac);--a-ink:var(--lilac-ink);--a-soft:var(--lilac-soft)}
+.s-rose{--a:var(--rose);--a-ink:var(--rose-ink);--a-soft:var(--rose-soft)}
+
+.eyebrow{display:flex;align-items:center;gap:16px;font:600 21px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--a-ink)}
+.eyebrow::before{content:"";width:40px;height:3px;border-radius:2px;background:currentColor}
+h1{margin:30px 0 0;font:600 98px/.98 var(--display);letter-spacing:-.036em;text-wrap:balance}
+.hi{position:relative;white-space:nowrap;z-index:0}
+.hi::before{content:"";position:absolute;z-index:-1;left:-.08em;right:-.1em;top:.52em;bottom:.02em;background:var(--a);
+  border-radius:.14em .3em .18em .34em;transform:rotate(-1.2deg);opacity:.95}
+.stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;width:100%}
+.after{margin:40px 0 0;font:italic 500 34px/1.3 var(--serif);color:var(--soft);text-align:center;letter-spacing:-.015em}
+
+.foot{height:132px;flex:none;display:flex;align-items:center;justify-content:space-between;border-top:2px dashed var(--line2);margin:0 -4px}
+.brand{display:flex;align-items:center;gap:14px;font:700 31px var(--display);letter-spacing:-.03em}
+.brand svg{width:46px;height:46px}
+.pager{display:flex;align-items:center;gap:22px;font:500 21px var(--mono);letter-spacing:.1em;color:var(--muted)}
+.dots{display:flex;gap:9px}.dots i{width:11px;height:11px;border-radius:50%;background:var(--line2)}
+.dots i.on{width:34px;border-radius:6px;background:var(--ink)}
+.swipe{display:inline-flex;align-items:center;gap:10px;color:var(--ink);font-weight:600}
+
+/* ── shared paper objects ── */
+.tape{position:absolute;width:140px;height:38px;background:color-mix(in srgb,var(--butter) 78%,transparent);border-inline:1.5px dashed rgba(38,33,27,.16);z-index:3}
+.tape.r{background:color-mix(in srgb,var(--rose) 75%,transparent)}
+.stamp{position:absolute;font:700 26px var(--mono);letter-spacing:.16em;text-transform:uppercase;padding:9px 18px;border:3px solid currentColor;border-radius:10px;
+  background:color-mix(in srgb,currentColor 7%,var(--card));white-space:nowrap;z-index:4}
+.stamp::after{content:"";position:absolute;inset:4px;border:1.5px solid currentColor;border-radius:6px;opacity:.5}
+.av{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font:600 16px var(--sans);letter-spacing:0;border:2px solid var(--ink);color:var(--ink);flex:none;background:var(--c,var(--paper3))}
+.scrawl{position:absolute;font:italic 500 34px/1.1 var(--serif);color:var(--rose-ink);letter-spacing:-.015em;white-space:nowrap;z-index:5}
+.scrawl svg{position:absolute;color:var(--rose-ink)}
+.ck{width:40px;height:40px;flex:none;border-radius:11px;border:2.5px solid var(--ink);background:var(--card);display:grid;place-items:center;color:transparent}
+.ck svg{width:24px;height:24px}
+.ck.on{background:var(--mint);color:var(--ink)}
+.stub{width:70px;flex:none;border-radius:13px;border:2.5px solid var(--ink);background:var(--card);overflow:hidden;text-align:center;box-shadow:3px 3px 0 var(--sc,var(--line2))}
+.stub small{display:block;padding:2px 0;background:var(--sc,var(--paper3));border-bottom:2.5px solid var(--ink);font:600 14px var(--mono);letter-spacing:.1em}
+.stub b{display:block;padding:3px 0 5px;font:600 32px/1.1 var(--display);letter-spacing:-.04em}
+
+/* a mention, as the minutes editor draws it (.cm-mention, tone colours) */
+.mc{display:inline-flex;align-items:center;gap:8px;height:1.45em;padding:0 .45em 0 .12em;vertical-align:-.28em;border-radius:999px;border:2px solid var(--t);background:var(--card);
+  color:var(--ti);font-weight:600;white-space:nowrap;letter-spacing:-.015em}
+.mc i{width:2.5em;height:2.5em;border-radius:50%;display:grid;place-items:center;background:var(--t);color:var(--ink);font:700 .44em var(--sans);font-style:normal;letter-spacing:0}
+.mc.role{padding-left:.45em}
+.mc.role::before{content:"@";font-weight:600;color:var(--muted);margin-right:-4px}
+.t-rose{--t:var(--rose);--ti:var(--rose-ink)}.t-sky{--t:var(--sky);--ti:var(--sky-ink)}.t-lilac{--t:var(--lilac);--ti:var(--lilac-ink)}
+.t-mint{--t:var(--mint);--ti:var(--mint-ink)}.t-butter{--t:var(--butter);--ti:var(--butter-ink)}
+.mc.role{--t:var(--line2);--ti:var(--ink)}
+
+/* ── the minutes sheet ── */
+.sheet{position:relative;width:100%;background:var(--card);border:2.5px solid var(--ink);border-radius:32px;box-shadow:12px 12px 0 var(--pc,var(--a))}
+.sheet>.top{display:flex;align-items:center;gap:16px;padding:22px 30px;border-bottom:2px solid var(--line);background:var(--paper2);border-radius:30px 30px 0 0}
+.sheet>.top .dot{width:16px;height:16px;border-radius:50%;background:var(--sky-ink);flex:none}
+.sheet>.top b{font:600 32px var(--display);letter-spacing:-.03em;white-space:nowrap}
+.sheet>.top .sp{flex:1}
+.live{display:inline-flex;align-items:center;gap:9px;padding:5px 14px;border-radius:999px;font:600 16px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mint-ink);background:var(--mint-soft);border:2px solid var(--mint)}
+.live i{width:10px;height:10px;border-radius:50%;background:currentColor}
+.stack{display:flex;align-items:center}
+.stack .av{width:46px;height:46px;margin-left:-6px;font-size:14px;box-shadow:0 0 0 3px var(--paper2)}
+.body{padding:12px 36px 30px}
+.body h4{margin:22px 0 6px;font:600 32px/1.1 var(--display);letter-spacing:-.03em}
+.body .l{position:relative;margin:6px 0;font:500 27px/1.4 var(--sans);letter-spacing:-.018em}
+.body .l.li{padding-left:30px}
+.body .l.li::before{content:"–";position:absolute;left:0;color:var(--muted)}
+.body .ph{color:var(--faint)}
+/* a collaborator's caret + name flag */
+.caret{position:relative;display:inline-block;width:3.5px;height:1.15em;margin-left:3px;vertical-align:-.2em;background:var(--c);border-radius:2px}
+.caret b{position:absolute;left:0;bottom:calc(100% - 2px);padding:2px 10px 3px;border-radius:8px 8px 8px 0;background:var(--c);color:#fff;font:600 16px var(--sans);letter-spacing:0;white-space:nowrap}
+.sel{background:color-mix(in srgb,var(--c) 18%,transparent);border-radius:4px}
+
+/* ── the summary card (slides 1 + 3) ── */
+.sum .top .sk{width:46px;height:46px;border-radius:13px;background:var(--lilac);border:2px solid var(--ink);display:grid;place-items:center}
+.sum .top .sk svg{width:26px;height:26px;color:var(--lilac-ink)}
+.sum .top small{font:600 17px var(--mono);letter-spacing:.06em;color:var(--muted);white-space:nowrap}
+.btn-sum{position:absolute;right:30px;top:-38px;display:inline-flex;align-items:center;gap:12px;padding:14px 26px;border-radius:999px;background:var(--ink);color:var(--paper);font:600 26px var(--display);letter-spacing:-.02em;box-shadow:5px 5px 0 var(--lilac);z-index:3}
+.btn-sum svg{width:26px;height:26px;color:var(--lilac)}
+.btn-sum .ptr{position:absolute;right:-26px;bottom:-34px;width:44px;height:44px;color:var(--ink)}
+.sec{padding:18px 32px 0}
+.sec .k{display:flex;align-items:center;gap:10px;font:700 16px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.sec .k em{font-style:normal;color:var(--ink)}
+.recap{margin:8px 0 0;font:italic 500 29px/1.3 var(--serif);letter-spacing:-.02em;color:var(--ink)}
+.dec{display:flex;align-items:center;gap:16px;margin-top:10px;padding:12px 18px;border-radius:16px;background:var(--mint-soft);border:2px solid var(--mint-bd);font:600 25px var(--sans);letter-spacing:-.018em}
+.dec .ck{width:34px;height:34px;border-radius:50%;border-width:2px}
+.dec .ck svg{width:20px;height:20px}
+.dec span:last-child{margin-left:auto;font:600 20px var(--mono);color:var(--mint-ink)}
+.ai{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:18px;align-items:center;padding:12px 0;border-top:2px dashed var(--line)}
+.sec .k+.ai{border-top:0}
+.ai .ck{width:36px;height:36px;border-radius:10px;border-width:2px}
+.ai b{display:block;font:600 25px/1.2 var(--sans);letter-spacing:-.018em}
+.ai .mc{font-size:19px;margin-top:6px}
+.ai .stub{width:62px;border-width:2px;--sc:var(--sky)}
+.ai .stub small{font-size:12px;border-bottom-width:2px}
+.ai .stub b{font-size:27px}
+.roll{display:flex;align-items:center;gap:22px;margin-top:16px;padding:16px 32px 22px;border-top:2.5px solid var(--ink);background:var(--paper2);border-radius:0 0 30px 30px}
+.roll .k{font:700 16px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);line-height:1.5}
+.roll .k em{display:block;font-style:normal;color:var(--ink)}
+.r52{display:grid;grid-template-columns:repeat(26,13px);gap:5px}
+.r52 i{width:13px;height:13px;border-radius:50%;background:var(--mint-ink)}
+.r52 i.e{background:var(--butter)}.r52 i.a{background:transparent;border:2px solid var(--peach-ink)}
+.tot{margin-left:auto;display:grid;gap:2px;font:600 17px var(--mono);white-space:nowrap}
+.tot span{display:flex;align-items:center;gap:8px}
+.tot span::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--mint-ink)}
+.tot .e::before{background:var(--butter)}.tot .a::before{background:transparent;border:2px solid var(--peach-ink);width:9px;height:9px}
+
+/* ── 1 · hook: a lock screen, Thursday, full of questions the minutes already answered (no product yet) ── */
+.s1 .stage{display:block;position:relative}
+.lock{position:absolute;left:30px;top:70px;width:510px;height:740px;padding:22px;background:var(--ink);border-radius:76px;transform:rotate(-3deg);box-shadow:14px 14px 0 var(--butter)}
+.lock .scr{position:relative;height:100%;border-radius:56px;overflow:hidden;padding:70px 20px 0;
+  background:var(--butter-soft)}
+/* flat wallpaper: two hard-edged circles, no gradients */
+.lock .scr::after{content:"";position:absolute;right:-80px;top:-110px;width:200px;height:200px;border-radius:50%;background:var(--peach);border:2.5px solid var(--ink);z-index:0}
+.lock .scr>.blob{position:absolute;right:-110px;bottom:-250px;width:340px;height:340px;border-radius:50%;background:var(--lilac);border:2.5px solid var(--ink)}
+.lock .scr>*:not(.blob){position:relative;z-index:1}
+.lock .scr::before{content:"";position:absolute;left:50%;top:18px;width:120px;height:34px;border-radius:17px;background:var(--ink);transform:translateX(-50%);z-index:2}
+.lock .lk{display:block;width:30px;height:30px;margin:0 auto;color:var(--ink)}
+.lock .day{margin:6px 0 0;text-align:center;font:600 70px/1 var(--display);letter-spacing:-.045em;color:var(--ink)}
+.lock .sub{margin:4px 0 26px;text-align:center;font:600 16px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--soft)}
+.ntf{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:start;margin-top:12px;padding:14px 18px 16px 14px;
+  background:var(--card);border:2px solid var(--ink);border-radius:26px}
+.ntf .ic{width:46px;height:46px;border-radius:13px;background:var(--mint);border:2px solid var(--ink);display:grid;place-items:center}
+.ntf .ic svg{width:26px;height:26px;color:var(--ink)}
+.ntf b{display:block;font:600 19px var(--sans);letter-spacing:-.01em}
+.ntf p{margin:2px 0 0;font:500 23px/1.25 var(--sans);letter-spacing:-.014em}
+.ntf p em{font-style:normal;font-weight:600}
+.ntf.old{background:var(--paper2);border-color:var(--faint)}
+.ntf.old b,.ntf.old p{color:var(--muted)}
+.ntf.old .ic{opacity:.6}
+.ntf .file{display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 12px;border-radius:12px;background:var(--paper2);border:1.5px solid var(--line2);font:600 17px var(--sans);color:var(--soft);white-space:nowrap}
+.ntf .file svg{width:20px;height:20px;color:var(--sky-ink)}
+.ntf .file small{margin-left:auto;padding:2px 9px;border-radius:999px;background:var(--rose-soft);border:1.5px solid var(--rose-bd);font:600 14px var(--mono);color:var(--rose-ink);white-space:nowrap}
+.peek{height:14px;margin:0 18px;border:2px solid var(--faint);border-top:0;border-radius:0 0 20px 20px;background:var(--paper2)}
+.peek+.peek{margin:0 34px;background:var(--paper3)}
+/* the one that jumps off the screen */
+.ntf.pop{position:absolute;left:420px;top:180px;width:470px;margin:0;padding:18px 22px 20px 18px;background:var(--card);border-width:2.5px;box-shadow:9px 9px 0 var(--lilac);transform:rotate(4deg);z-index:3}
+.ntf.pop .ic{width:52px;height:52px}
+.ntf.pop b{font-size:21px}.ntf.pop p{font-size:29px}
+.s1 .scrawl{left:620px;top:590px;transform:rotate(-6deg);font-size:40px;line-height:1.05}
+.s1 .scrawl svg{left:-120px;top:4px;width:120px;height:70px}
+
+/* ── 2 · how minutes fail ── */
+.fails{display:grid;grid-template-columns:1fr 1fr;gap:46px 44px;width:100%}
+.fail{display:flex;flex-direction:column;gap:22px}
+.fail .obj{position:relative;height:280px;display:flex;align-items:center;justify-content:center}
+.fail>b{white-space:nowrap;display:flex;align-items:center;gap:14px;font:600 29px/1.05 var(--display);letter-spacing:-.03em}
+.fail>b i{width:34px;height:34px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--rose);border:2px solid var(--ink);font:700 17px var(--mono);font-style:normal}
+/* a: the scribbled page */
+.nb{position:relative;width:100%;height:100%;padding:22px 20px 0 58px;transform:rotate(-2deg);
+  background:#FFFDF2 repeating-linear-gradient(transparent 0 46px,var(--sky-bd) 46px 48px);background-position:0 16px;border:2px solid var(--line2);
+  box-shadow:6px 8px 0 rgba(38,33,27,.07)}
+.nb::before{content:"";position:absolute;left:40px;top:0;bottom:0;width:2.5px;background:color-mix(in srgb,var(--rose-ink) 40%,transparent)}
+.nb p{position:relative;margin:0;height:48px;display:flex;align-items:center;gap:10px;font:italic 400 29px/1 var(--serif);letter-spacing:-.02em;color:#3D4A7A;white-space:nowrap}
+.nb s{text-decoration:none;position:relative}
+.nb s::after{content:"";position:absolute;left:-4px;right:-4px;top:54%;height:3px;background:#3D4A7A;transform:rotate(-5deg)}
+.nb .q{font-size:24px;color:var(--rose-ink)}
+.nb .tape{left:50%;top:-16px;width:110px;height:32px;transform:translateX(-50%) rotate(-4deg)}
+/* b: three files, one meeting */
+.files{width:100%;background:var(--card);border:2.5px solid var(--ink);border-radius:22px;box-shadow:8px 8px 0 var(--sky);overflow:hidden;transform:rotate(1deg)}
+.files .fh{display:flex;align-items:center;gap:10px;padding:12px 18px;background:var(--paper2);border-bottom:2px solid var(--line);font:600 16px var(--mono);letter-spacing:.06em;color:var(--muted)}
+.files .fh svg{width:20px;height:20px}
+.fr{display:flex;align-items:center;gap:14px;padding:13px 18px;font:600 22px var(--sans);letter-spacing:-.018em;white-space:nowrap}
+.fr+.fr{border-top:2px dashed var(--line)}
+.fr svg{width:26px;height:26px;color:var(--sky-ink)}
+.fr small{margin-left:auto;font:500 15px var(--mono);color:var(--faint)}
+.s2 .scrawl.wh{right:-6px;bottom:-14px;transform:rotate(-6deg);font-size:32px}
+/* c: access denied */
+.deny{width:100%;padding:28px 26px 24px;background:var(--card);border:2.5px solid var(--ink);border-radius:22px;box-shadow:8px 8px 0 var(--peach);text-align:center;transform:rotate(-1deg)}
+.deny .lk{width:64px;height:64px;margin:0 auto;border-radius:50%;background:var(--peach-soft);border:2.5px solid var(--ink);display:grid;place-items:center}
+.deny .lk svg{width:32px;height:32px;color:var(--peach-ink)}
+.deny b{display:block;margin-top:14px;font:600 29px var(--display);letter-spacing:-.03em}
+.deny span{display:block;margin-top:4px;font:500 19px var(--sans);color:var(--muted)}
+.deny .rq{display:inline-block;margin-top:16px;padding:8px 20px;border-radius:999px;border:2px solid var(--line2);font:600 19px var(--sans);color:var(--faint)}
+.deny small{display:block;margin-top:10px;font:600 15px var(--mono);letter-spacing:.04em;color:var(--peach-ink)}
+/* d: the page nobody opened */
+.stale{position:relative;width:78%;height:100%;padding:28px 30px;background:var(--card);border:2px solid var(--line2);border-radius:6px;transform:rotate(2deg);box-shadow:6px 8px 0 rgba(38,33,27,.07)}
+.stale b{display:block;font:600 22px var(--display);letter-spacing:-.02em;color:var(--soft)}
+.stale i{display:block;height:12px;margin-top:16px;border-radius:6px;background:var(--paper3)}
+.stale .stamp{left:50%;top:52%;transform:translate(-50%,-50%) rotate(-9deg);color:var(--rose-ink);font-size:20px;letter-spacing:.1em;text-align:center;line-height:1.3}
+.stale .stamp em{display:block;font-style:normal;font-size:30px}
+
+/* ── 5 · notes in, next steps out: one unreadable page of minutes (three highlighter colours) → Summarize →
+      three cards whose header colours match the highlights. Read left to right; nothing on the page needs reading. ── */
+.s3 h1{font-size:88px;white-space:nowrap}
+.s3 .stage{display:block;position:relative}
+.flow{position:absolute;left:0;right:0;top:50%;height:760px;transform:translateY(-50%)}
+.pile{position:absolute;left:6px;top:40px;width:320px;height:640px}
+.pile>.tape{left:50%;top:-14px;transform:translateX(-50%) rotate(-7deg);z-index:2}
+.pile .top{position:absolute;inset:0;transform:rotate(-4deg);background:var(--card);border:2.5px solid var(--ink);border-radius:18px;box-shadow:10px 10px 0 var(--line2);padding:30px 26px 0;overflow:hidden}
+.pile .top small{display:block;font:600 15px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.pile .top b{display:block;margin:4px 0 14px;font:600 26px var(--display);letter-spacing:-.03em}
+.pile .ln{position:relative;height:10px;margin:17px 0 0;border-radius:5px;background:var(--paper3)}
+.pile .ln.h{margin-top:24px;height:13px;width:46%;background:var(--line2)}
+.pile .ln em{position:absolute;top:-8px;bottom:-8px;border-radius:5px;transform:rotate(-1deg);opacity:.95}
+.pile .ln em.g{background:var(--lilac)}.pile .ln em.d{background:var(--mint)}.pile .ln em.t{background:var(--butter)}
+.pile .top::after{content:"";position:absolute;left:0;right:0;bottom:0;height:90px;background:linear-gradient(transparent,var(--card))}
+.pile .tag{position:absolute;left:50%;bottom:-74px;transform:translateX(-50%) rotate(-3deg);font:italic 500 34px var(--serif);color:var(--rose-ink);white-space:nowrap}
+.pile .tag::before{content:"";position:absolute;left:-10px;right:-10px;bottom:-4px;height:3px;border-radius:2px;background:currentColor;opacity:.5}
+/* the press, on the seam */
+.press{position:absolute;left:150px;top:300px;z-index:4;transform:rotate(-4deg)}
+.press .btn{display:inline-flex;align-items:center;gap:12px;padding:18px 28px;border-radius:999px;background:var(--ink);color:var(--paper);font:600 31px var(--display);letter-spacing:-.025em;box-shadow:6px 6px 0 var(--lilac);white-space:nowrap}
+.press .btn svg{width:30px;height:30px;color:var(--lilac)}
+.press .ptr{position:absolute;right:-20px;bottom:-40px;width:52px;height:52px;color:var(--ink)}
+.press .sp{position:absolute;width:24px;height:24px}
+.press .sp.a{left:6px;top:-40px;color:var(--lilac-ink)}
+.press .sp.b{left:46%;top:-48px;width:18px;height:18px;color:var(--mint-ink)}
+.press .sp.c{left:36px;bottom:-38px;width:20px;height:20px;color:var(--butter-ink)}
+/* the three things out */
+.outs{position:absolute;left:410px;right:0;top:0;display:flex;flex-direction:column;gap:26px}
+.oc{background:var(--card);border:2.5px solid var(--ink);border-radius:26px;box-shadow:8px 8px 0 var(--oc);overflow:hidden}
+.oc .oh{display:flex;align-items:center;gap:12px;padding:12px 22px;background:var(--oc);border-bottom:2.5px solid var(--ink);font:600 25px var(--display);letter-spacing:-.025em}
+.oc .oh i{width:34px;height:34px;flex:none;border-radius:50%;background:var(--card);border:2px solid var(--ink);display:grid;place-items:center;font:700 17px var(--mono);font-style:normal}
+.oc .oh svg{width:20px;height:20px}
+.oc .oh span{margin-left:auto;font:600 16px var(--mono);letter-spacing:.06em;color:var(--oi)}
+.oc.g{--oc:var(--lilac);--oi:var(--lilac-ink)}.oc.d{--oc:var(--mint);--oi:var(--mint-ink)}.oc.t{--oc:var(--butter);--oi:var(--butter-ink)}
+.oc .gp{margin:0;padding:18px 24px 20px;font:italic 500 29px/1.28 var(--serif);letter-spacing:-.02em}
+.oc .dv{display:flex;align-items:center;gap:16px;padding:18px 24px}
+.oc .dv b{font:600 27px/1.2 var(--sans);letter-spacing:-.02em}
+.oc .dv span{margin-left:auto;padding:4px 12px;border-radius:999px;background:var(--mint-soft);border:2px solid var(--mint-bd);font:600 18px var(--mono);color:var(--mint-ink);white-space:nowrap}
+.oc .tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:16px;align-items:center;padding:13px 22px}
+.oc .tr+.tr{border-top:2px dashed var(--line)}
+.oc .tr .ck{width:36px;height:36px;border-radius:10px;border-width:2px}
+.oc .tr b{display:block;font:600 25px/1.15 var(--sans);letter-spacing:-.02em;white-space:nowrap}
+.oc .tr .mc{font-size:18px;margin-top:6px}
+.oc .tr .stub{width:58px;border-width:2px;--sc:var(--butter)}
+.oc .tr .stub small{font-size:12px;border-bottom-width:2px}
+.oc .tr .stub b{font-size:26px}
+
+/* ── 6 · one meeting, every Sunday: the Add meeting form's Repeat switch (RepeatFields.tsx) → the term's meetings as stubs ── */
+.rp{position:relative;width:100%;background:var(--card);border:2.5px solid var(--ink);border-radius:32px;box-shadow:12px 12px 0 var(--a)}
+.rp-h{display:flex;align-items:center;gap:16px;padding:20px 30px;border-bottom:2px solid var(--line);background:var(--paper2);border-radius:30px 30px 0 0}
+.rp-h .ic{width:46px;height:46px;border-radius:13px;background:var(--a);border:2px solid var(--ink);display:grid;place-items:center}
+.rp-h .ic svg{width:26px;height:26px}
+.rp-h b{font:600 32px var(--display);letter-spacing:-.03em}
+.rp-h small{margin-left:auto;font:600 17px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.rp-b{padding:22px 32px 26px}
+.rp-n{font:600 42px/1.1 var(--display);letter-spacing:-.035em}
+.rp-f{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap}
+.rp-f span{display:inline-flex;align-items:center;gap:9px;padding:6px 16px 6px 12px;border-radius:999px;border:2px solid var(--line2);background:var(--paper);font:500 22px var(--sans);letter-spacing:-.015em;color:var(--soft)}
+.rp-f svg{width:24px;height:24px;color:var(--muted)}
+.rp-r{margin-top:20px;padding-top:20px;border-top:2px dashed var(--line)}
+.rp-sw{display:flex;align-items:center;gap:18px}
+.rp-sw .t b{display:block;font:600 29px/1.1 var(--display);letter-spacing:-.03em}
+.rp-sw .t small{display:block;margin-top:3px;font:600 21px var(--sans);color:var(--a-ink);letter-spacing:-.01em}
+.sw{margin-left:auto;width:84px;height:48px;border-radius:999px;background:var(--ink);border:2.5px solid var(--ink);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:4px;right:4px;width:35px;height:35px;border-radius:50%;background:var(--a)}
+.rp-c{display:flex;align-items:center;gap:16px;margin-top:18px;flex-wrap:nowrap}
+.seg{display:inline-flex;padding:5px;gap:4px;border-radius:16px;background:var(--paper2);border:2px solid var(--line2)}
+.seg span{padding:8px 18px;border-radius:11px;font:600 21px var(--sans);color:var(--muted);white-space:nowrap}
+.seg span.on{background:var(--card);color:var(--ink);box-shadow:inset 0 0 0 2px var(--ink)}
+.rp-c .k{margin-left:8px;font:600 16px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.pk{display:inline-flex;align-items:center;gap:10px;padding:8px 18px 8px 12px;border-radius:999px;border:2px solid var(--line2);font:600 21px var(--sans);color:var(--muted);white-space:nowrap}
+.pk i{width:22px;height:22px;border-radius:50%;border:2px solid currentColor;display:grid;place-items:center}
+.pk.on{border-color:var(--ink);background:var(--a-soft);color:var(--ink)}
+.pk.on i::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--ink)}
+.pk small{font:500 16px var(--mono);color:var(--muted)}
+.rp-s{display:flex;align-items:center;gap:16px;margin-top:20px;padding:14px 14px 14px 22px;border-radius:20px;background:var(--paper2);border:2px solid var(--line2)}
+.rp-s p{margin:0;font:500 23px var(--sans);color:var(--soft);letter-spacing:-.015em;white-space:nowrap}
+.rp-s p b{color:var(--ink);font-weight:600}
+.go2{position:relative;margin-left:auto;display:inline-flex;align-items:center;gap:12px;padding:14px 26px;border-radius:999px;background:var(--ink);color:var(--paper);font:600 26px var(--display);letter-spacing:-.02em;box-shadow:5px 5px 0 var(--a);white-space:nowrap}
+.go2 svg{width:24px;height:24px}
+.go2 .ptr{position:absolute;right:-18px;bottom:-30px;width:44px;height:44px;color:var(--ink)}
+/* the term, booked: one tear-off stub per meeting, coloured by month */
+.term{position:relative;width:100%;margin-top:46px}
+.term .th{display:flex;align-items:baseline;gap:14px;margin:0 4px 16px}
+.term .th b{font:600 30px var(--display);letter-spacing:-.03em}
+.term .th small{font:600 17px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.sg{display:grid;grid-template-columns:repeat(8,1fr);gap:16px 14px}
+.sg .stub{width:auto;border-width:2.5px}
+.sg .stub small{font-size:15px}
+.sg .stub b{font-size:36px;padding:5px 0 7px}
+.sg .stub:nth-child(odd){transform:rotate(-1.5deg)}.sg .stub:nth-child(3n){transform:rotate(1.4deg)}
+.sg .stub.first{outline:4px solid var(--a);outline-offset:3px}
+.sg .end{display:grid;place-items:center;align-content:center;gap:4px;border:2.5px dashed var(--line2);border-radius:13px;font:600 14px/1.2 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:center}
+.sg .end svg{width:26px;height:26px;color:var(--mint-ink)}
+.m-jan{--sc:var(--butter)}.m-feb{--sc:var(--rose)}.m-mar{--sc:var(--sky)}.m-apr{--sc:var(--lilac)}.m-may{--sc:var(--mint)}
+.s4 .scrawl{right:6px;top:-30px;transform:rotate(-3deg);font-size:31px}
+
+/* ── 5 · attendance ── */
+.att{display:grid;grid-template-columns:380px minmax(0,1fr);gap:44px;align-items:center;width:100%}
+.phone{position:relative;height:690px;padding:58px 26px 26px;background:var(--card);border:3px solid var(--ink);border-radius:58px;box-shadow:12px 12px 0 var(--mint);display:flex;flex-direction:column}
+.phone::before{content:"";position:absolute;left:50%;top:18px;width:110px;height:28px;border-radius:14px;background:var(--ink);transform:translateX(-50%)}
+.phone .now{font:600 15px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mint-ink)}
+.phone h3{margin:8px 0 0;font:600 40px/1.02 var(--display);letter-spacing:-.035em}
+.phone .wh{margin-top:12px;display:grid;gap:8px}
+.phone .wh span{display:flex;align-items:center;gap:10px;font:500 20px var(--sans);color:var(--soft)}
+.phone .wh svg{width:22px;height:22px;color:var(--muted)}
+.agp{margin-top:20px;padding:14px 16px;border-radius:16px;background:var(--paper2);border:2px solid var(--line)}
+.agp small{display:block;font:600 13px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.agp span{display:block;margin-top:4px;font:500 19px var(--sans);color:var(--soft)}
+.tkt{position:relative;margin-top:auto;padding:26px 22px 22px;border-radius:26px;border:2.5px solid var(--ink);background:var(--mint-soft);text-align:center}
+.tkt .big{width:96px;height:96px;margin:0 auto;border-radius:50%;background:var(--mint);border:3px solid var(--ink);display:grid;place-items:center;box-shadow:4px 4px 0 var(--ink)}
+.tkt .big svg{width:52px;height:52px;color:var(--ink)}
+.tkt b{display:block;margin-top:16px;font:600 30px var(--display);letter-spacing:-.03em}
+.tkt small{display:block;margin-top:2px;font:600 17px var(--mono);color:var(--mint-ink)}
+.tkt .tap{position:absolute;right:30px;top:74px;width:56px;height:56px;color:var(--ink);transform:rotate(-14deg)}
+.phone .cls{margin-top:16px;text-align:center;font:600 15px var(--mono);letter-spacing:.06em;color:var(--muted)}
+.rc{background:var(--card);border:2.5px solid var(--ink);border-radius:28px;box-shadow:10px 10px 0 var(--sky);overflow:hidden}
+.rc .rh{display:flex;align-items:center;gap:12px;padding:18px 24px;border-bottom:2px solid var(--line);background:var(--paper2)}
+.rc .rh b{font:600 28px var(--display);letter-spacing:-.03em}
+.rc .rh .live{margin-left:auto}
+.rc .n{display:flex;align-items:baseline;gap:14px;padding:18px 24px 6px}
+.rc .n b{font:600 112px/.9 var(--display);letter-spacing:-.05em}
+.rc .n span{font:500 30px var(--serif);font-style:italic;color:var(--soft)}
+.g52{display:grid;grid-template-columns:repeat(13,1fr);gap:7px;padding:14px 24px 18px}
+.g52 i{aspect-ratio:1;border-radius:50%;background:var(--mint-ink)}
+.g52 i.e{background:var(--butter)}.g52 i.a{background:transparent;border:2.5px dashed var(--line2)}
+.rc .lg{display:grid;gap:6px;padding:0 24px 20px;font:600 18px var(--mono);white-space:nowrap}
+.rc .lg span{display:flex;align-items:center;gap:10px}
+.rc .lg span::before{content:"";width:14px;height:14px;border-radius:50%;background:var(--mint-ink)}
+.rc .lg .e::before{background:var(--butter)}.rc .lg .a::before{background:transparent;border:2.5px dashed var(--line2);width:10px;height:10px}
+.rc .fn{padding:14px 24px 18px;border-top:2px dashed var(--line);font:italic 500 22px/1.3 var(--serif);color:var(--soft)}
+
+/* ── 6 · writing together ── */
+.s6 h1{font-size:88px}
+.s6 h1 .nw{white-space:nowrap}
+.s6 .body{padding-top:26px}
+.s6 .body .l{margin:32px 0 6px}
+.s6 .body h4{margin-top:30px}
+.s6 .body h4:first-child{margin-top:8px}
+
+/* ── 8 · Ask Chapt ── */
+.s8 .stage{justify-content:flex-start;padding-top:56px}
+.s8 .ask .in{padding:30px 30px 36px}
+.s8 .hit{padding:22px 20px}
+.ask{position:relative;width:100%;background:var(--card);border:2.5px solid var(--ink);border-radius:32px;box-shadow:12px 12px 0 var(--lilac);overflow:hidden}
+.ask .bar{display:flex;align-items:center;gap:14px;padding:20px 30px;border-bottom:2px solid var(--line);background:var(--paper2)}
+.ask .bar .sk{width:46px;height:46px;border-radius:13px;background:var(--lilac);border:2px solid var(--ink);display:grid;place-items:center}
+.ask .bar .sk svg{width:26px;height:26px;color:var(--lilac-ink)}
+.ask .bar b{font:600 30px var(--display);letter-spacing:-.03em}
+.ask .bar kbd{margin-left:auto;padding:3px 12px;border-radius:9px;border:2px solid var(--line2);background:var(--card);font:600 18px var(--mono);color:var(--muted)}
+.ask .in{padding:26px 30px 30px}
+.qq{display:flex;justify-content:flex-end}
+.qq p{margin:0;max-width:640px;padding:14px 22px;border-radius:24px 24px 6px 24px;background:var(--lilac);border:2.5px solid var(--ink);box-shadow:3px 3px 0 var(--ink);font:600 29px/1.25 var(--sans);letter-spacing:-.02em}
+.step{display:flex;align-items:center;gap:12px;margin-top:22px;font:500 20px var(--sans);color:var(--muted)}
+.step i{width:28px;height:28px;border-radius:50%;background:var(--mint);border:2px solid var(--ink);display:grid;place-items:center}
+.step i svg{width:16px;height:16px;color:var(--ink)}
+.step b{font:600 18px var(--mono);color:var(--lilac-ink);padding:2px 10px;border-radius:999px;background:var(--lilac-soft);border:1.5px solid var(--lilac-bd)}
+.verdict{margin:18px 0 0;font:500 32px/1.32 var(--serif);letter-spacing:-.02em}
+.verdict b{font-weight:600;padding:0 .08em;margin:0 -.08em;border-radius:.16em .3em .18em .3em;background:linear-gradient(transparent 46%,var(--lilac) 46% 96%,transparent 96%);-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.hits{margin-top:22px;border:2px solid var(--line);border-radius:20px;overflow:hidden}
+.hit{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:18px;align-items:start;padding:18px 20px;background:var(--card)}
+.hit+.hit{border-top:2px solid var(--line)}
+.hit .stub{width:62px;border-width:2px;--sc:var(--sky)}
+.hit .stub small{font-size:12px;border-bottom-width:2px}
+.hit .stub b{font-size:27px}
+.hit b.t{display:block;font:600 25px/1.2 var(--sans);letter-spacing:-.018em}
+.hit small.w{display:block;margin-top:3px;font:500 18px var(--sans);color:var(--muted)}
+.hit q{display:block;margin-top:10px;padding:8px 14px;border-left:4px solid var(--butter);background:var(--butter-soft);border-radius:0 10px 10px 0;font:italic 500 22px/1.3 var(--serif);color:var(--ink);quotes:none;white-space:nowrap}
+.hit q mark{padding:0 .08em;margin:0 -.08em;border-radius:.2em;background:linear-gradient(transparent 44%,var(--lilac) 44% 96%,transparent 96%);color:inherit}
+.hit .v{font:600 17px var(--mono);padding:4px 12px;border-radius:999px;border:2px solid var(--line2);white-space:nowrap}
+.hit .v.tb{color:var(--butter-ink);background:var(--butter-soft);border-color:var(--butter-bd)}
+.src{display:inline-flex;align-items:center;gap:10px;margin-top:20px;font:600 18px var(--mono);letter-spacing:.04em;color:var(--lilac-ink)}
+.src svg{width:20px;height:20px}
+
+/* ── 8 · closer: your chapter's charter, as /create draws it (washi tape, seal, stamp), waiting for a name + one CTA ── */
+.ch{position:relative;width:100%;background:var(--card);border:2.5px solid var(--ink);border-radius:30px;box-shadow:12px 12px 0 var(--a);transform:rotate(-.8deg)}
+.ch .tape{top:-20px;width:160px}.ch .tape.l{left:60px;transform:rotate(-6deg)}.ch .tape.r{right:60px;transform:rotate(5deg)}
+.ch-h{display:flex;align-items:center;justify-content:space-between;padding:22px 34px 18px;border-bottom:2px dashed var(--line2);font:600 17px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.ch-h b{color:var(--a-ink);font-weight:600}
+.ch-b{display:grid;grid-template-columns:150px minmax(0,1fr);gap:30px;align-items:center;padding:30px 34px 10px}
+.seal{width:150px;height:150px;border-radius:50%;border:2.5px solid var(--ink);background:var(--butter);display:grid;place-items:center;
+  box-shadow:inset 0 0 0 9px var(--butter),inset 0 0 0 11.5px var(--ink);transform:rotate(-8deg)}
+.seal svg{width:78px;height:78px}
+.fl small{display:block;font:600 16px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.fl .nm{display:flex;align-items:center;margin-top:8px;padding-bottom:10px;border-bottom:3px solid var(--ink);font:italic 500 56px/1.05 var(--serif);letter-spacing:-.03em;color:var(--faint)}
+.fl .nm .caret{height:1em;width:4px;margin-left:6px;--c:var(--a-ink)}
+.ch-r{display:flex;flex-wrap:wrap;gap:12px;padding:20px 34px 0}
+.ch-r span{display:inline-flex;align-items:center;gap:10px;padding:8px 18px 8px 12px;border-radius:999px;border:2px solid var(--line2);background:var(--paper);font:500 23px var(--sans);letter-spacing:-.015em;color:var(--soft)}
+.ch-r svg{width:26px;height:26px;color:var(--muted)}
+.ch-r span.on{border-color:var(--ink);background:var(--a-soft);color:var(--ink);font-weight:600}
+.ch-f{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:26px 34px 30px}
+.sig small{display:block;font:600 15px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.sig div{width:330px;margin-top:6px;border-bottom:2px solid var(--line2);height:52px;display:flex;align-items:flex-end}
+.sig em{font:italic 500 40px/1 var(--serif);color:var(--faint);padding:0 0 4px 4px}
+.ch .stamp{position:relative;color:var(--mint-ink);transform:rotate(-7deg);font-size:22px}
+.cta2{display:flex;flex-direction:column;align-items:center;margin-top:62px}
+.cta2 .go{position:relative;display:inline-flex;align-items:center;gap:22px;padding:26px 46px 26px 52px;border-radius:999px;background:var(--ink);color:var(--paper);text-decoration:none;
+  font:600 50px/1 var(--display);letter-spacing:-.035em;box-shadow:8px 8px 0 var(--a)}
+.cta2 .go svg{width:46px;height:46px}
+.cta2 .go .ptr{position:absolute;right:-14px;bottom:-34px;width:52px;height:52px;color:var(--ink)}
+.cta2 p{margin:30px 0 0;font:600 22px var(--mono);letter-spacing:.06em;color:var(--soft)}
+.cta2 p em{font-style:normal;color:var(--a-ink)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="brand" viewBox="0 0 40 40">
+    <rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="#FFE5A0" stroke="#26211B" stroke-width="2.4"/>
+    <path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="#26211B" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="14.6" cy="16" r="1.9" fill="#26211B"/><circle cx="25.4" cy="16" r="1.9" fill="#26211B"/>
+  </symbol>
+  <symbol id="arr" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0113 0c0 5-6.5 11-6.5 11z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="people" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17" cy="10" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19c.9-3 3.2-4.6 6-4.6s5.1 1.6 6 4.6M15.5 14.6c2.4-.3 4.4.9 5.3 3.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="doc" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 3v5h5M9 13h7M9 17h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2.5h8a2 2 0 012 2V18a2 2 0 01-2 2H5a2 2 0 01-2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M8 10.5V8a4 4 0 018 0v2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="spark" viewBox="0 0 24 24"><path d="M10 3.5l1.6 4.9 4.9 1.6-4.9 1.6L10 16.5l-1.6-4.9L3.5 10l4.9-1.6zM18 14l.8 2.2 2.2.8-2.2.8L18 20l-.8-2.2L15 17l2.2-.8z" fill="currentColor"/></symbol>
+  <symbol id="ptr" viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.6L10 19z" fill="#fff" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="list" viewBox="0 0 24 24"><path d="M9 7h11M9 12h11M9 17h11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="4.5" cy="7" r="1.5" fill="currentColor"/><circle cx="4.5" cy="12" r="1.5" fill="currentColor"/><circle cx="4.5" cy="17" r="1.5" fill="currentColor"/></symbol>
+  <symbol id="ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="hand" viewBox="0 0 24 24"><path d="M9 11V4.5a1.5 1.5 0 013 0V10m0-1.5a1.5 1.5 0 013 0V11m0-1a1.5 1.5 0 013 0v4.5c0 3.6-2.6 6.5-6 6.5h-1c-2 0-3.3-1-4.4-2.6L4 14.6a1.5 1.5 0 012.3-1.9L9 15" fill="#fff" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<main class="deck">
+
+<!-- ═══ 1 · HOOK: Thursday lock screen, the chapter chat asking what Sunday's minutes (seen by 3) already said; no product UI ═══ -->
+<section class="slide s1 s-butter">
+  <div class="eyebrow">Be honest</div>
+  <h1>Your meeting notes are <span class="hi">collecting dust.</span></h1>
+  <div class="stage">
+    <div class="lock"><div class="scr"><span class="blob"></span>
+      <svg class="lk"><use href="#lock"/></svg>
+      <div class="day">Thursday</div>
+      <div class="sub">Chapter · 18 new</div>
+      <div class="ntf"><span class="ic"><svg><use href="#people"/></svg></span><div><b>Chapter</b><p><em>Sam:</em> is there a doc somewhere?</p></div></div>
+      <div class="ntf"><span class="ic"><svg><use href="#people"/></svg></span><div><b>Chapter</b><p><em>Andre:</em> who’s ordering it</p></div></div>
+      <div class="ntf old"><span class="ic"><svg><use href="#people"/></svg></span><div><b>Chapter · Sunday</b><p><em>Priya:</em> Minutes from tonight are up!</p>
+        <div class="file"><svg><use href="#doc"/></svg>Minutes – Oct 18<small>Seen by 3</small></div></div></div>
+      <div class="peek"></div><div class="peek"></div>
+    </div></div>
+    <div class="ntf pop"><span class="ic"><svg><use href="#people"/></svg></span><div><b>Chapter</b><p><em>Marcus:</em> wait did we vote on the grill??</p></div></div>
+    <div class="scrawl"><svg viewBox="0 0 120 70"><path d="M114 20C80 4 40 18 8 56M8 56l3-18M8 56l17-5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>It was in<br>the minutes.</div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><span class="swipe">Swipe <svg width="26" height="26"><use href="#arr"/></svg></span></div>
+  </div>
+</section>
+
+<!-- ═══ 2 · MINUTES, AS THEY ARE NOW ═══ -->
+<section class="slide s2 s-rose">
+  <div class="eyebrow">Sound familiar?</div>
+  <h1>Meeting minutes, <span class="hi">as they are</span> now.</h1>
+  <div class="stage">
+    <div class="fails">
+      <div class="fail">
+        <div class="obj"><div class="nb"><span class="tape"></span>
+          <p>oct 18 — grill stuff</p>
+          <p><s>$200</s> or 3?? <span class="q">ask Priya</span></p>
+          <p>tabled?? idk</p>
+          <p>someone orders it</p>
+          <p>formal → sold out (?)</p>
+        </div></div>
+        <b><i>1</i>A whole lotta nonsense</b>
+      </div>
+      <div class="fail">
+        <div class="obj"><div class="files">
+          <div class="fh"><svg><use href="#folder"/></svg>Chapter / Old / misc</div>
+          <div class="fr"><svg><use href="#doc"/></svg>Minutes FINAL (2)<small>?</small></div>
+          <div class="fr"><svg><use href="#doc"/></svg>minutes oct REAL<small>?</small></div>
+          <div class="fr"><svg><use href="#doc"/></svg>notes 10/18 (copy)<small>?</small></div>
+        </div><div class="scrawl wh">which one??</div></div>
+        <b><i>2</i>No one knows where it lives</b>
+      </div>
+      <div class="fail">
+        <div class="obj"><div class="deny">
+          <span class="lk"><svg><use href="#lock"/></svg></span>
+          <b>You need access</b><span>Ask the owner to share it with you.</span>
+          <span class="rq">Request access</span><small>Requested 3 days ago</small>
+        </div></div>
+        <b><i>3</i>Access denied</b>
+      </div>
+      <div class="fail">
+        <div class="obj"><div class="stale">
+          <b>Chapter minutes — Sep</b><i style="width:92%"></i><i style="width:80%"></i><i style="width:88%"></i><i style="width:60%"></i><i style="width:84%"></i><i style="width:70%"></i>
+          <span class="stamp">Last opened<em>7 weeks ago</em></span>
+        </div></div>
+        <b><i>4</i>Never opened again</b>
+      </div>
+    </div>
+    <p class="after">So every meeting starts by redoing the last one.</p>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 3 · ROLL CALL IN ONE TAP ═══ -->
+<section class="slide s5 s-sky">
+  <div class="eyebrow">This time</div>
+  <h1>Walk in. <span class="hi">Tap.</span> Sit down.</h1>
+  <div class="stage">
+    <div class="att">
+      <div class="phone">
+        <div class="now">Chapter meeting · now</div>
+        <h3>Week 8</h3>
+        <div class="wh"><span><svg><use href="#pin"/></svg>Chapter room</span></div>
+        <div class="agp"><small>Tonight</small><span>Officer reports</span><span>Old business · the grill</span><span>New business</span></div>
+        <div class="tkt"><span class="big"><svg><use href="#check"/></svg></span><b>You’re checked in</b><small>Marcus Bell</small><svg class="tap"><use href="#hand"/></svg></div>
+        <div class="cls">Check-in is open</div>
+      </div>
+      <div class="rc">
+        <div class="rh"><b>Roll call</b><span class="live"><i></i>Open</span></div>
+        <div class="n"><b>44</b><span>of 52 here</span></div>
+        <div class="g52" data-roll2></div>
+        <div class="lg"><span>44 checked in</span><span class="e">3 excused</span><span class="a">5 not here yet</span></div>
+        <div class="fn">When it closes, anyone missing is marked absent.</div>
+      </div>
+    </div>
+    <p class="after">Nobody reads 52 names off a list.</p>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 4 · THE WHOLE E-BOARD, ONE DOC ═══ -->
+<section class="slide s6 s-mint">
+  <div class="eyebrow">Not just Priya’s job</div>
+  <h1><span class="nw">One doc. <span class="hi">As many hands</span></span><br>as you need.</h1>
+  <div class="stage">
+    <div class="sheet" style="--pc:var(--mint)">
+      <div class="top"><span class="dot"></span><b>Chapter Meeting — Week 8</b><span class="sp"></span><span class="live"><i></i>Live</span>
+        <span class="stack"><span class="av" style="--c:var(--mint)">PN</span><span class="av" style="--c:var(--sky)">AW</span><span class="av" style="--c:var(--rose)">SO</span><span class="av" style="--c:var(--butter)">JR</span></span></div>
+      <div class="body">
+        <h4>Officer reports</h4>
+        <div class="l li">Treasurer: $6,240 in the account. Four still owe dues.<span class="caret" style="--c:var(--sky-ink)"><b>Andre</b></span></div>
+        <div class="l li">Social: formal is sold out at 120 tickets.<span class="caret" style="--c:var(--rose-ink)"><b>Sam</b></span></div>
+        <h4>Old business</h4>
+        <div class="l">Motion to buy a new grill, capped at $300.</div>
+        <div class="l li">Voted <span class="sel" style="--c:var(--mint-ink)">31–9–4. Motion passes.</span><span class="caret" style="--c:var(--mint-ink)"><b>Priya</b></span></div>
+        <h4>New business</h4>
+        <div class="l li">Spring recruitment kicks off Jan 22.<span class="caret" style="--c:var(--butter-ink)"><b>Jordan</b></span></div>
+      </div>
+    </div>
+    <p class="after">Write it solo or shared, everyone’s on the same page.</p>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 5 · NOTES IN, NEXT STEPS OUT: one unreadable page of minutes → Summarize → Summary / Decided / Action items, colour-matched ═══ -->
+<section class="slide s3 s-lilac">
+  <div class="eyebrow">Seen by 3?</div>
+  <h1>Notes in. <span class="hi">Next steps</span> out.</h1>
+  <div class="stage"><div class="flow">
+    <div class="pile"><span class="tape"></span>
+      <div class="top"><small>Chapter meeting</small><b>Minutes – Oct 18</b><div class="ln h"></div><div class="ln" style="width:94%"><em class="g" style="left:30%;width:52%"></em></div><div class="ln" style="width:80%"></div><div class="ln" style="width:88%"><em class="t" style="left:44%;width:56%"></em></div><div class="ln h"></div><div class="ln" style="width:90%"><em class="d" style="left:36%;width:64%"></em></div><div class="ln" style="width:76%"><em class="t" style="left:0%;width:48%"></em></div><div class="ln" style="width:92%"></div><div class="ln" style="width:84%"><em class="t" style="left:22%;width:60%"></em></div><div class="ln h"></div><div class="ln" style="width:86%"><em class="g" style="left:40%;width:46%"></em></div><div class="ln" style="width:70%"></div><div class="ln" style="width:90%"></div><div class="ln" style="width:62%"></div><div class="ln h"></div><div class="ln" style="width:88%"></div><div class="ln" style="width:74%"></div><div class="ln" style="width:90%"></div><div class="ln" style="width:58%"></div></div>
+      <span class="tag">Sunday’s minutes</span></div>
+    <div class="press"><span class="btn"><svg><use href="#spark"/></svg>Summarize</span><svg class="ptr"><use href="#ptr"/></svg>
+      <svg class="sp a"><use href="#spark"/></svg><svg class="sp b"><use href="#spark"/></svg><svg class="sp c"><use href="#spark"/></svg></div>
+    <div class="outs">
+      <div class="oc g"><div class="oh"><i>1</i>Summary</div>
+        <p class="gp">Money’s healthy, formal is sold out, and recruitment starts Jan 22.</p></div>
+      <div class="oc d"><div class="oh"><i>2</i>Decided</div>
+        <div class="dv"><span class="ck on" style="width:38px;height:38px;border-radius:50%;border-width:2px"><svg><use href="#check"/></svg></span><b>New grill, up to $300</b><span>31–9–4</span></div></div>
+      <div class="oc t"><div class="oh"><i>3</i>Action items</div>
+        <div class="tr"><span class="ck"></span><div><b>Send the theme poll</b><span class="mc role">Social</span></div><span class="stub"><small>OCT</small><b>19</b></span></div>
+        <div class="tr"><span class="ck"></span><div><b>Order the grill</b><span class="mc t-lilac"><i>MB</i>Marcus Bell</span></div><span class="stub"><small>OCT</small><b>23</b></span></div>
+        <div class="tr"><span class="ck"></span><div><b>Send dues reminder</b><span class="mc role">Treasurer</span></div><span class="stub"><small>OCT</small><b>23</b></span></div>
+      </div>
+    </div>
+  </div></div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 6 · ONE MEETING, EVERY SUNDAY: Repeat on the Add meeting form → the whole term booked ═══ -->
+<section class="slide s4">
+  <div class="eyebrow">When’s the next meeting?</div>
+  <h1>Add it once. <span class="hi">All term</span> is booked.</h1>
+  <div class="stage">
+    <div class="rp">
+      <div class="rp-h"><span class="ic"><svg><use href="#cal"/></svg></span><b>Add meeting</b><small>Spring ’27</small></div>
+      <div class="rp-b">
+        <div class="rp-n">Chapter Meeting</div>
+        <div class="rp-f"><span><svg><use href="#cal"/></svg>Sun, Jan 24</span><span><svg><use href="#clock"/></svg>7:00 PM</span><span><svg><use href="#pin"/></svg>Chapter room</span></div>
+        <div class="rp-r">
+          <div class="rp-sw"><div class="t"><b>Repeat</b><small>Every Sunday</small></div><span class="sw"></span></div>
+          <div class="rp-c">
+            <div class="seg"><span class="on">Weekly</span><span>Every 2 weeks</span></div>
+            <span class="k">Until</span>
+            <span class="pk on"><i></i>End of term <small>May 2</small></span>
+            <span class="pk"><i></i>A date</span>
+          </div>
+          <div class="rp-s"><p><b>Every Sunday</b> · Jan 24 → May 2</p>
+            <span class="go2">Add 15 meetings<svg><use href="#arr"/></svg><svg class="ptr"><use href="#ptr"/></svg></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="term">
+      <div class="th"><b>Every Sunday till May</b><small>15 meetings · 7:00 PM</small></div>
+      <div class="scrawl">Nobody asks again.</div>
+      <div class="sg">
+        <span class="stub m-jan first"><small>JAN</small><b>24</b></span><span class="stub m-jan"><small>JAN</small><b>31</b></span>
+        <span class="stub m-feb"><small>FEB</small><b>7</b></span><span class="stub m-feb"><small>FEB</small><b>14</b></span><span class="stub m-feb"><small>FEB</small><b>21</b></span><span class="stub m-feb"><small>FEB</small><b>28</b></span>
+        <span class="stub m-mar"><small>MAR</small><b>7</b></span><span class="stub m-mar"><small>MAR</small><b>14</b></span><span class="stub m-mar"><small>MAR</small><b>21</b></span><span class="stub m-mar"><small>MAR</small><b>28</b></span>
+        <span class="stub m-apr"><small>APR</small><b>4</b></span><span class="stub m-apr"><small>APR</small><b>11</b></span><span class="stub m-apr"><small>APR</small><b>18</b></span><span class="stub m-apr"><small>APR</small><b>25</b></span>
+        <span class="stub m-may"><small>MAY</small><b>2</b></span>
+        <span class="end"><svg><use href="#check"/></svg>End of<br>term</span>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 7 · ASK CHAPT: WHEN DID THAT COME UP? ═══ -->
+<section class="slide s8 s-lilac">
+  <div class="eyebrow">Is there a doc somewhere?</div>
+  <h1>Forgot? Just <span class="hi">ask.</span></h1>
+  <div class="stage">
+    <div class="ask">
+      <div class="bar"><span class="sk"><svg><use href="#spark"/></svg></span><b>Ask Chapt</b><kbd>⌘K</kbd></div>
+      <div class="in">
+        <div class="qq"><p>When did we talk about a car wash fundraiser?</p></div>
+        <div class="step"><i><svg><use href="#check"/></svg></i>Read the minutes of 8 meetings<b>2 matches</b></div>
+        <p class="verdict">It came up <b>twice</b>: Sam pitched it in <b>Week 4</b>, then Andre brought it back in <b>Week 7</b>.</p>
+        <div class="hits">
+          <div class="hit"><span class="stub"><small>SEP</small><b>20</b></span><div><b class="t">Chapter Meeting — Week 4</b><small class="w">New business</small>
+            <q>Sam: <mark>car wash</mark> for philanthropy? Tabled till midterms.</q></div><span class="v tb">Tabled</span></div>
+          <div class="hit"><span class="stub"><small>OCT</small><b>11</b></span><div><b class="t">Chapter Meeting — Week 7</b><small class="w">Fundraising</small>
+            <q>Andre: back lot’s free Saturdays for the <mark>car wash</mark>.</q></div><span class="v">Mentioned</span></div>
+        </div>
+        <span class="src"><svg><use href="#ext"/></svg>Open the Week 4 minutes</span>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 8 · CLOSER: your chapter's charter, waiting for a name + CTA ═══ -->
+<section class="slide s9 s-butter">
+  <div class="eyebrow">Your turn</div>
+  <h1>Set it up before <span class="hi">next Sunday.</span></h1>
+  <div class="stage">
+    <div class="ch">
+      <span class="tape l"></span><span class="tape r"></span>
+      <div class="ch-h"><span>Charter · <b>No. 001</b></span><span>ChaptOS</span></div>
+      <div class="ch-b">
+        <span class="seal"><svg><use href="#brand"/></svg></span>
+        <div class="fl"><small>Chapter name</small><div class="nm">Your chapter<span class="caret"></span></div></div>
+      </div>
+      <div class="ch-r">
+        <span class="on"><svg><use href="#cal"/></svg>Sundays · 7:00 PM</span>
+        <span><svg><use href="#people"/></svg>Invite by link</span>
+        <span><svg><use href="#doc"/></svg>Minutes</span>
+      </div>
+      <div class="ch-f">
+        <div class="sig"><small>Signed, the president</small><div><em>×</em></div></div>
+        <span class="stamp">Free to start</span>
+      </div>
+    </div>
+    <div class="cta2">
+      <a class="go" href="https://chaptos.com">Start your chapter<svg><use href="#arr"/></svg><svg class="ptr"><use href="#ptr"/></svg></a>
+      <p>chaptos.com <em>·</em> link in bio</p>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+</main>
+<script>
+const all=[...document.querySelectorAll(".slide")];
+all.forEach((sl,i)=>{sl.dataset.n=i+1;const d=sl.querySelector(".dots");if(d)d.innerHTML=all.map((_,j)=>`<i${j===i?' class="on"':''}></i>`).join("")});
+// the Week 8 roll: 52 members, 44 present, 3 excused, 5 absent
+const dots=(n)=>Array.from({length:52},(_,i)=>`<i${i>=47?' class="a"':i>=44?' class="e"':''}></i>`).join("");
+document.querySelectorAll("[data-roll],[data-roll2]").forEach(r=>r.innerHTML=dots());
+</script>
+</body>
+</html>

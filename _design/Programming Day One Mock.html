@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Programming Day One</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+
+/* ---------- tokens (Dashboard Paper Mock) -------------------------------- */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --sky:#CFE6FF;    --sky-soft:#EAF4FF;    --sky-ink:#2C6CB0;    --sky-bd:#C7DDF5;
+  --note-ink:#26211B; --note-filter:none;
+  --mark-op:.85;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 2px 4px rgba(38,33,27,.06), 0 10px 24px -8px rgba(38,33,27,.16);
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --sky:#86B4E4;    --sky-soft:rgba(140,190,240,.09);    --sky-ink:#A9CFF6;   --sky-bd:rgba(140,190,240,.24);
+  --note-ink:#26211B; --note-filter:brightness(.92) saturate(.9);
+  --mark-op:.42;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --sh-2:0 2px 4px rgba(0,0,0,.4), 0 10px 24px -8px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  transition:background .35s var(--ease-out), color .35s var(--ease-out);
+}
+h1,h2,h3,p,ul,ol{margin:0}
+ul,ol{padding:0; list-style:none}
+button,input,textarea{font:inherit; color:inherit}
+button{cursor:pointer}
+svg{display:block}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+.ic{width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round}
+
+/* the highlighter swipe from the landing */
+.hi{position:relative; white-space:nowrap; z-index:0}
+.hi::before{
+  content:''; position:absolute; z-index:-1; left:-.1em; right:-.12em; bottom:.06em; height:.46em;
+  background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em;
+  transform:rotate(-1deg); opacity:var(--mark-op);
+}
+
+/* type colours — the org's own categories (Oozma Kappa) */
+[data-t="social"]{--tc:var(--peach); --tc-s:var(--peach-soft); --tc-i:var(--peach-ink); --tc-b:var(--peach-bd)}
+[data-t="service"]{--tc:var(--mint); --tc-s:var(--mint-soft); --tc-i:var(--mint-ink); --tc-b:var(--mint-bd)}
+[data-t="brotherhood"]{--tc:var(--lilac); --tc-s:var(--lilac-soft); --tc-i:var(--lilac-ink); --tc-b:var(--lilac-bd)}
+[data-t="fundraiser"]{--tc:var(--butter); --tc-s:var(--butter-soft); --tc-i:var(--butter-ink); --tc-b:var(--butter-bd)}
+[data-t="professional"]{--tc:var(--sky); --tc-s:var(--sky-soft); --tc-i:var(--sky-ink); --tc-b:var(--sky-bd)}
+[data-t="chapter"]{--tc:var(--rose); --tc-s:var(--rose-soft); --tc-i:var(--rose-ink); --tc-b:var(--rose-bd)}
+
+/* stage colours — paper-programming.css: idea grey · planning butter · confirmed lilac · done mint */
+[data-stage="idea"]{--sc:var(--ink-3); --sf:var(--paper-3)}
+[data-stage="planning"]{--sc:var(--butter-ink); --sf:var(--butter)}
+[data-stage="confirmed"]{--sc:var(--lilac-ink); --sf:var(--lilac)}
+[data-stage="done"]{--sc:var(--mint-ink); --sf:var(--mint)}
+
+/* ---------- mock chrome --------------------------------------------------- */
+.top{max-width:1440px; margin:0 auto; padding:30px 24px 6px; display:flex; flex-wrap:wrap; gap:16px 24px; align-items:flex-end; justify-content:space-between}
+.top .kick{font-family:var(--mono); font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.top h1{font-family:var(--display); font-weight:600; font-size:clamp(1.6rem,3.4vw,2.2rem); letter-spacing:-.035em; line-height:1.1; margin-top:6px}
+.top p{margin-top:8px; color:var(--ink-2); max-width:64ch; font-size:.95rem}
+.theme{width:38px; height:38px; display:grid; place-items:center; border-radius:12px; border:1.5px solid var(--line-2); background:var(--card); color:var(--ink-2)}
+.theme:hover{color:var(--ink); border-color:var(--ink-3)}
+.tabs{max-width:1440px; margin:16px auto 0; padding:0 24px; display:flex; gap:8px; overflow-x:auto; scrollbar-width:none}
+.tab{
+  flex:none; display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:999px;
+  border:1.5px solid var(--line-2); background:transparent; color:var(--ink-2); font-size:.84rem; font-weight:600; white-space:nowrap;
+  transition:background .2s, color .2s, border-color .2s, box-shadow .2s;
+}
+.tab .n{font-family:var(--mono); font-size:.7rem; color:var(--ink-3)}
+.tab:hover{border-color:var(--ink-3); color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--card); color:var(--ink); border-color:var(--ink); box-shadow:2.5px 2.5px 0 var(--hs, var(--butter))}
+.tab[aria-selected="true"] .n{color:var(--ink)}
+
+.stage{max-width:1440px; margin:18px auto 0; padding:0 24px}
+.frame{border:1.5px solid var(--line-2); border-radius:26px; overflow:hidden; background:var(--paper); box-shadow:var(--sh-2)}
+
+.notes{max-width:1440px; margin:0 auto; padding:26px 24px 90px; display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:18px}
+.note{padding:16px 18px; border-radius:18px; border:1.5px solid var(--line); background:var(--paper-2)}
+.note .k{font-family:var(--mono); font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.note h3{margin-top:6px; font-family:var(--display); font-weight:600; font-size:1.02rem; letter-spacing:-.022em}
+.note p{margin-top:6px; font-size:.84rem; color:var(--ink-2)}
+.note code{font-family:var(--mono); font-size:.76rem; background:var(--paper-3); padding:1px 5px; border-radius:5px}
+.note.bad{border-color:var(--peach-bd); background:var(--peach-soft)}
+
+/* ---------- app frame ---------------------------------------------------- */
+.app{display:flex; min-height:860px}
+.main{flex:1; min-width:0}
+
+.sb{width:240px; flex:none; display:flex; flex-direction:column; background:var(--paper-2); border-right:1.5px solid var(--line)}
+.sb-org{display:flex; align-items:center; gap:11px; height:66px; padding:0 14px; border-bottom:1.5px solid var(--line)}
+.orglogo{
+  width:36px; height:36px; flex:none; border-radius:11px; display:grid; place-items:center;
+  background:var(--butter); border:2px solid var(--note-ink); color:var(--note-ink);
+  font-family:var(--display); font-weight:700; font-size:.82rem; letter-spacing:-.02em;
+  transform:rotate(-3deg); box-shadow:2px 2px 0 var(--peach); filter:var(--note-filter);
+}
+.sb-org-t b{display:block; font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:-.022em; line-height:1.15}
+.sb-org-t span{display:block; font-family:var(--mono); font-size:.66rem; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-3); margin-top:2px}
+.sb-scroll{flex:1; padding:12px 10px 16px}
+.grp + .grp{margin-top:14px}
+.grp-h{display:flex; align-items:center; gap:8px; padding:0 10px 6px; font-size:.64rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.grp-h::before{content:''; width:12px; height:2px; border-radius:2px; background:var(--eb, var(--line-2))}
+.item{display:flex; align-items:center; gap:11px; height:38px; padding:0 11px; margin:2px 0; border-radius:12px; border:1.5px solid transparent; color:var(--ink-2); font-size:.9rem; font-weight:500}
+.item .ic{color:var(--ink-3)}
+.item[aria-current="page"]{background:var(--card); color:var(--ink); font-weight:600; border-color:var(--ink); box-shadow:2.5px 2.5px 0 var(--butter)}
+.item[aria-current="page"] .ic{color:var(--ink)}
+.sb-foot{display:flex; align-items:center; gap:10px; padding:12px 16px; border-top:1.5px solid var(--line)}
+.avatar{width:30px; height:30px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:.68rem; font-weight:700; font-style:normal; background:var(--av, var(--lilac)); color:var(--note-ink); border:1.5px solid rgba(38,33,27,.08)}
+.sb-foot b{display:block; font-size:.86rem; font-weight:600}
+.sb-foot span{display:block; font-size:.72rem; color:var(--ink-3)}
+
+/* mobile toolbar — shown when the sidebar folds away */
+.mtb{display:none; align-items:center; gap:12px; height:56px; padding:0 16px; border-bottom:1.5px solid var(--line); background:var(--paper-2)}
+.mtb b{font-family:var(--display); font-weight:600; letter-spacing:-.02em}
+
+.page{padding:34px 40px 60px; max-width:1180px}
+
+
+/* ---------- the page: same shape as /fundraisers day one ----------------- */
+.page{padding:40px 44px 64px; max-width:1120px}
+.brief{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:24px; align-items:end}
+.kick{display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.kick span{padding:2px 9px; border-radius:999px; background:var(--card); border:1.5px solid var(--line-2); color:var(--ink-2); text-transform:none; letter-spacing:0}
+.greet{font-family:var(--display); font-weight:600; letter-spacing:-.032em; line-height:1.04; font-size:clamp(2.05rem,3.7vw,3.05rem); margin-top:14px}
+.greet .hi{--mark:var(--lilac)}
+.sub{margin-top:12px; color:var(--ink-2); font-size:1rem; max-width:60ch}
+
+.btn{
+  --hs:var(--lilac); display:inline-flex; align-items:center; gap:8px; padding:10px 17px; border-radius:999px; border:1.5px solid var(--ink);
+  background:var(--ink); color:var(--paper); font-weight:600; font-size:.88rem; letter-spacing:-.01em; white-space:nowrap;
+  box-shadow:2.5px 2.5px 0 var(--hs); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring);
+}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.btn:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--hs)}
+.btn .ic{width:15px; height:15px}
+
+/* the four steps, one picture each */
+.d1{margin-top:28px; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); align-items:end; padding:30px 24px 26px; background:var(--card); border:1.5px dashed var(--line-2); border-radius:30px}
+.d1 figure{margin:0; display:flex; flex-direction:column; align-items:center; gap:14px; text-align:center; padding:0 8px; min-width:0}
+.d1 figure > div{height:140px; display:flex; align-items:flex-end; justify-content:center; width:100%}
+.d1 figcaption b{display:block; font-family:var(--display); font-weight:600; font-size:1.05rem; letter-spacing:-.02em}
+.d1 figcaption span{display:block; margin-top:2px; font-size:.82rem; color:var(--ink-3)}
+.d1-cta{margin-top:22px; display:flex; justify-content:center}
+.d1-note{margin-top:16px; text-align:center; color:var(--ink-3); font-size:.88rem}
+
+/* the same event, as it looks in each lane (paper-programming.css) */
+.ev{position:relative; width:150px; padding:11px 12px; border-radius:12px; border:1.5px solid var(--line); background:var(--card); text-align:left; font-size:.78rem}
+.ev .t{font-weight:600; font-size:.84rem; letter-spacing:-.01em}
+.ev .m{display:flex; align-items:center; gap:6px; margin-top:6px; color:var(--ink-2); font-size:.72rem}
+.ev .m .ic{width:12px; height:12px; color:var(--ink-3)}
+.ev .ty{display:flex; align-items:center; gap:6px; margin-top:5px; font-size:.7rem; font-weight:600; color:var(--peach-ink)}
+.ev .ty::before{content:''; width:6px; height:6px; border-radius:50%; background:currentColor}
+.ev .av{width:18px; height:18px; border-radius:50%; display:grid; place-items:center; font-size:.52rem; font-weight:700; font-style:normal; background:var(--butter); color:var(--note-ink); filter:var(--note-filter)}
+.ev .av.q{background:none; border:1.5px dashed var(--line-2); color:var(--ink-3); filter:none}
+/* 1 · a taped sticky */
+.ev.idea{border:0; background:var(--peach); color:var(--note-ink); filter:var(--note-filter); border-radius:4px 12px 6px 10px; transform:rotate(-3deg); box-shadow:var(--sh-2)}
+.ev.idea::after{content:''; position:absolute; left:50%; top:-7px; width:42px; height:13px; transform:translateX(-50%) rotate(-3deg); background:rgba(255,255,255,.55); border-inline:1px dashed rgba(38,33,27,.16)}
+.ev.idea .ty{color:var(--note-ink); opacity:.75}
+/* 2 · a dashed index card */
+.ev.plan{border-style:dashed; border-color:var(--line-2); transform:rotate(1.5deg)}
+/* 3 · inked, on the Timeline */
+.ev.conf{border-color:var(--ink); box-shadow:3px 3px 0 var(--lilac); transform:rotate(-1.5deg)}
+.ev.conf .on{display:inline-flex; align-items:center; gap:4px; margin-top:8px; padding:1px 7px; border-radius:6px; font-family:var(--mono); font-size:.56rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; background:var(--lilac-soft); color:var(--lilac-ink); border:1px dashed var(--lilac-bd)}
+.ev.conf .on .ic{width:10px; height:10px; color:currentColor}
+/* 4 · flat and filed */
+.ev.done{background:var(--paper); transform:rotate(2deg)}
+.ev.done .t{color:var(--ink-2)}
+.ev.done .stars{margin-top:6px; color:var(--butter-ink); letter-spacing:.08em; font-size:.82rem}
+.ev.done .stars s{text-decoration:none; color:var(--line-2)}
+.ev.done .stamp{position:absolute; right:-10px; top:-10px; padding:1px 7px; border:1.5px solid var(--mint-ink); color:var(--mint-ink); background:var(--paper); border-radius:5px; font-family:var(--mono); font-size:.56rem; font-weight:600; letter-spacing:.12em; transform:rotate(8deg)}
+
+/* today, verbatim, for contrast */
+.measures{margin-top:26px; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px}
+.measure{padding:14px 16px; border-radius:18px; border:1.5px solid var(--line); background:var(--card); min-width:0}
+.measure .l{font-size:.74rem; font-weight:600; color:var(--ink-3)}
+.measure .v{margin-top:4px; font-family:var(--display); font-weight:600; font-size:1.8rem; letter-spacing:-.045em; line-height:1}
+.measure .v small{font-family:var(--sans); font-size:.8rem; font-weight:500; letter-spacing:0; color:var(--ink-3)}
+.measure .nt{margin-top:6px; font-size:.76rem; color:var(--ink-3)}
+.tbar{margin-top:20px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.views{display:flex; padding:3px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--card)}
+.views b{padding:5px 12px; border-radius:999px; font-size:.78rem; font-weight:600; color:var(--ink-3)}
+.views b:first-child{background:var(--ink); color:var(--paper)}
+.chip{display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border-radius:999px; border:1.5px solid var(--line-2); font-size:.76rem; font-weight:600; color:var(--ink-2)}
+.chip i{width:7px; height:7px; border-radius:50%; background:var(--c)}
+.old{margin-top:22px; padding:28px 24px; border-radius:22px; border:1.5px dashed var(--line-2); text-align:center}
+.old .lad{display:flex; flex-wrap:wrap; justify-content:center; gap:8px}
+.old .lad span{padding:7px 11px; border-radius:12px; border:1.5px solid var(--line); background:var(--card); font-size:.74rem; text-align:left}
+.old .lad b{display:block; font-size:.8rem}
+.old .lad small{color:var(--ink-3)}
+.old h3{margin-top:18px; font-family:var(--display); font-weight:600; font-size:1.2rem}
+.old p{margin:6px auto 0; max-width:56ch; font-size:.86rem; color:var(--ink-2)}
+
+.scene{display:none}
+.scene.on{display:block; animation:fade .35s var(--ease-out)}
+@keyframes fade{from{opacity:0; transform:translateY(6px)}}
+
+@media (max-width:1100px){
+  .d1{grid-template-columns:repeat(2,minmax(0,1fr)); row-gap:30px}
+  .measures{grid-template-columns:repeat(2, minmax(0,1fr))}
+}
+@media (max-width:900px){
+  .sb{display:none}
+  .mtb{display:flex}
+  .page{padding:26px 16px 48px}
+  .notes{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:640px){
+  .top, .tabs, .stage, .notes{padding-left:16px; padding-right:16px}
+  .frame{border-radius:18px}
+  .brief{grid-template-columns:minmax(0,1fr)}
+  .brief > div:last-child{display:none}
+  .d1{grid-template-columns:minmax(0,1fr); padding:26px 16px 22px; border-radius:22px}
+  .d1 figure > div{height:auto; min-height:100px}
+}
+@media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation:none !important; transition:none !important} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></symbol>
+  <symbol id="i-gavel" viewBox="0 0 24 24"><path d="M5 20h10M13 4l6 6M10 7l6 6M8 13l4-4M11.5 10.5L4 18"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.8.8 3 2.6 3.5 5.2"/></symbol>
+  <symbol id="i-coin" viewBox="0 0 24 24"><ellipse cx="12" cy="7" rx="7.5" ry="3"/><path d="M4.5 7v5c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V7M4.5 12v5c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-5"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 7.3 4.2 4.2 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-cup" viewBox="0 0 24 24"><path d="M7 4h10l-1 8a4 4 0 0 1-8 0zM12 16v4M8.5 20h7"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A1.5 1.5 0 0 1 6 19V5a1.5 1.5 0 0 1 1-1.5z"/><path d="M14 3.5V8h4M9 12h6M9 15.5h6"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8.5 5.5v13M15.5 5.5v13"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-person" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1-3.6 3.8-5.5 7-5.5s6 1.9 7 5.5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
+</svg>
+
+<header class="top">
+  <div>
+    <div class="kick">Mock · Programming · day one</div>
+    <h1>Programming, as simple as Fundraising.</h1>
+    <p>Same shape as the Fundraising day one: one line of what the page is, four pictures of the steps, one button.</p>
+  </div>
+  <button class="theme" id="theme" aria-label="Toggle day / night"><svg class="ic"><use href="#i-moon"/></svg></button>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Scenes">
+  <button class="tab" role="tab" data-scene="officer" aria-selected="true"><span class="n">01</span>Officer</button>
+  <button class="tab" role="tab" data-scene="member" aria-selected="false" style="--hs:var(--mint)"><span class="n">02</span>Member</button>
+  <button class="tab" role="tab" data-scene="today" aria-selected="false" style="--hs:var(--peach)"><span class="n">00</span>Today</button>
+</nav>
+
+<div class="stage">
+  <div class="frame">
+    <div class="app">
+      <aside class="sb" aria-label="Main navigation">
+        <div class="sb-org">
+          <span class="orglogo">OK</span>
+          <span class="sb-org-t"><b>Oozma Kappa</b><span>Fall ’26 · day one</span></span>
+        </div>
+        <div class="sb-scroll">
+          <div class="grp">
+            <div class="grp-h" style="--eb:var(--butter)">Chapter</div>
+            <div class="item"><svg class="ic"><use href="#i-home"/></svg>Dashboard</div>
+            <div class="item"><svg class="ic"><use href="#i-cal"/></svg>Timeline</div>
+            <div class="item"><svg class="ic"><use href="#i-gavel"/></svg>Chapter</div>
+            <div class="item"><svg class="ic"><use href="#i-check"/></svg>Tasks</div>
+          </div>
+          <div class="grp">
+            <div class="grp-h" style="--eb:var(--peach)">People &amp; money</div>
+            <div class="item"><svg class="ic"><use href="#i-users"/></svg>Brotherhood</div>
+            <div class="item"><svg class="ic"><use href="#i-coin"/></svg>Treasury</div>
+          </div>
+          <div class="grp">
+            <div class="grp-h" style="--eb:var(--lilac)">Events</div>
+            <div class="item" aria-current="page"><svg class="ic"><use href="#i-spark"/></svg>Programming</div>
+            <div class="item"><svg class="ic"><use href="#i-heart"/></svg>Service</div>
+            <div class="item"><svg class="ic"><use href="#i-cup"/></svg>Parties</div>
+          </div>
+          <div class="grp">
+            <div class="grp-h" style="--eb:var(--mint)">Files</div>
+            <div class="item"><svg class="ic"><use href="#i-doc"/></svg>Docs</div>
+            <div class="item"><svg class="ic"><use href="#i-gear"/></svg>Settings</div>
+          </div>
+        </div>
+        <div class="sb-foot">
+          <i class="avatar" style="--av:var(--butter)" id="me-av">MW</i>
+          <span><b id="me-name">Mike Wazowski</b><span id="me-role">President</span></span>
+        </div>
+      </aside>
+      <div class="main">
+        <div class="mtb"><svg class="ic"><use href="#i-menu"/></svg><b>Programming</b></div>
+        <div class="page">
+
+          <section class="scene on" data-scene="officer" data-who="officer"></section>
+          <section class="scene" data-scene="member" data-who="member"></section>
+
+          <section class="scene" data-scene="today">
+            <header class="brief">
+              <div>
+                <span class="kick">Tue, Nov 3 · Fall ’26</span>
+                <h1 class="greet">The <span class="hi">programme</span>.</h1>
+                <p class="sub">Nothing scheduled.</p>
+              </div>
+              <div><button class="btn"><svg class="ic"><use href="#i-plus"/></svg>New event</button></div>
+            </header>
+            <div class="measures">
+              <div class="measure"><div class="l">On the slate</div><div class="v">0</div><div class="nt">0 ideas · 0 planning · 0 confirmed</div></div>
+              <div class="measure"><div class="l">Next 14 days</div><div class="v">0 <small>events</small></div><div class="nt">all confirmed or ready to be</div></div>
+              <div class="measure"><div class="l">Unowned ideas</div><div class="v">0 <small>of 0</small></div><div class="nt">no ideas yet</div></div>
+              <div class="measure"><div class="l">Average stars</div><div class="v">—</div><div class="nt">nothing rated yet</div></div>
+            </div>
+            <div class="tbar">
+              <span class="views"><b>board</b><b>calendar</b></span>
+              <span class="chip" style="--c:var(--peach-ink)"><i></i>Social</span>
+              <span class="chip" style="--c:var(--mint-ink)"><i></i>Service</span>
+              <span class="chip" style="--c:var(--lilac-ink)"><i></i>Brotherhood</span>
+              <span class="chip" style="--c:var(--butter-ink)"><i></i>Fundraiser</span>
+            </div>
+            <div class="old">
+              <div class="lad">
+                <span><b>Idea</b><small>A title and a type.</small></span>
+                <span><b>Planning</b><small>Plus an owner — one person or role.</small></span>
+                <span><b>Confirmed</b><small>Plus a date and a place. Publishes it.</small></span>
+                <span><b>Done</b><small>It happened. Rate it and file it.</small></span>
+              </div>
+              <h3>Nothing on the slate yet.</h3>
+              <p>Every event starts as an idea — a title and a type is all it costs. Give it an owner to start planning; a date and a place confirm it onto the chapter’s Timeline.</p>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section class="notes" id="notes"></section>
+
+<template id="d1">
+  <header class="brief">
+    <div>
+      <span class="kick">Programming <span>Fall ’26</span></span>
+      <h1 class="greet">Events, <span class="hi">one step at a time</span></h1>
+      <p class="sub">Write down an idea, pick who’s running it, then give it a date and a place. That’s when the whole chapter sees it.</p>
+    </div>
+    <div class="officer-only"><button class="btn"><svg class="ic"><use href="#i-plus"/></svg>New idea</button></div>
+  </header>
+
+  <section class="d1">
+    <figure>
+      <div><div class="ev idea"><div class="t">Alumni mixer</div><div class="ty">Social</div></div></div>
+      <figcaption><b>1 · Write the idea</b><span>Just a name and a type.</span></figcaption>
+    </figure>
+    <figure>
+      <div><div class="ev plan"><div class="t">Alumni mixer</div><div class="ty">Social</div><div class="m"><i class="av">SC</i>Social Chair</div></div></div>
+      <figcaption><b>2 · Pick who runs it</b><span>A person, or a role.</span></figcaption>
+    </figure>
+    <figure>
+      <div><div class="ev conf"><div class="t">Alumni mixer</div><div class="m"><svg class="ic"><use href="#i-cal"/></svg>Fri, Nov 20</div><div class="m"><svg class="ic"><use href="#i-pin"/></svg>The Boathouse</div><span class="on"><svg class="ic"><use href="#i-eye"/></svg>On the Timeline</span></div></div>
+      <figcaption><b>3 · Set a date and place</b><span>Now everyone sees it.</span></figcaption>
+    </figure>
+    <figure>
+      <div><div class="ev done"><span class="stamp">WRAPPED</span><div class="t">Alumni mixer</div><div class="stars">★★★★<s>★</s></div><div class="m">“Book the patio again.”</div></div></div>
+      <figcaption><b>4 · Wrap it up</b><span>Stars and a note for next time.</span></figcaption>
+    </figure>
+  </section>
+
+  <div class="d1-cta officer-only"><button class="btn"><svg class="ic"><use href="#i-plus"/></svg>Write your first idea</button></div>
+  <p class="d1-note member-only">Nothing planned yet. Your officers will add the first one.</p>
+</template>
+
+<script>
+(function(){
+  var tpl = document.getElementById("d1");
+  document.querySelectorAll("[data-who]").forEach(function(sc){
+    sc.appendChild(tpl.content.cloneNode(true));
+    var hide = sc.dataset.who === "officer" ? ".member-only" : ".officer-only";
+    sc.querySelectorAll(hide).forEach(function(el){ el.remove(); });
+  });
+
+  var NOTES = {
+    officer: [
+      ["Shape", "Fundraising’s day one, reused", "Kicker, one plain headline, one sentence, a dashed card of numbered pictures, one centred button. Same rhythm as <code>/fundraisers</code> <code>DayOne</code>, so the two pages feel like one product."],
+      ["Pictures", "The real card looks, not icons", "Each step is the same event in its lane’s paper look: taped sticky, dashed card, inked card on the Timeline, filed card with a WRAPPED stamp. Learn them here and you’ll recognise them on the board."],
+      ["Gone", "No zeros, no filters", "The measures strip, view switch, type chips and search all wait until there’s a first event. The button opens the existing New idea composer."]
+    ],
+    member: [
+      ["Same page", "Members get the same explanation", "Programming is readable by members, so they see the same four steps and learn when an event becomes theirs (step 3)."],
+      ["No buttons", "Nothing they can’t use", "Both buttons go. One quiet line: “Nothing planned yet. Your officers will add the first one.” — the same wording pattern as Fundraising’s member note."],
+      ["Copy", "No “Nothing scheduled.”", "It read like a status report. The headline now says what the page is for."]
+    ],
+    today: [
+      ["Problem", "Measuring nothing", "Four measure cards of 0, including <code>0 events · all confirmed or ready to be</code>."],
+      ["Problem", "Controls for an empty list", "Board/Calendar, type chips and search sit above an empty board."],
+      ["Problem", "Rules, not pictures", "The ladder is right but abstract — “Publishes it”, “file it”. Nothing shows what an event looks like as it moves."]
+    ]
+  };
+  function renderNotes(s){
+    document.getElementById("notes").innerHTML = NOTES[s].map(function(n){
+      return '<div class="note' + (s === "today" ? " bad" : "") + '"><span class="k">' + n[0] + '</span><h3>' + n[1] + '</h3><p>' + n[2] + '</p></div>';
+    }).join("");
+  }
+
+  var tabs = document.querySelectorAll(".tab");
+  function show(s){
+    tabs.forEach(function(t){ t.setAttribute("aria-selected", t.dataset.scene === s ? "true" : "false"); });
+    document.querySelectorAll(".scene").forEach(function(sc){ sc.classList.toggle("on", sc.dataset.scene === s); });
+    var m = s === "member";
+    document.getElementById("me-name").textContent = m ? "Randy Boggs" : "Mike Wazowski";
+    document.getElementById("me-role").textContent = m ? "Member" : "President";
+    document.getElementById("me-av").textContent = m ? "RB" : "MW";
+    renderNotes(s);
+  }
+  tabs.forEach(function(t){ t.addEventListener("click", function(){ show(t.dataset.scene); }); });
+
+  var root = document.documentElement, themeBtn = document.getElementById("theme");
+  function setTheme(d){
+    root.dataset.theme = d ? "dark" : "light";
+    themeBtn.innerHTML = '<svg class="ic"><use href="#i-' + (d ? "sun" : "moon") + '"/></svg>';
+    try { localStorage.setItem("prog-dayone-theme", d ? "dark" : "light"); } catch(e) {}
+  }
+  try { setTheme(localStorage.getItem("prog-dayone-theme") === "dark"); } catch(e) { setTheme(false); }
+  themeBtn.addEventListener("click", function(){ setTheme(root.dataset.theme !== "dark"); });
+  document.addEventListener("keydown", function(e){
+    var m = { "1":"officer", "2":"member", "0":"today", "3":"today" }[e.key];
+    if (m) show(m);
+    if (e.key === "t" || e.key === "T") setTheme(root.dataset.theme !== "dark");
+  });
+  show("officer");
+})();
+</script>
+</body>
+</html>

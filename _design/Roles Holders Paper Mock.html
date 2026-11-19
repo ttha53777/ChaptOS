@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roles · Paper Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  ISOLATED MOCK: Settings → Roles, with the people who hold each role on the
+  page itself.
+
+  Today the Roles list only shows "3 people"; handing a role out lives in
+  Accounts (BrotherRoleChips, one person at a time). Same data model here,
+  nothing new on the server:
+    Role { name, color, rank, permissions, isSystem }
+    BrotherRole { brotherId, roleId }   (many-to-many: a role can have
+                                          several holders, a person several roles)
+
+  Two views of the same pairs:
+    By role   — a card per role: who holds it + "Add someone".
+    By person — the roster, each row with its role chips + "Add role".
+  Both open one small picker sheet; a tap adds/removes instantly (the way
+  BrotherRoleChips already works), with Undo in the toast.
+
+  Rank rule kept: you can only hand out roles ranked BELOW your own. You are
+  Jordan Ellis, Vice President (rank 80) — President and Vice President show
+  as "Ranked at or above you" and can't be changed.
+  Clicking a role's name would open the existing role sheet (RoleSheet).
+-->
+<style>
+:root {
+  --pp-peach:#FFD5C4;  --pp-peach-soft:#FFEDE5;  --pp-peach-ink:#C9542D;
+  --pp-sky:#CFE2FF;    --pp-sky-soft:#EAF2FF;    --pp-sky-ink:#2A66C7;
+  --pp-mint:#C7EFDA;   --pp-mint-soft:#E6F8EF;   --pp-mint-ink:#1B815B;
+  --pp-butter:#FFE5A0; --pp-butter-soft:#FFF6DC; --pp-butter-ink:#9C6B08;
+  --pp-lilac:#E1D8FF;  --pp-lilac-soft:#F1EDFF;  --pp-lilac-ink:#6244CC;
+  --pp-rose:#FFD6E6;   --pp-rose-soft:#FFEDF4;   --pp-rose-ink:#C23C77;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --card:#FFFFFF; --card-3:#F4ECDD;
+  --ink:#26211B; --ink-soft:#544A3F; --muted:#8A7F71; --faint:#998D7C;
+  --line:#EBE1CF; --line-med:#DCD0B9; --scrim:rgba(38,33,27,.28);
+
+  --display:"Bricolage Grotesque", Inter, system-ui, sans-serif;
+  --sans:Inter, -apple-system, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --spring:cubic-bezier(.16,.9,.3,1.02);
+}
+html[data-theme="night"] {
+  color-scheme: dark;
+  --pp-peach:#E5A28A;  --pp-peach-soft:rgba(255,178,148,.085); --pp-peach-ink:#FFB49A;
+  --pp-sky:#8DB2EC;    --pp-sky-soft:rgba(150,190,255,.085);   --pp-sky-ink:#AACBFF;
+  --pp-mint:#80CBA4;   --pp-mint-soft:rgba(140,220,180,.08);   --pp-mint-ink:#8FDDB6;
+  --pp-butter:#E3BF66; --pp-butter-soft:rgba(255,214,120,.08); --pp-butter-ink:#F0CC72;
+  --pp-lilac:#A593EE;  --pp-lilac-soft:rgba(180,160,255,.10);  --pp-lilac-ink:#C4B6FF;
+  --pp-rose:#E598B7;   --pp-rose-soft:rgba(255,160,200,.08);   --pp-rose-ink:#FFAACB;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --paper:#15110D; --paper-2:#1B1712; --card:#1F1A15; --card-3:#2B251E;
+  --ink:#F2EADC; --ink-soft:#CDBFAB; --muted:#948876; --faint:#7D7262;
+  --line:#2F271E; --line-med:#43382B; --scrim:rgba(5,4,2,.6);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh; background: var(--paper); color: var(--ink);
+  font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+button, input { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+svg { flex-shrink: 0; }
+:focus-visible { outline: 2px solid var(--pp-lilac-ink); outline-offset: 2px; }
+
+/* ── Shell ────────────────────────────────────────────────────────────────── */
+.app { display: grid; grid-template-columns: 248px minmax(0,1fr); min-height: 100vh; }
+.se-nav { border-right: 1.5px solid var(--line); background: var(--paper-2); padding: 20px 14px; }
+.se-back { display: inline-flex; align-items: center; gap: 6px; font: 550 .8rem var(--sans); color: var(--muted); margin: 2px 6px 18px; }
+.se-back svg { width: 14px; height: 14px; }
+.se-h { font: 700 1.35rem var(--display); letter-spacing: -.03em; margin: 0 8px 16px; }
+.se-g { font: 600 .62rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 16px 8px 6px; display: flex; align-items: center; gap: 7px; }
+.se-g i { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--ink); background: var(--s); }
+.se-it { display: block; padding: 6px 10px; border-radius: 9px; font: 500 .84rem var(--sans); color: var(--ink-soft); }
+.se-it.on { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink), 2px 2px 0 1.5px var(--pp-sky); font-weight: 600; }
+
+.se-main { padding: 30px 40px 120px; max-width: 1040px; min-width: 0; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.se-crumb { font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.seg { display: inline-flex; padding: 3px; border: 1.5px solid var(--line-med); border-radius: 999px; background: var(--card); }
+.seg button { border: 0; background: none; padding: 4px 11px; border-radius: 999px; font: 600 .72rem var(--sans); color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.se-title { font: 700 2.3rem/1.05 var(--display); letter-spacing: -.035em; margin: 8px 0 6px; }
+.se-lede { color: var(--ink-soft); margin: 0 0 22px; max-width: 62ch; font-size: .95rem; }
+
+/* ── Toolbar ──────────────────────────────────────────────────────────────── */
+.bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+.views { display: inline-flex; padding: 4px; border-radius: 14px; background: var(--paper-2); border: 1.5px solid var(--line-med); }
+.views button {
+  display: inline-flex; align-items: center; gap: 7px; border: 0; background: none; cursor: pointer;
+  padding: 7px 14px; border-radius: 10px; font: 600 .84rem var(--sans); color: var(--muted);
+  transition: background .15s, color .15s, box-shadow .2s var(--spring);
+}
+.views button svg { width: 15px; height: 15px; }
+.views button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink), 2px 2px 0 1.5px var(--pp-sky); }
+.views .n { font: 600 .68rem var(--mono); color: var(--faint); }
+.search {
+  flex: 1; min-width: 180px; max-width: 300px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+  border: 1.5px solid var(--line-med); border-radius: 12px; background: var(--card);
+}
+.search:focus-within { border-color: var(--ink); box-shadow: 3px 3px 0 var(--pp-sky); }
+.search svg { width: 15px; height: 15px; color: var(--muted); }
+.search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; padding: 9px 0; font-size: .88rem; }
+.bar .grow { flex: 1; }
+
+/* ── Avatars & chips ─────────────────────────────────────────────────────── */
+.av {
+  --sz: 30px; width: var(--sz); height: var(--sz); border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--h, var(--pp-sky)); border: 1.5px solid var(--ink); color: #26211B;
+  font: 700 calc(var(--sz) * .36)/1 var(--display); letter-spacing: -.02em;
+}
+.rchip {
+  --rc: #94A3B8;
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border-radius: 999px; white-space: nowrap;
+  background: color-mix(in oklab, var(--rc) 16%, var(--card)); border: 1.5px solid color-mix(in oklab, var(--rc) 55%, var(--ink));
+  font: 600 .76rem var(--sans); color: var(--ink);
+}
+.rchip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--rc); }
+
+/* ── By role: each role is an index card ─────────────────────────────────── */
+/* Header band tinted with the role's color, washi tape, ruled lines below with
+   one holder per line, and a blank dashed line at the bottom to add the next. */
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 30px 22px; padding-top: 8px; align-items: start; }
+.rc {
+  --rc: #94A3B8; --rc-soft: color-mix(in oklab, var(--rc) 14%, var(--card)); --tilt: -.35deg;
+  position: relative; display: flex; flex-direction: column; border-radius: 6px 6px 16px 16px;
+  background: var(--card); border: 1.5px solid var(--ink); transform: rotate(var(--tilt));
+  box-shadow: 5px 5px 0 color-mix(in oklab, var(--rc) 40%, var(--card));
+  transition: transform .3s var(--spring), box-shadow .3s var(--spring);
+}
+.rc:nth-child(even) { --tilt: .3deg; }
+.rc:nth-child(3n) { --tilt: -.15deg; }
+.rc:hover { transform: rotate(0) translate(-2px,-2px); box-shadow: 7px 7px 0 color-mix(in oklab, var(--rc) 50%, var(--card)); }
+.rc.flash { animation: flash .7s var(--spring); }
+@keyframes flash { 40% { box-shadow: 9px 9px 0 color-mix(in oklab, var(--rc) 65%, var(--card)); } }
+.rc .tape {
+  position: absolute; top: -11px; left: 50%; width: 78px; height: 22px; z-index: 2; border-radius: 2px; opacity: .92;
+  transform: translateX(-50%) rotate(-3deg); pointer-events: none;
+  background: repeating-linear-gradient(45deg, color-mix(in oklab, var(--rc) 45%, var(--card)) 0 7px, color-mix(in oklab, var(--rc) 28%, var(--card)) 7px 14px);
+}
+.rc:nth-child(even) .tape { left: 62%; transform: translateX(-50%) rotate(4deg); }
+
+.rc-head {
+  display: flex; align-items: flex-start; gap: 12px; padding: 18px 18px 14px; border-radius: 5px 5px 0 0;
+  background: var(--rc-soft); border-bottom: 1.5px solid var(--ink);
+  box-shadow: inset 0 -4px 0 color-mix(in oklab, var(--rc) 55%, var(--card));
+}
+.rc-name {
+  border: 0; background: none; padding: 0; cursor: pointer; text-align: left; min-width: 0;
+  font: 750 1.4rem/1.1 var(--display); letter-spacing: -.03em; display: inline-flex; align-items: center; gap: 6px;
+}
+.rc-name svg { width: 15px; height: 15px; color: color-mix(in oklab, var(--rc) 70%, var(--ink)); transition: transform .2s var(--spring); }
+.rc-name:hover svg { transform: translateX(3px); }
+.perms { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.perm {
+  padding: 2px 8px; border-radius: 6px; font: 600 .7rem var(--sans); color: var(--ink-soft);
+  background: var(--card); border: 1.5px solid color-mix(in oklab, var(--rc) 35%, var(--line-med));
+}
+.tally {
+  margin-left: auto; flex-shrink: 0; display: grid; place-content: center; width: 62px; height: 58px; border-radius: 14px;
+  background: var(--card); border: 1.5px solid var(--ink); box-shadow: 2px 2px 0 color-mix(in oklab, var(--rc) 55%, var(--card));
+  text-align: center; line-height: 1;
+}
+.tally b { font: 750 1.35rem var(--display); letter-spacing: -.03em; display: block; }
+.tally small { font: 650 .5rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: block; margin-top: 2px; }
+.tally.zero b { color: var(--faint); }
+
+/* ruled body with a margin rule in the role's color */
+.lines { list-style: none; margin: 0; padding: 4px 0 10px; position: relative; flex: 1; }
+.lines::before { content: ""; position: absolute; left: 40px; top: 0; bottom: 0; width: 1.5px; background: color-mix(in oklab, var(--rc) 40%, transparent); }
+.line { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 12px 0 0; border-bottom: 1px solid var(--line); animation: pop .35s var(--spring); }
+.line .no { width: 40px; text-align: center; font: 500 .68rem var(--mono); color: var(--faint); flex-shrink: 0; }
+.line .av { --sz: 30px; }
+.line .tx { flex: 1; min-width: 0; }
+.line .tx b { display: block; font: 600 .9rem var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line .tx small { display: block; font-size: .72rem; color: var(--muted); }
+.you { font: 650 .62rem var(--sans); letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--ink); color: var(--paper); }
+.line .x {
+  width: 28px; height: 28px; border-radius: 9px; border: 1.5px solid transparent; background: none; cursor: pointer;
+  display: grid; place-items: center; color: var(--faint); opacity: .55; transition: opacity .15s, background .15s, color .15s, border-color .15s;
+}
+.line:hover .x, .line .x:focus-visible { opacity: 1; }
+.line .x:hover { background: var(--pp-rose-soft); color: var(--pp-rose-ink); border-color: color-mix(in oklab, var(--pp-rose-ink) 40%, transparent); }
+.line .x svg { width: 11px; height: 11px; }
+.add-line { border-bottom: 0; }
+.add-line .add-btn {
+  flex: 1; display: flex; align-items: center; gap: 10px; margin: 8px 0 0; padding: 9px 12px; cursor: pointer; text-align: left;
+  border: 1.5px dashed var(--line-med); border-radius: 12px; background: none; font: 600 .84rem var(--sans); color: var(--muted);
+  transition: border-color .15s, color .15s, background .15s;
+}
+.add-line .add-btn:hover { border-style: solid; border-color: var(--ink); color: var(--ink); background: var(--rc-soft); }
+.add-line .plus { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--paper); flex-shrink: 0; }
+.add-line .plus svg { width: 10px; height: 10px; }
+.line.empty .tx { font-size: .84rem; color: var(--faint); font-style: italic; }
+
+/* locked: above your rank — same card, flatter, with a rubber stamp */
+.rc.locked { background: var(--paper-2); border-color: var(--line-med); box-shadow: 4px 4px 0 var(--line); }
+.rc.locked .rc-head { border-bottom-color: var(--line-med); background: color-mix(in oklab, var(--rc) 8%, var(--paper-2)); box-shadow: inset 0 -4px 0 color-mix(in oklab, var(--rc) 25%, var(--paper-2)); }
+.rc.locked .tally { border-color: var(--line-med); box-shadow: none; }
+.stamp {
+  margin-left: auto; flex-shrink: 0; align-self: center; transform: rotate(-7deg); pointer-events: none; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px;
+  border: 2px solid currentColor; color: color-mix(in oklab, var(--muted) 80%, transparent);
+  font: 700 .66rem var(--mono); letter-spacing: .12em; text-transform: uppercase; background: color-mix(in oklab, var(--paper-2) 60%, transparent);
+}
+.stamp svg { width: 11px; height: 11px; }
+.stamp .short { display: none; }
+@media (max-width: 520px) { .stamp .long { display: none; } .stamp .short { display: inline; } .rc-name { font-size: 1.25rem; } }
+
+@keyframes pop { from { transform: scale(.85); opacity: 0; } }
+.add {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 8px; border-radius: 999px; cursor: pointer;
+  border: 1.5px dashed var(--line-med); background: none; font: 600 .8rem var(--sans); color: var(--ink-soft);
+  transition: border-color .15s, background .15s, transform .2s var(--spring);
+}
+.add:hover { border-color: var(--ink); border-style: solid; background: var(--card); transform: translateY(-1px); }
+.add .plus { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--paper); }
+.add .plus svg { width: 10px; height: 10px; }
+
+.new-card {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 190px; cursor: pointer;
+  border-radius: 6px 6px 16px 16px; border: 2px dashed var(--line-med); color: var(--muted); font: 650 .95rem var(--display);
+  background: repeating-linear-gradient(transparent 0 47px, color-mix(in oklab, var(--line) 70%, transparent) 47px 48px);
+  transition: border-color .15s, color .15s, background-color .15s, transform .3s var(--spring);
+}
+.new-card:hover { border-color: var(--ink); color: var(--ink); background-color: var(--card); transform: rotate(-.4deg); }
+.new-card .plus { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid currentColor; background: var(--card); }
+.new-card .plus svg { width: 15px; height: 15px; }
+.new-card small { font: 500 .76rem var(--sans); color: var(--faint); }
+
+/* ── By person ───────────────────────────────────────────────────────────── */
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.fpill {
+  border: 1.5px solid var(--line-med); background: var(--card); border-radius: 999px; padding: 5px 12px; cursor: pointer;
+  font: 600 .78rem var(--sans); color: var(--ink-soft); display: inline-flex; gap: 6px; align-items: center;
+}
+.fpill b { font: 600 .68rem var(--mono); color: var(--faint); }
+.fpill[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.fpill[aria-pressed="true"] b { color: var(--paper); opacity: .7; }
+.register { border: 1.5px solid var(--ink); border-radius: 18px; background: var(--card); overflow: hidden; box-shadow: 4px 4px 0 var(--pp-sky); }
+.prow {
+  display: grid; grid-template-columns: 240px minmax(0,1fr); gap: 14px; align-items: center; padding: 11px 16px;
+  border-top: 1.5px solid var(--line);
+}
+.prow:first-child { border-top: 0; }
+.prow .p { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.prow .p b { font: 600 .9rem var(--sans); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow .p small { font-size: .74rem; color: var(--muted); }
+.prow .roles { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.prow .rchip { padding-right: 4px; animation: pop .35s var(--spring); }
+.prow .rchip .x { width: 18px; height: 18px; border-radius: 50%; border: 0; background: none; cursor: pointer; display: grid; place-items: center; color: var(--faint); margin-left: -2px; }
+.prow .rchip .x:hover { color: var(--pp-rose-ink); background: var(--card); }
+.prow .rchip .x svg { width: 10px; height: 10px; }
+.prow .rchip.fixed { padding-right: 10px; }
+.prow .none { font-size: .8rem; color: var(--faint); font-style: italic; }
+.prow .add { padding: 2px 10px 2px 6px; font-size: .76rem; }
+.prow .add .plus { width: 16px; height: 16px; }
+.no-match { padding: 30px; text-align: center; color: var(--muted); }
+
+/* ── Picker sheet ────────────────────────────────────────────────────────── */
+.scrim { position: fixed; inset: 0; z-index: 40; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.scrim.on { opacity: 1; pointer-events: auto; }
+.sheet {
+  position: fixed; z-index: 41; left: 50%; top: 50%; width: min(440px, calc(100vw - 32px)); max-height: min(620px, calc(100vh - 60px));
+  display: flex; flex-direction: column; transform: translate(-50%, -46%) scale(.97); opacity: 0; pointer-events: none;
+  background: var(--card); border: 1.5px solid var(--ink); border-radius: 22px; box-shadow: 6px 6px 0 var(--sk, var(--pp-sky));
+  transition: transform .35s var(--spring), opacity .2s;
+}
+.sheet.on { transform: translate(-50%, -50%); opacity: 1; pointer-events: auto; }
+.sh-head { padding: 18px 20px 12px; border-bottom: 1.5px dashed var(--line-med); }
+.sh-k { font: 600 .64rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.sh-t { font: 700 1.45rem/1.15 var(--display); letter-spacing: -.03em; margin: 6px 0 4px; display: flex; align-items: center; gap: 10px; }
+.sh-t .av { --sz: 34px; }
+.sh-sub { margin: 0 0 12px; font-size: .84rem; color: var(--muted); }
+.sh-head .search { max-width: none; }
+.sh-list { overflow-y: auto; padding: 6px 10px; flex: 1; }
+.sh-sec { font: 600 .62rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 10px 10px 4px; }
+.opt {
+  width: 100%; display: flex; align-items: center; gap: 11px; padding: 8px 10px; border: 0; border-radius: 12px; cursor: pointer;
+  background: none; text-align: left; transition: background .12s;
+}
+.opt:hover:not(:disabled) { background: var(--paper-2); }
+.opt .tx { flex: 1; min-width: 0; }
+.opt .tx b { display: block; font: 600 .88rem var(--sans); }
+.opt .tx small { display: block; font-size: .74rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opt .tick {
+  width: 24px; height: 24px; border-radius: 8px; border: 1.5px solid var(--line-med); display: grid; place-items: center; flex-shrink: 0;
+  transition: background .15s, border-color .15s, transform .2s var(--spring);
+}
+.opt .tick svg { width: 13px; height: 13px; opacity: 0; transform: scale(.5); transition: opacity .15s, transform .25s var(--spring); }
+.opt[aria-checked="true"] .tick { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.opt[aria-checked="true"] .tick svg { opacity: 1; transform: none; }
+.opt:active:not(:disabled) .tick { transform: scale(.88); }
+.opt:disabled { cursor: not-allowed; opacity: .55; }
+.opt .dot { width: 30px; height: 30px; border-radius: 10px; flex-shrink: 0; border: 1.5px solid var(--ink); background: color-mix(in oklab, var(--rc) 30%, var(--card)); display: grid; place-items: center; }
+.opt .dot::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--rc); }
+.opt .lk { font: 600 .66rem var(--sans); color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+.opt .lk svg { width: 11px; height: 11px; }
+.sh-foot { display: flex; align-items: center; gap: 10px; padding: 12px 16px 14px 20px; border-top: 1.5px solid var(--line); }
+.sh-foot .sum { flex: 1; font-size: .8rem; color: var(--muted); min-width: 0; }
+.sh-foot .sum b { color: var(--ink); }
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.btn {
+  --bg: var(--ink); --fg: var(--paper); --hs: var(--pp-sky);
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer;
+  padding: 10px 17px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--bg); color: var(--fg);
+  font: 600 .88rem var(--sans); letter-spacing: -.01em; white-space: nowrap; box-shadow: 2.5px 2.5px 0 var(--hs);
+  transition: transform .18s var(--spring), box-shadow .18s var(--spring), background .15s;
+}
+.btn:hover { transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--hs); }
+.btn.sm { padding: 7px 14px; font-size: .8rem; }
+.btn svg { width: 14px; height: 14px; }
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 50; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; border-radius: 999px; background: var(--ink); color: var(--paper);
+  font: 550 .84rem var(--sans); transition: transform .35s var(--spring), opacity .25s; max-width: calc(100vw - 32px);
+}
+.toast.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.toast > svg { width: 15px; height: 15px; color: var(--pp-mint); }
+.toast .m { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast button { border: 0; border-radius: 999px; padding: 5px 12px; background: color-mix(in oklab, var(--paper) 16%, transparent); color: var(--paper); font: 600 .78rem var(--sans); cursor: pointer; }
+.toast button:hover { background: color-mix(in oklab, var(--paper) 28%, transparent); }
+.toast button[hidden] { display: none; }
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 960px) { .cards { grid-template-columns: minmax(0,1fr); } .rc, .rc:hover { transform: none; } }
+@media (max-width: 860px) {
+  .app { grid-template-columns: minmax(0,1fr); } .se-nav { display: none; }
+  .se-main { padding: 18px 16px 120px; }
+  .topbar { flex-wrap: wrap; }
+  .se-title { font-size: 1.8rem; }
+  .search { max-width: none; flex-basis: 100%; order: 3; }
+  .bar .grow { display: none; }
+  .prow { grid-template-columns: minmax(0,1fr); gap: 8px; }
+  .sheet {
+    top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 86vh; transform: translateY(100%); opacity: 1;
+    border-radius: 22px 22px 0 0; border-bottom: 0; box-shadow: 0 -4px 0 var(--sk, var(--pp-sky));
+  }
+  .sheet.on { transform: none; }
+  .sheet::before { content: ""; display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--line-med); margin: 8px auto 0; }
+  .opt { padding: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="se-nav" aria-label="Settings">
+    <a class="se-back"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 3 5 8l5 5"/></svg>Back to app</a>
+    <div class="se-h">Settings</div>
+    <div class="se-g" style="--s:var(--pp-lilac)"><i></i>Identity</div>
+    <a class="se-it">Identity</a>
+    <div class="se-g" style="--s:var(--pp-sky)"><i></i>Membership</div>
+    <a class="se-it">Accounts</a><a class="se-it">Invitations</a><a class="se-it on">Roles</a><a class="se-it">Member fields</a>
+    <div class="se-g" style="--s:var(--pp-butter)"><i></i>Operations</div>
+    <a class="se-it">Thresholds</a><a class="se-it">Semesters</a><a class="se-it">Event types</a><a class="se-it">Money categories</a><a class="se-it">Workflows</a>
+    <div class="se-g" style="--s:var(--pp-mint)"><i></i>System</div>
+    <a class="se-it">Activity log</a><a class="se-it">Billing</a>
+  </aside>
+
+  <main class="se-main">
+    <div class="topbar">
+      <div class="se-crumb">Settings · Membership · Roles</div>
+      <div class="seg" role="group" aria-label="Theme">
+        <button type="button" data-theme-btn="day" aria-pressed="true">Day</button>
+        <button type="button" data-theme-btn="night" aria-pressed="false">Night</button>
+      </div>
+    </div>
+    <h1 class="se-title">Roles &amp; who holds them</h1>
+    <p class="se-lede">A role is a job with its own access. Give it to one person or several, and anyone can hold more than one. Changes save as you tap.</p>
+
+    <div class="bar">
+      <div class="views" role="group" aria-label="View">
+        <button type="button" data-view="role" aria-pressed="true">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1.5" y="2" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="2" width="5.5" height="5.5" rx="1.5"/><rect x="1.5" y="9.5" width="5.5" height="5" rx="1.5"/><rect x="9" y="9.5" width="5.5" height="5" rx="1.5"/></svg>
+          By role <span class="n" data-n="role"></span>
+        </button>
+        <button type="button" data-view="person" aria-pressed="false">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 13.5c.6-2.3 2.3-3.5 4.5-3.5s3.9 1.2 4.5 3.5M11 3.2a2.4 2.4 0 0 1 0 4.6M12.5 10.3c1 .5 1.7 1.6 2 3.2"/></svg>
+          By person <span class="n" data-n="person"></span>
+        </button>
+      </div>
+      <label class="search">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+        <input id="q" type="search" placeholder="Find a role or person" autocomplete="off">
+      </label>
+      <span class="grow"></span>
+      <button class="btn sm" type="button" id="newRole">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>New role
+      </button>
+    </div>
+
+    <section id="byRole"></section>
+    <section id="byPerson" hidden>
+      <div class="filters" style="margin-bottom:12px" role="group" aria-label="Show">
+        <button type="button" class="fpill" data-f="all" aria-pressed="true">Everyone <b data-fc="all"></b></button>
+        <button type="button" class="fpill" data-f="some" aria-pressed="false">Has a role <b data-fc="some"></b></button>
+        <button type="button" class="fpill" data-f="none" aria-pressed="false">No role <b data-fc="none"></b></button>
+      </div>
+      <div class="register" id="register"></div>
+    </section>
+  </main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shT">
+  <div class="sh-head">
+    <div class="sh-k" id="shK"></div>
+    <h2 class="sh-t" id="shT"></h2>
+    <p class="sh-sub" id="shSub"></p>
+    <label class="search">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+      <input id="shQ" type="search" autocomplete="off">
+    </label>
+  </div>
+  <div class="sh-list" id="shList" role="listbox" aria-multiselectable="true"></div>
+  <div class="sh-foot">
+    <div class="sum" id="shSum"></div>
+    <button class="btn sm" type="button" id="shDone">Done</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>
+  <span class="m" id="toastM"></span>
+  <button type="button" id="toastUndo">Undo</button>
+</div>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const I = {
+  x: '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m3 3 6 6M9 3 3 9"/></svg>',
+  plus: '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>',
+  chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 3 5 5-5 5"/></svg>',
+  lock: '<svg viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 1a3.5 3.5 0 0 0-3.5 3.5V7H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 15h8a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 12 7h-.5V4.5A3.5 3.5 0 0 0 8 1Zm2 6V4.5a2 2 0 1 0-4 0V7h4Z" clip-rule="evenodd"/></svg>',
+  tick: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>',
+};
+
+/* ── Data (synthetic) ─────────────────────────────────────────────────────── */
+const ME = 1, MY_RANK = 80;
+const ROLES = [
+  { id: 1, name: "President",      color: "#C23C77", rank: 90, can: "Everything",                   sys: true },
+  { id: 2, name: "Vice President", color: "#6244CC", rank: 80, can: "Roster · Roles · Org settings" },
+  { id: 3, name: "Treasurer",      color: "#1B815B", rank: 60, can: "Treasury · Fundraisers" },
+  { id: 4, name: "Secretary",      color: "#2A66C7", rank: 60, can: "Attendance · Docs · Announcements" },
+  { id: 5, name: "Social Chair",   color: "#C9542D", rank: 40, can: "Parties · Events" },
+  { id: 6, name: "Service Chair",  color: "#9C6B08", rank: 40, can: "Service · Events" },
+  { id: 7, name: "Recruitment",    color: "#0E8A8A", rank: 40, can: "Roster · Events" },
+  { id: 8, name: "Historian",      color: "#8A5A3C", rank: 20, can: "Docs · Media" },
+];
+const HUES = ["--pp-peach","--pp-sky","--pp-mint","--pp-butter","--pp-lilac","--pp-rose"];
+const PEOPLE = [
+  "Jordan Ellis","Maya Okafor","Sam Whitfield","Priya Raman","Leo Martinez","Nadia Haddad","Chris Park","Ava Thompson",
+  "Diego Alvarez","Hannah Kim","Marcus Bell","Zoe Fischer","Ethan Brooks","Ines Duarte","Tyler Nguyen","Grace Liu",
+  "Omar Saleh","Ruby Carter",
+].map((name, i) => ({ id: i + 1, name, hue: HUES[(i * 5 + 2) % HUES.length], year: ["Senior","Junior","Sophomore","Freshman"][i % 4] }));
+// BrotherRole pairs
+let HOLDS = new Set(["2:1","1:2","3:3","3:8","4:4","5:5","5:9","6:6","7:7","7:10","7:11"]);
+const key = (roleId, pid) => `${roleId}:${pid}`;
+const holds = (r, p) => HOLDS.has(key(r, p));
+const holdersOf = r => PEOPLE.filter(p => holds(r, p.id));
+const rolesOf = p => ROLES.filter(r => holds(r.id, p));
+const role = id => ROLES.find(r => r.id === id), person = id => PEOPLE.find(p => p.id === id);
+const editable = r => r.rank < MY_RANK;
+const initials = n => n.split(" ").map(w => w[0]).slice(0, 2).join("");
+const first = n => n.split(" ")[0];
+const av = (p, sz) => `<span class="av" style="--h:var(${p.hue})${sz ? `;--sz:${sz}px` : ""}">${initials(p.name)}</span>`;
+const count = n => n === 0 ? "No one yet" : `${n} ${n === 1 ? "person" : "people"}`;
+
+let view = "role", filter = "all", q = "";
+
+/* ── By role ──────────────────────────────────────────────────────────────── */
+function renderRoles() {
+  const qq = q.toLowerCase();
+  const list = ROLES.filter(r => !qq || r.name.toLowerCase().includes(qq) || holdersOf(r.id).some(p => p.name.toLowerCase().includes(qq)));
+  $("#byRole").innerHTML = `<div class="cards">${list.map(r => {
+    const hs = holdersOf(r.id), ok = editable(r);
+    const lines = hs.map((p, i) => `<li class="line">
+        <span class="no">${String(i + 1).padStart(2, "0")}</span>${av(p)}
+        <span class="tx"><b>${esc(p.name)}</b><small>${p.year}</small></span>
+        ${p.id === ME ? `<span class="you">You</span>` : ok ? `<button class="x" type="button" data-rm="${r.id}:${p.id}" aria-label="Take ${esc(r.name)} from ${esc(p.name)}">${I.x}</button>` : ""}
+      </li>`).join("");
+    return `<article class="rc${ok ? "" : " locked"}" data-card="${r.id}" style="--rc:${r.color}">
+      <span class="tape"></span>
+      <header class="rc-head">
+        <div style="min-width:0">
+          <button class="rc-name" type="button" data-open="${r.id}">${esc(r.name)} ${I.chev}</button>
+          <div class="perms">${r.can.split(" · ").map(c => `<span class="perm">${esc(c)}</span>`).join("")}</div>
+        </div>
+        ${ok ? `<span class="tally${hs.length ? "" : " zero"}"><b>${hs.length}</b><small>${hs.length === 1 ? "person" : "people"}</small></span>`
+          : `<span class="stamp" title="You can only hand out roles ranked below yours">${I.lock}<span class="long">Above your rank</span><span class="short">Locked</span></span>`}
+      </header>
+      <ol class="lines">${lines || `<li class="line empty"><span class="no">—</span><span class="tx">Nobody has this role yet.</span></li>`}${ok ? `<li class="line add-line"><span class="no"></span>
+        <button class="add-btn" type="button" data-pick-role="${r.id}"><span class="plus">${I.plus}</span>${hs.length ? "Add someone else" : "Give it to someone"}</button></li>` : ""}</ol>
+    </article>`;
+  }).join("")}${!qq ? `<button class="new-card" type="button" data-new><span class="plus">${I.plus}</span>New role<small>Pick what it can do, then who holds it</small></button>` : ""}</div>
+  ${!list.length ? `<p class="no-match">No role or person matches “${esc(q)}”.</p>` : ""}`;
+}
+
+/* ── By person ────────────────────────────────────────────────────────────── */
+function renderPeople() {
+  const qq = q.toLowerCase();
+  const n = { all: PEOPLE.length, some: PEOPLE.filter(p => rolesOf(p.id).length).length };
+  n.none = n.all - n.some;
+  for (const k in n) $(`[data-fc="${k}"]`).textContent = n[k];
+  const list = PEOPLE
+    .filter(p => filter === "all" || (filter === "some") === (rolesOf(p.id).length > 0))
+    .filter(p => !qq || p.name.toLowerCase().includes(qq) || rolesOf(p.id).some(r => r.name.toLowerCase().includes(qq)))
+    .sort((a, b) => (rolesOf(b.id)[0]?.rank ?? 0) - (rolesOf(a.id)[0]?.rank ?? 0) || a.name.localeCompare(b.name));
+  $("#register").innerHTML = list.map(p => {
+    const rs = rolesOf(p.id).sort((a, b) => b.rank - a.rank);
+    const mine = p.id === ME;
+    return `<div class="prow">
+      <div class="p">${av(p, 34)}<div style="min-width:0"><b>${esc(p.name)}${mine ? " · You" : ""}</b><small>${p.year}</small></div></div>
+      <div class="roles">
+        ${rs.map(r => `<span class="rchip${editable(r) && !mine ? "" : " fixed"}" style="--rc:${r.color}">${esc(r.name)}${
+          editable(r) && !mine ? `<button class="x" type="button" data-rm="${r.id}:${p.id}" aria-label="Take ${esc(r.name)} from ${esc(p.name)}">${I.x}</button>` : ""}</span>`).join("")}
+        ${!rs.length ? `<span class="none">No role</span>` : ""}
+        ${mine ? "" : `<button class="add" type="button" data-pick-person="${p.id}"><span class="plus">${I.plus}</span>${rs.length ? "Role" : "Give a role"}</button>`}
+      </div>
+    </div>`;
+  }).join("") || `<p class="no-match">No one matches.</p>`;
+}
+
+function render() {
+  $('[data-n="role"]').textContent = ROLES.length;
+  $('[data-n="person"]').textContent = PEOPLE.length;
+  $("#byRole").hidden = view !== "role";
+  $("#byPerson").hidden = view !== "person";
+  view === "role" ? renderRoles() : renderPeople();
+}
+
+/* ── Picker ───────────────────────────────────────────────────────────────── */
+// `had` freezes who held the role when the sheet opened, so a tap ticks the row
+// in place instead of jumping it to the other section under your finger.
+let pick = null; // { kind: "role"|"person", id, had }
+function openPicker(kind, id) {
+  pick = { kind, id, had: kind === "role" ? new Set(holdersOf(id).map(p => p.id)) : null };
+  const sh = $("#sheet");
+  if (kind === "role") {
+    const r = role(id);
+    sh.style.setProperty("--sk", `color-mix(in oklab, ${r.color} 45%, var(--card))`);
+    $("#shK").innerHTML = `<span class="rchip" style="--rc:${r.color}">${esc(r.name)}</span>`;
+    $("#shT").textContent = `Who's ${/^[AEIOU]/.test(r.name) ? "an" : "a"} ${r.name}?`;
+    $("#shSub").textContent = `Tap to add or remove. They'll be able to: ${r.can.toLowerCase()}.`;
+    $("#shQ").placeholder = "Search the roster";
+  } else {
+    const p = person(id);
+    sh.style.setProperty("--sk", `var(${p.hue})`);
+    $("#shK").textContent = "Roles";
+    $("#shT").innerHTML = `${av(p)}${esc(p.name)}`;
+    $("#shSub").textContent = "Tap a role to give it or take it away.";
+    $("#shQ").placeholder = "Search roles";
+  }
+  $("#shQ").value = "";
+  renderPicker();
+  $("#scrim").classList.add("on"); sh.classList.add("on");
+  setTimeout(() => $("#shQ").focus({ preventScroll: true }), 60);
+}
+function renderPicker() {
+  if (!pick) return;
+  const qq = $("#shQ").value.toLowerCase();
+  if (pick.kind === "role") {
+    const r = role(pick.id);
+    const ppl = PEOPLE.filter(p => !qq || p.name.toLowerCase().includes(qq));
+    const has = ppl.filter(p => pick.had.has(p.id)), rest = ppl.filter(p => !pick.had.has(p.id));
+    const opt = p => {
+      const others = rolesOf(p.id).filter(x => x.id !== r.id).map(x => x.name);
+      const lockMe = p.id === ME;
+      return `<button class="opt" type="button" role="option" aria-checked="${holds(r.id, p.id)}" data-tog="${r.id}:${p.id}"${lockMe ? " disabled" : ""}>
+        ${av(p, 32)}<span class="tx"><b>${esc(p.name)}${lockMe ? " · You" : ""}</b><small>${others.length ? esc(others.join(" · ")) : p.year}</small></span>
+        <span class="tick">${I.tick}</span></button>`;
+    };
+    $("#shList").innerHTML =
+      (has.length ? `<div class="sh-sec">Has it · ${has.length}</div>${has.map(opt).join("")}` : "") +
+      (rest.length ? `<div class="sh-sec">Everyone else</div>${rest.map(opt).join("")}` : "") +
+      (!ppl.length ? `<p class="no-match">No one called “${esc(qq)}”.</p>` : "");
+    const n = holdersOf(r.id).length;
+    $("#shSum").innerHTML = n ? `<b>${n}</b> ${n === 1 ? "person has" : "people have"} this role` : "No one has this role yet";
+  } else {
+    const p = person(pick.id);
+    const rs = ROLES.filter(r => !qq || r.name.toLowerCase().includes(qq));
+    $("#shList").innerHTML = rs.map(r => {
+      const ok = editable(r);
+      return `<button class="opt" type="button" role="option" aria-checked="${holds(r.id, p.id)}" data-tog="${r.id}:${p.id}"${ok ? "" : " disabled"} style="--rc:${r.color}">
+        <span class="dot"></span><span class="tx"><b>${esc(r.name)}</b><small>${ok ? esc(r.can) : `<span class="lk">${I.lock}Ranked at or above your role</span>`}</small></span>
+        <span class="tick">${I.tick}</span></button>`;
+    }).join("") || `<p class="no-match">No role called “${esc(qq)}”.</p>`;
+    const n = rolesOf(p.id).length;
+    $("#shSum").innerHTML = n ? `<b>${first(p.name)}</b> holds ${n} ${n === 1 ? "role" : "roles"}` : `${first(p.name)} has no role yet`;
+  }
+}
+function closePicker() {
+  pick = null;
+  $("#scrim").classList.remove("on"); $("#sheet").classList.remove("on");
+}
+
+/* ── Mutations + toast ────────────────────────────────────────────────────── */
+let tTimer, lastUndo = null;
+function toast(msg, undo) {
+  $("#toastM").textContent = msg;
+  lastUndo = undo || null;
+  $("#toastUndo").hidden = !undo;
+  $("#toast").classList.add("show");
+  clearTimeout(tTimer); tTimer = setTimeout(() => $("#toast").classList.remove("show"), 4200);
+}
+function toggle(k, opts = {}) {
+  const [rid, pid] = k.split(":").map(Number);
+  const r = role(rid), p = person(pid);
+  if (!editable(r) || pid === ME) return;
+  const adding = !HOLDS.has(k);
+  adding ? HOLDS.add(k) : HOLDS.delete(k);
+  render(); renderPicker();
+  if (adding && view === "role") { const c = $(`[data-card="${rid}"]`); c?.classList.remove("flash"); void c?.offsetWidth; c?.classList.add("flash"); }
+  // Inside the picker the tick is the confirmation; the toast would cover its footer.
+  if (!opts.silent && !pick) toast(adding ? `${first(p.name)} is now ${r.name}` : `${first(p.name)} is no longer ${r.name}`, () => toggle(k, { silent: true }));
+}
+
+/* ── Wiring ───────────────────────────────────────────────────────────────── */
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-rm],[data-tog],[data-pick-role],[data-pick-person],[data-open],[data-new],[data-view],[data-f],[data-theme-btn]");
+  if (!t) return;
+  if (t.dataset.rm) toggle(t.dataset.rm);
+  else if (t.dataset.tog) toggle(t.dataset.tog);
+  else if (t.dataset.pickRole) openPicker("role", +t.dataset.pickRole);
+  else if (t.dataset.pickPerson) openPicker("person", +t.dataset.pickPerson);
+  else if (t.dataset.open) toast(`Opens the ${role(+t.dataset.open).name} sheet (access, rank, color)`);
+  else if ("new" in t.dataset) toast("Opens the New role sheet");
+  else if (t.dataset.view) { view = t.dataset.view; $$("[data-view]").forEach(b => b.setAttribute("aria-pressed", String(b === t))); render(); }
+  else if (t.dataset.f) { filter = t.dataset.f; $$("[data-f]").forEach(b => b.setAttribute("aria-pressed", String(b === t))); renderPeople(); }
+  else if (t.dataset.themeBtn) {
+    document.documentElement.dataset.theme = t.dataset.themeBtn;
+    $$("[data-theme-btn]").forEach(b => b.setAttribute("aria-pressed", String(b === t)));
+  }
+});
+$("#newRole").addEventListener("click", () => toast("Opens the New role sheet"));
+$("#q").addEventListener("input", e => { q = e.target.value.trim(); render(); });
+$("#shQ").addEventListener("input", renderPicker);
+$("#shDone").addEventListener("click", closePicker);
+$("#scrim").addEventListener("click", closePicker);
+$("#toastUndo").addEventListener("click", () => { lastUndo?.(); $("#toast").classList.remove("show"); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && pick) closePicker(); });
+
+render();
+</script>
+</body>
+</html>

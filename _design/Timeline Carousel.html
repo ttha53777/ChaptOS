@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timeline Carousel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Instagram carousel (8 × 1080×1350) from content/blog/a-clearer-picture-of-whats-next.md.
+     Same paper system as _design/Meeting Notes Carousel.html. Events + type colours are the post's
+     fictional chapter (app/blog/demos/timeline-data.ts). One story throughout: when is formal?
+     Preview: open the file. Export: node _design/timeline-carousel-export.mjs → _design/timeline-carousel/*.png -->
+<style>
+:root{
+  --paper:#FFFCF6;--paper2:#FBF5EA;--card:#fff;--ink:#26211B;--soft:#544A3F;--muted:#776D60;--faint:#A89E90;
+  --line:#EBE1CF;--line2:#DCD0B9;
+  --sky:#CFE2FF;--sky-ink:#2A66C7;--sky-bd:#CCDFFB;--sky-soft:#EAF2FF;
+  --mint:#C7EFDA;--mint-ink:#1B815B;--mint-bd:#BDE7D2;--mint-soft:#E6F8EF;
+  --butter:#FFE5A0;--butter-ink:#9C6B08;--butter-bd:#F4DFA6;--butter-soft:#FFF6DC;
+  --lilac:#E1D8FF;--lilac-ink:#6244CC;--lilac-bd:#DCD2FB;--lilac-soft:#F1EDFF;
+  --rose:#FFD6E6;--rose-ink:#C23C77;--rose-bd:#F8CEE0;--rose-soft:#FFEDF4;
+  --peach:#FFD5C4;--peach-ink:#C9542D;--peach-bd:#F8D2C2;--peach-soft:#FFEDE5;
+  /* event-type palette (lib/event-types.ts) */
+  --t-chapter:#3f6ea3;--t-party:#b34f72;--t-service:#2f8579;--t-deadline:#c14a37;--t-phil:#9a7224;--t-alumni:#8b3fa3;
+  --display:'Bricolage Grotesque',sans-serif;--serif:'Fraunces',serif;--sans:'Inter',sans-serif;--mono:'IBM Plex Mono',monospace;
+  --sh2:0 2px 0 rgba(38,33,27,.04),0 24px 50px -24px rgba(38,33,27,.28);
+  --z:.46;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#EFE7D8;color:var(--ink);font:400 30px/1.45 var(--sans);letter-spacing:-.012em;-webkit-font-smoothing:antialiased}
+.deck{zoom:var(--z);display:flex;flex-wrap:wrap;gap:48px;padding:64px;justify-content:center}
+svg{flex:none}
+
+/* ── the slide ── */
+.slide{--a:var(--peach);--a-ink:var(--peach-ink);--a-soft:var(--peach-soft);
+  position:relative;width:1080px;height:1350px;overflow:hidden;background:var(--paper);
+  display:flex;flex-direction:column;padding:92px 92px 0}
+.slide::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.6;
+  background:radial-gradient(620px 520px at 104% -4%,var(--a) 0%,transparent 70%),
+             radial-gradient(560px 480px at -10% 108%,var(--a-soft) 0%,transparent 70%)}
+.slide>*{position:relative}
+.s-butter{--a:var(--butter);--a-ink:var(--butter-ink);--a-soft:var(--butter-soft)}
+.s-mint{--a:var(--mint);--a-ink:var(--mint-ink);--a-soft:var(--mint-soft)}
+.s-sky{--a:var(--sky);--a-ink:var(--sky-ink);--a-soft:var(--sky-soft)}
+.s-lilac{--a:var(--lilac);--a-ink:var(--lilac-ink);--a-soft:var(--lilac-soft)}
+.s-rose{--a:var(--rose);--a-ink:var(--rose-ink);--a-soft:var(--rose-soft)}
+
+.eyebrow{display:flex;align-items:center;gap:16px;font:600 21px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--a-ink)}
+.eyebrow::before{content:"";width:40px;height:3px;border-radius:2px;background:currentColor}
+.eyebrow .pm{display:inline-flex;align-items:center;gap:10px;color:var(--ink)}
+.eyebrow .pm svg{width:30px;height:30px}
+h1{margin:30px 0 0;font:600 98px/.98 var(--display);letter-spacing:-.036em;text-wrap:balance}
+h1.xl{font-size:116px;line-height:.95;letter-spacing:-.034em}
+.hi{position:relative;white-space:nowrap;z-index:0}
+.hi::before{content:"";position:absolute;z-index:-1;left:-.08em;right:-.1em;top:.52em;bottom:.02em;background:var(--a);
+  border-radius:.14em .3em .18em .34em;transform:rotate(-1.2deg);opacity:.95}
+.lede{margin:28px 0 0;font-size:33px;line-height:1.42;color:var(--soft);max-width:840px}
+.stage{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+
+.foot{height:132px;flex:none;display:flex;align-items:center;justify-content:space-between;border-top:2px dashed var(--line2);margin:0 -4px}
+.brand{display:flex;align-items:center;gap:14px;font:700 31px var(--display);letter-spacing:-.03em}
+.brand svg{width:46px;height:46px}
+.pager{display:flex;align-items:center;gap:22px;font:500 21px var(--mono);letter-spacing:.1em;color:var(--muted)}
+.dots{display:flex;gap:9px}.dots i{width:11px;height:11px;border-radius:50%;background:var(--line2)}
+.dots i.on{width:34px;border-radius:6px;background:var(--ink)}
+.swipe{display:inline-flex;align-items:center;gap:10px;color:var(--ink);font-weight:600}
+
+/* ── shared paper objects ── */
+.tape{position:absolute;width:140px;height:38px;background:color-mix(in srgb,var(--butter) 78%,transparent);border-inline:1.5px dashed rgba(38,33,27,.16);z-index:3}
+.stamp{position:absolute;font:700 26px var(--mono);letter-spacing:.16em;text-transform:uppercase;padding:9px 18px;border:3px solid currentColor;border-radius:10px;
+  background:color-mix(in srgb,currentColor 7%,transparent);mix-blend-mode:multiply;white-space:nowrap}
+.stamp::after{content:"";position:absolute;inset:4px;border:1.5px solid currentColor;border-radius:6px;opacity:.5}
+.win{width:100%;border:2.5px solid var(--ink);border-radius:30px;background:var(--paper2);box-shadow:12px 12px 0 var(--sky);overflow:hidden}
+.win .chrome{display:flex;align-items:center;gap:10px;padding:16px 22px;border-bottom:2px solid var(--line2)}
+.win .chrome i{width:15px;height:15px;border-radius:50%;border:2px solid rgba(38,33,27,.25)}
+.win .chrome i:nth-child(1){background:var(--peach)}.win .chrome i:nth-child(2){background:var(--butter)}.win .chrome i:nth-child(3){background:var(--mint)}
+.win .url{margin-left:18px;flex:1;display:flex;align-items:center;gap:10px;padding:7px 16px;border-radius:12px;background:var(--card);border:2px solid var(--line);font:500 19px var(--mono);color:var(--muted)}
+.win .url b{color:var(--ink);font-weight:600}
+.win .url svg{width:22px;height:22px}
+.av{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;font:600 17px var(--sans);border:3px solid var(--card);color:var(--ink);flex:none}
+.tchip{display:inline-flex;align-items:center;gap:9px;padding:5px 14px;border-radius:999px;font:600 18px var(--mono);letter-spacing:.06em;text-transform:uppercase;
+  color:var(--c);background:color-mix(in srgb,var(--c) 10%,var(--card));border:2px solid color-mix(in srgb,var(--c) 28%,transparent)}
+.tchip::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--c)}
+.req{display:inline-flex;align-items:center;padding:4px 12px;border-radius:8px;font:600 16px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);border:2px dashed var(--line2)}
+
+/* ── 1 · hook: an invitation with no date ── */
+.s1 h1 .hi::before{top:.56em}
+.s1 .tagline{margin:26px 0 0;font:italic 500 44px/1.2 var(--serif);letter-spacing:-.02em;color:var(--soft)}
+.s1 .tagline b{font-style:normal;font-weight:600;color:var(--peach-ink)}
+.s1 .scene{position:relative;width:100%;height:690px}
+.invite{position:absolute;left:6px;top:46px;width:600px;height:600px;transform:rotate(-2.4deg);background:#FFFDF8;border:2.5px solid var(--ink);border-radius:8px;
+  box-shadow:14px 14px 0 var(--peach);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px}
+.invite::before,.invite::after{content:"";position:absolute;pointer-events:none;border-radius:3px}
+.invite::before{inset:20px;border:2px solid var(--line2)}
+.invite::after{inset:28px;border:1px solid var(--line)}
+.invite .tape{left:50%;top:-20px;transform:translateX(-50%) rotate(-3deg)}
+.invite .k{font:600 19px var(--mono);letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+.invite h2{margin:18px 0 0;font:italic 500 104px/.92 var(--serif);letter-spacing:-.035em}
+.invite .orn{width:240px;height:22px;margin:28px 0 24px;color:var(--peach-ink)}
+.invite .when{font:500 38px/1.2 var(--serif);letter-spacing:-.02em;display:flex;align-items:flex-end;gap:14px}
+.invite .blank{position:relative;display:inline-block;width:110px;height:50px;border-bottom:2.5px solid var(--ink)}
+.invite .blank i{position:absolute;left:50%;bottom:-6px;transform:translateX(-50%) rotate(8deg);font:italic 600 92px/1 var(--serif);color:var(--rose-ink)}
+.invite .meta{margin-top:30px;font:500 20px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--soft)}
+.leaf{position:absolute;width:212px;background:var(--card);border:2.5px solid var(--ink);border-radius:18px;box-shadow:8px 8px 0 var(--c);overflow:hidden;text-align:center}
+.leaf .mo{position:relative;padding:16px 0 12px;background:var(--c);border-bottom:2.5px solid var(--ink);font:700 22px var(--mono);letter-spacing:.24em;color:var(--ink)}
+.leaf .mo::before,.leaf .mo::after{content:"";position:absolute;top:10px;width:12px;height:12px;border-radius:50%;background:var(--paper);border:2px solid var(--ink)}
+.leaf .mo::before{left:26px}.leaf .mo::after{right:26px}
+.leaf b{display:block;padding:8px 0 0;font:600 94px/1 var(--display);letter-spacing:-.05em}
+.leaf small{display:block;margin:6px 16px 18px;padding-top:12px;border-top:2px dashed var(--line2);font:600 17px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ci)}
+.leaf.a{--c:var(--mint);--ci:var(--mint-ink);left:640px;top:4px;transform:rotate(7deg)}
+.leaf.b{--c:var(--sky);--ci:var(--sky-ink);left:678px;top:236px;transform:rotate(-5deg)}
+.leaf.c{--c:var(--peach);--ci:var(--peach-ink);left:634px;top:468px;transform:rotate(8deg)}
+
+/* ── 2 · the where problem ── */
+.s2 .places{display:grid;grid-template-columns:1fr 1fr;gap:34px;width:100%}
+.place{position:relative;background:var(--card);border:2.5px solid var(--ink);border-radius:26px;padding:30px 30px 28px;box-shadow:9px 9px 0 var(--c);min-height:250px;display:flex;flex-direction:column}
+.place:nth-child(1){--c:var(--mint);transform:rotate(-1.4deg)}
+.place:nth-child(2){--c:var(--sky);transform:rotate(1deg) translateY(14px)}
+.place:nth-child(3){--c:var(--lilac);transform:rotate(.6deg)}
+.place:nth-child(4){--c:var(--rose);transform:rotate(-1deg) translateY(14px)}
+.place .ic{width:72px;height:72px;border-radius:18px;background:var(--c);display:grid;place-items:center}
+.place .ic svg{width:40px;height:40px}
+.place p{margin:22px 0 0;font:600 40px/1.05 var(--display);letter-spacing:-.035em}
+.place small{display:block;margin-top:auto;padding-top:16px;font:500 20px var(--mono);letter-spacing:.04em;color:var(--muted)}
+.place .stamp{right:22px;top:26px;font-size:18px;padding:6px 12px;transform:rotate(8deg);color:var(--peach-ink)}
+.s2 .after{margin:60px 0 0;font:italic 500 36px/1.3 var(--serif);color:var(--soft);text-align:center;letter-spacing:-.015em}
+
+/* ── 3 · one line ── */
+.tl{padding:26px 30px 30px;background:var(--paper)}
+.tl .ph{display:flex;align-items:baseline;justify-content:space-between;margin:0 4px 18px}
+.tl .ph b{font:600 40px var(--display);letter-spacing:-.04em}
+.tl .ph span{font:500 18px var(--mono);color:var(--muted);letter-spacing:.04em}
+.spine{position:relative;display:grid;gap:14px}
+.spine::before{content:"";position:absolute;left:39px;top:30px;bottom:30px;border-left:2.5px dashed var(--line2)}
+.ev{position:relative;display:flex;align-items:center;gap:22px}
+.ev .dt{position:relative;z-index:1;width:80px;flex:none;text-align:center;border:2px solid var(--line2);border-radius:14px;padding:7px 0 9px;background:var(--card)}
+.ev .dt small{display:block;font:600 15px var(--mono);letter-spacing:.14em;color:var(--c)}
+.ev .dt b{display:block;font:600 36px/1 var(--display);letter-spacing:-.03em;margin-top:3px}
+.ev .cd{flex:1;min-width:0;display:flex;align-items:center;gap:16px;padding:16px 22px;background:var(--card);border:2px solid var(--line);border-left:7px solid var(--c);border-radius:18px}
+.ev .cd p{margin:0;font:600 29px/1.15 var(--sans);letter-spacing:-.02em;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev .cd span.w{font:500 19px var(--mono);color:var(--muted);white-space:nowrap}
+.ev.top .cd{border:2.5px solid var(--ink);border-left:9px solid var(--c);box-shadow:7px 7px 0 var(--rose)}
+.ev.top .dt{border-color:var(--ink)}
+.ev .ans{position:absolute;right:-14px;top:-26px;display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;background:var(--ink);color:var(--paper);
+  font:700 19px var(--display);letter-spacing:-.01em;transform:rotate(3deg);box-shadow:4px 4px 0 var(--mint)}
+
+/* ── 4 · add an event ── */
+.s4 .stage{flex-direction:column;gap:0}
+.evcard{position:relative;width:100%;background:var(--card);border:2.5px solid var(--ink);border-radius:30px;box-shadow:12px 12px 0 var(--mint);overflow:hidden}
+.evcard .hd{padding:30px 34px 26px;border-left:12px solid var(--t-party)}
+.evcard .row1{display:flex;align-items:center;gap:14px}
+.evcard h3{margin:16px 0 0;font:600 60px/1 var(--display);letter-spacing:-.04em}
+.evcard .facts{display:flex;flex-wrap:wrap;gap:12px 30px;margin-top:20px;font:500 27px var(--sans);color:var(--soft)}
+.evcard .facts span{display:inline-flex;align-items:center;gap:10px}
+.evcard .facts svg{width:28px;height:28px;color:var(--muted)}
+.more{padding:22px 34px 30px;border-top:2px dashed var(--line2);background:var(--paper2)}
+.more .k{font:600 18px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.blocks{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.blk{display:flex;align-items:center;gap:16px;padding:16px 20px;background:var(--card);border:2px solid var(--line);border-radius:18px}
+.blk .bi{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:var(--c);flex:none}
+.blk .bi svg{width:28px;height:28px}
+.blk b{display:block;font:600 17px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.blk span{display:block;font:600 26px/1.2 var(--sans);letter-spacing:-.02em;margin-top:2px}
+.evcard .stamp{right:34px;top:30px;color:var(--mint-ink);transform:rotate(-7deg);font-size:24px}
+.land{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:44px;padding:0 6px}
+.land p{margin:0;font:italic 500 34px/1.25 var(--serif);color:var(--soft);letter-spacing:-.015em}
+.land .btn{display:inline-flex;align-items:center;gap:14px;padding:20px 34px;border-radius:999px;background:var(--ink);color:var(--paper);font:600 30px var(--display);letter-spacing:-.02em;box-shadow:7px 7px 0 var(--mint)}
+.land .btn svg{width:28px;height:28px}
+
+/* ── 5 · event types ── */
+.s5 .stage{flex-direction:column;gap:44px}
+.types{width:100%;background:var(--card);border:2.5px solid var(--ink);border-radius:30px;box-shadow:12px 12px 0 var(--lilac);overflow:hidden}
+.types .hd{display:flex;align-items:center;justify-content:space-between;padding:22px 30px;border-bottom:2px solid var(--line);font:600 19px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.trow{display:flex;align-items:center;gap:20px;padding:16px 30px;border-top:2px solid var(--line)}
+.trow:first-of-type{border-top:0}
+.trow .sw{width:42px;height:42px;border-radius:12px;background:var(--c);flex:none}
+.trow .nm{font:600 31px var(--sans);letter-spacing:-.02em;flex:1}
+.trow .tag{font:600 16px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.trow.edit{background:var(--lilac-soft)}
+.trow.edit .nm{display:inline-flex;align-items:center;gap:4px}
+.trow.edit .nm i{width:3px;height:34px;background:var(--lilac-ink)}
+.pal{display:flex;gap:8px}
+.pal i{width:28px;height:28px;border-radius:50%;background:var(--c);border:3px solid var(--card)}
+.pal i.on{box-shadow:0 0 0 2.5px var(--ink)}
+.weeks{width:100%;display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
+.wk{display:flex;flex-direction:column;align-items:center;gap:12px}
+.wk .col{display:flex;flex-direction:column-reverse;gap:8px;height:150px;justify-content:flex-start}
+.wk .col i{width:40px;height:40px;border-radius:50%;background:var(--c);border:3px solid var(--paper)}
+.wk small{font:600 17px var(--mono);letter-spacing:.1em;color:var(--muted)}
+.wk.heavy small{color:var(--t-service)}
+.s5 .glance{margin:-14px 0 0;font:italic 500 32px/1.3 var(--serif);color:var(--soft);text-align:center;letter-spacing:-.015em}
+
+/* ── 6 · calendar ── */
+.s6 .stage{gap:50px;align-items:center}
+.phone{width:420px;flex:none;border:3px solid var(--ink);border-radius:62px;padding:16px;background:var(--ink);box-shadow:12px 12px 0 var(--rose)}
+.phone .scr{position:relative;border-radius:48px;background:var(--card);overflow:hidden;height:640px;padding:64px 24px 24px}
+.phone .notch{position:absolute;left:50%;top:16px;width:120px;height:34px;border-radius:20px;background:var(--ink);transform:translateX(-50%)}
+.phone .day{font:600 17px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--rose-ink)}
+.phone h4{margin:4px 0 18px;font:600 46px/1 var(--display);letter-spacing:-.04em}
+.slot{display:flex;gap:14px;margin-top:12px}
+.slot time{width:70px;flex:none;font:500 17px/1.3 var(--mono);color:var(--muted);padding-top:10px}
+.slot .e{flex:1;padding:11px 14px;border-radius:12px;font:600 21px/1.2 var(--sans);letter-spacing:-.01em;background:var(--paper2);border:2px solid var(--line);color:var(--soft)}
+.slot .e small{display:block;font:500 16px var(--sans);color:var(--muted);margin-top:2px}
+.slot .e.org{background:color-mix(in srgb,var(--c) 14%,var(--card));border-color:color-mix(in srgb,var(--c) 40%,transparent);border-left:6px solid var(--c);color:var(--ink)}
+.slot .e.org small{color:var(--c)}
+.slot .e.moved::after{content:"Moved · updated";display:inline-block;margin-top:8px;font:600 13px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mint-ink);background:var(--mint-soft);border:1.5px solid var(--mint-bd);border-radius:999px;padding:2px 8px}
+.steps{flex:1;min-width:0;position:relative;display:flex;flex-direction:column;gap:34px}
+.steps::before{content:"";position:absolute;left:25px;top:30px;bottom:30px;border-left:2.5px dashed var(--line2)}
+.step{position:relative;display:flex;gap:20px;align-items:flex-start}
+.step .n{position:relative;z-index:1;width:52px;height:52px;flex:none;border-radius:50%;background:var(--card);border:2.5px solid var(--ink);display:grid;place-items:center;font:600 24px var(--display)}
+.step .bd{flex:1;min-width:0;padding-top:8px}
+.step .lb{font:600 18px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--rose-ink);margin-bottom:14px}
+.sub{display:inline-flex;align-items:center;gap:12px;padding:16px 24px;border-radius:999px;border:3px solid var(--rose-ink);background:var(--card);color:var(--rose-ink);
+  font:700 25px var(--sans);letter-spacing:-.02em;white-space:nowrap;box-shadow:6px 6px 0 var(--rose)}
+.sub svg{width:30px;height:30px}
+.apps{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.app{display:flex;flex-direction:column;align-items:center;gap:12px;padding:20px 10px 18px;background:var(--card);border:2.5px solid var(--line);border-radius:22px;text-align:center}
+.app.on{border-color:var(--ink);box-shadow:6px 6px 0 var(--sky)}
+.app .ico{width:74px;height:74px;border-radius:20px;border:2.5px solid var(--ink);overflow:hidden;display:flex;flex-direction:column;background:var(--card)}
+.app .ico i{display:block;height:22px;font:700 12px/22px var(--mono);letter-spacing:.12em;font-style:normal;color:#fff}
+.app .ico b{flex:1;display:grid;place-items:center;font:600 32px/1 var(--display);letter-spacing:-.04em}
+.app.g .ico i{background:var(--sky-ink)}
+.app.a .ico i{background:#E5483B}
+.app span{font:600 22px/1.15 var(--sans);letter-spacing:-.02em}
+.done{display:inline-flex;align-items:center;gap:12px;padding:14px 20px;border-radius:18px;background:var(--mint-soft);border:2.5px solid var(--mint-bd);font:600 24px/1.25 var(--sans);letter-spacing:-.02em;color:var(--ink)}
+.done svg{width:30px;height:30px;color:var(--mint-ink);flex:none}
+.done small{display:block;font:500 19px var(--sans);color:var(--soft)}
+
+/* ── 7 · check-in + cta ── */
+.s7 .stage{flex-direction:column;gap:0}
+.ci{width:100%;background:var(--card);border:2.5px solid var(--ink);border-radius:32px;box-shadow:12px 12px 0 var(--butter);overflow:hidden}
+.ci .hd{display:flex;align-items:center;gap:16px;padding:24px 30px;border-bottom:2px solid var(--line);border-left:10px solid var(--t-chapter)}
+.ci .hd b{font:600 30px var(--sans);letter-spacing:-.02em;flex:1}
+.live{display:inline-flex;align-items:center;gap:10px;font:600 17px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mint-ink);
+  padding:7px 15px;border-radius:999px;border:2px solid var(--mint-bd);background:var(--mint-soft)}
+.live i{width:10px;height:10px;border-radius:50%;background:var(--mint-ink);box-shadow:0 0 0 5px rgba(27,129,91,.16)}
+.ci .bd{display:flex;align-items:center;gap:36px;padding:30px}
+.here{display:inline-flex;align-items:center;gap:16px;padding:28px 44px;border-radius:999px;background:var(--mint);border:3px solid var(--mint-ink);color:var(--ink);
+  font:700 42px var(--display);letter-spacing:-.03em;box-shadow:6px 6px 0 var(--mint-ink);flex:none}
+.here svg{width:40px;height:40px;color:var(--mint-ink)}
+.tally{flex:1}
+.tally .n{font:600 64px/1 var(--display);letter-spacing:-.04em}
+.tally .n small{font:500 30px var(--sans);color:var(--muted);letter-spacing:-.01em}
+.bar{height:16px;border-radius:999px;background:var(--paper2);border:2px solid var(--line);margin-top:14px;overflow:hidden}
+.bar i{display:block;height:100%;width:65%;background:var(--mint-ink);border-radius:999px}
+.arr{display:flex;align-items:center;gap:6px;margin-top:16px;font:500 19px var(--mono);color:var(--muted)}
+.arr .av{width:42px;height:42px;font-size:14px;margin-left:-10px}
+.arr .av:first-child{margin-left:0}
+.arr em{font-style:normal;margin-left:12px}
+.feed{border-top:2px dashed var(--line2);padding:8px 30px 14px;background:var(--paper)}
+.fr{display:flex;align-items:center;gap:16px;padding:12px 0;border-top:2px solid var(--line);font:500 27px var(--sans);letter-spacing:-.015em}
+.fr:first-child{border-top:0}
+.fr .av{width:44px;height:44px;font-size:14px;border:0}
+.fr b{font-weight:600;flex:1}
+.fr time{font:500 19px var(--mono);color:var(--muted)}
+.fr .ex{font:600 16px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--butter-ink);background:var(--butter-soft);border:2px solid var(--butter-bd);border-radius:999px;padding:3px 12px}
+.fr.new b::after{content:"New";margin-left:12px;vertical-align:3px;font:600 14px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mint-ink);background:var(--mint-soft);border:1.5px solid var(--mint-bd);border-radius:999px;padding:2px 9px}
+.rec{display:flex;align-items:center;gap:14px;flex-wrap:wrap;width:100%;margin-top:44px;padding:0 6px;font:italic 500 30px/1.3 var(--serif);color:var(--soft);letter-spacing:-.015em}
+.rec span{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:999px;font:600 19px var(--mono);font-style:normal;letter-spacing:.08em;text-transform:uppercase;border:2px solid var(--c-bd);background:var(--c-bg);color:var(--c-ink)}
+.rec .p{--c-bd:var(--mint-bd);--c-bg:var(--mint-soft);--c-ink:var(--mint-ink)}
+.rec .e{--c-bd:var(--butter-bd);--c-bg:var(--butter-soft);--c-ink:var(--butter-ink)}
+.rec .x{--c-bd:var(--rose-bd);--c-bg:var(--rose-soft);--c-ink:var(--rose-ink)}
+
+/* ── 8 · ask chapt + cta ── */
+.s8 .stage{flex-direction:column;gap:0}
+.ask{width:100%;background:var(--card);border:2.5px solid var(--ink);border-radius:34px;box-shadow:12px 12px 0 var(--peach);overflow:hidden}
+.ask .q{display:flex;align-items:center;gap:18px;padding:28px 34px;border-bottom:2px solid var(--line);font:500 34px var(--sans);letter-spacing:-.02em}
+.ask .q svg{width:34px;height:34px;color:var(--peach-ink)}
+.ask .q .caret{width:3px;height:38px;background:var(--peach-ink);margin-left:-12px}
+.ask .q kbd{margin-left:auto;font:500 18px var(--mono);border:1.5px solid var(--line2);border-radius:8px;padding:3px 10px;color:var(--muted);background:var(--paper)}
+.ask .a{padding:32px 36px 36px}
+.ask .who{display:flex;align-items:center;gap:12px;font:600 19px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ask .who svg{width:30px;height:30px}
+.ask .verdict{margin:14px 0 0;font:600 70px/1.02 var(--display);letter-spacing:-.045em}
+.ask .verdict span{color:var(--t-party)}
+.ask .rows{margin-top:26px;border:2px solid var(--line);border-radius:20px;overflow:hidden}
+.ask .row{display:flex;align-items:center;gap:20px;padding:16px 24px;font-size:28px;border-top:2px solid var(--line)}
+.ask .row:first-child{border-top:0}
+.ask .row .rk{width:130px;font:600 17px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ask .src{display:inline-flex;align-items:center;gap:12px;margin-top:24px;padding:10px 18px;border-radius:14px;background:var(--paper2);border:2px dashed var(--line2);font:500 21px var(--mono);color:var(--soft)}
+.ask .src i{width:12px;height:12px;border-radius:50%;background:var(--t-party)}
+.s8 .cta{margin-top:56px}
+.cta{display:flex;align-items:center;justify-content:space-between;gap:30px;width:100%;margin-top:70px}
+.cta p{margin:0;font:600 46px/1.05 var(--display);letter-spacing:-.04em}
+.cta p small{display:block;margin-top:10px;font:400 25px var(--sans);letter-spacing:-.01em;color:var(--soft)}
+.cta a{display:inline-flex;align-items:center;gap:14px;padding:22px 32px;border-radius:999px;background:var(--ink);color:var(--paper);text-decoration:none;flex:none;
+  font:600 30px var(--display);letter-spacing:-.02em;box-shadow:7px 7px 0 var(--peach)}
+.cta a svg{width:28px;height:28px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="brand" viewBox="0 0 40 40">
+    <rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="#FFE5A0" stroke="#26211B" stroke-width="2.4"/>
+    <path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="#26211B" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="14.6" cy="16" r="1.9" fill="#26211B"/><circle cx="25.4" cy="16" r="1.9" fill="#26211B"/>
+  </symbol>
+  <symbol id="arr" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="grid" viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 9.5h17M3.5 14.5h17M10 4v16" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="doc" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z M14 3v4h4 M10 12h5 M10 16h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="pin" viewBox="0 0 24 24"><path d="M9 3h6l-1 6 4 4H6l4-4zM12 13v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="bubble" viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 012 2v8a2 2 0 01-2 2h-7l-5 4v-4H5a2 2 0 01-2-2V7a2 2 0 012-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 10h8M8 13h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="head" viewBox="0 0 24 24"><circle cx="12" cy="9" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4.5 20.5c1.4-3.6 4.2-5.3 7.5-5.3s6.1 1.7 7.5 5.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="place" viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0113 0c0 5-6.5 11-6.5 11z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="2.3" fill="currentColor"/></symbol>
+  <symbol id="shirt" viewBox="0 0 24 24"><path d="M8 3.5L3.5 6.5l2 4 2-1V20.5h9V9.5l2 1 2-4L16 3.5c-.6 1.6-2.1 2.5-4 2.5s-3.4-.9-4-2.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="hand" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="19" cy="17" r="2.2" fill="currentColor"/></symbol>
+  <symbol id="coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14.6 9c-.5-.9-1.5-1.4-2.6-1.4-1.5 0-2.6.8-2.6 2s1.1 1.7 2.6 2 2.6.8 2.6 2.1-1.1 2-2.6 2c-1.2 0-2.2-.5-2.7-1.5M12 6v1.6M12 16.4V18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="phone" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 13v5M9.5 15.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="seal" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="currentColor" opacity=".16"/><path d="M7.5 12.3l3 3 6-6.3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<main class="deck">
+
+<!-- ═══ 1 · HOOK ═══ -->
+<section class="slide s1">
+  <div class="eyebrow">Ask your members</div>
+  <h1 class="xl">When is <span class="hi">formal</span>?</h1>
+  <p class="tagline">Ask five people. Get <b>three</b> different answers.</p>
+  <div class="stage">
+    <div class="scene">
+      <div class="invite"><span class="tape"></span>
+        <span class="k">You’re invited to</span>
+        <h2>Fall Formal</h2>
+        <svg class="orn" viewBox="0 0 240 22" fill="none" aria-hidden="true"><path d="M8 11h86M146 11h86" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M120 2l9 9-9 9-9-9z" fill="currentColor"/><circle cx="102" cy="11" r="3" fill="currentColor"/><circle cx="138" cy="11" r="3" fill="currentColor"/></svg>
+        <div class="when">Saturday, November <span class="blank"><i>?</i></span></div>
+        <div class="meta">7 PM · The Grand Hall · Black tie</div>
+      </div>
+      <div class="leaf a"><div class="mo">NOV</div><b>14</b><small>the sheet</small></div>
+      <div class="leaf b"><div class="mo">NOV</div><b>21</b><small>exec notes</small></div>
+      <div class="leaf c"><div class="mo">NOV</div><b>28</b><small>the gc</small></div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><span class="swipe">Swipe <svg width="26" height="26"><use href="#arr"/></svg></span></div>
+  </div>
+</section>
+
+<!-- ═══ 2 · THE WHERE PROBLEM ═══ -->
+<section class="slide s2 s-butter">
+  <div class="eyebrow">The real problem</div>
+  <h1>Not a scheduling problem. A <span class="hi">where</span> problem.</h1>
+  <div class="stage">
+    <div>
+      <div class="places">
+        <div class="place"><span class="ic"><svg><use href="#grid"/></svg></span><p>The semester spreadsheet</p><small>That no one has access to</small><span class="stamp">Request access</span></div>
+        <div class="place"><span class="ic"><svg><use href="#doc"/></svg></span><p>“Fall plan FINAL v3”</p><small>There is also a v4</small></div>
+        <div class="place"><span class="ic"><svg><use href="#bubble"/></svg></span><p>That one GC message</p><small>Lost 400 messages ago</small></div>
+        <div class="place"><span class="ic"><svg><use href="#head"/></svg></span><p>The president’s head</p><small>Ask Jordan, maybe</small></div>
+      </div>
+      <p class="after">Each one is a little out of date,<br>so everyone just asks the chat. Again.</p>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 3 · ONE LINE ═══ -->
+<section class="slide s3 s-sky">
+  <div class="eyebrow">Meet the Timeline</div>
+  <h1>Every date your org keeps. <span class="hi">One</span> line.</h1>
+  <div class="stage">
+    <div class="win">
+      <div class="chrome"><i></i><i></i><i></i><span class="url"><svg><use href="#brand"/></svg><span>chaptos.com/org/<b>your-chapter</b>/timeline</span></span></div>
+      <div class="tl">
+        <div class="ph"><b>What’s next</b><span>FALL TERM · 8 DATES</span></div>
+        <div class="spine">
+          <div class="ev" style="--c:var(--t-chapter)"><div class="dt"><small>OCT</small><b>26</b></div><div class="cd"><p>Chapter Meeting — Week 9</p><span class="req">Required</span><span class="w">8:00 PM</span></div></div>
+          <div class="ev" style="--c:var(--t-party)"><div class="dt"><small>OCT</small><b>31</b></div><div class="cd"><p>Halloween social</p><span class="w">10:00 PM</span></div></div>
+          <div class="ev" style="--c:var(--t-phil)"><div class="dt"><small>NOV</small><b>07</b></div><div class="cd"><p>Philanthropy 5K</p><span class="w">8:00 AM</span></div></div>
+          <div class="ev" style="--c:var(--t-alumni)"><div class="dt"><small>NOV</small><b>14</b></div><div class="cd"><p>Alumni dinner</p><span class="w">6:30 PM</span></div></div>
+          <div class="ev top" style="--c:var(--t-party)"><div class="dt"><small>NOV</small><b>21</b></div><div class="cd"><p>Fall formal</p><span class="w">7:00 PM · The Grand Hall</span></div><span class="ans">The answer</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 4 · ADD AN EVENT ═══ -->
+<section class="slide s4 s-mint">
+  <div class="eyebrow">Timeline · Add event</div>
+  <h1>Add it once. It’s on <span class="hi">everyone’s</span> timeline.</h1>
+  <div class="stage">
+    <div class="evcard">
+      <div class="hd">
+        <div class="row1"><span class="tchip" style="--c:var(--t-party)">Party</span></div>
+        <h3>Fall formal</h3>
+        <div class="facts">
+          <span><svg><use href="#clock"/></svg>Sat, Nov 21 · 7:00 PM</span>
+          <span><svg><use href="#place"/></svg>The Grand Hall</span>
+        </div>
+      </div>
+      <div class="more">
+        <div class="k">More details</div>
+        <div class="blocks">
+          <div class="blk" style="--c:var(--lilac)"><span class="bi"><svg><use href="#shirt"/></svg></span><div><b>Dress code</b><span>Black tie</span></div></div>
+          <div class="blk" style="--c:var(--sky)"><span class="bi"><svg><use href="#phone"/></svg></span><div><b>Questions</b><span>Text Sam Okafor</span></div></div>
+          <div class="blk" style="--c:var(--butter)"><span class="bi"><svg><use href="#hand"/></svg></span><div><b>Who’s bringing what</b><span>4 of 6 claimed</span></div></div>
+          <div class="blk" style="--c:var(--mint)"><span class="bi"><svg><use href="#coin"/></svg></span><div><b>Budget</b><span>$2,450 · adds itself up</span></div></div>
+        </div>
+      </div>
+      <span class="stamp">On the timeline</span>
+    </div>
+    <div class="land">
+      <p>No publish step. No re-sending.<br>It moves in one place.</p>
+      <span class="btn">Add event <svg><use href="#arr"/></svg></span>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 5 · EVENT TYPES ═══ -->
+<section class="slide s5 s-lilac">
+  <div class="eyebrow">Settings · Event types</div>
+  <h1>Your categories. Your <span class="hi">colors</span>.</h1>
+  <div class="stage">
+    <div class="types">
+      <div class="hd"><span>Event types</span><span>6 types</span></div>
+      <div class="trow" style="--c:var(--t-chapter)"><span class="sw"></span><span class="nm">Chapter</span><span class="tag">Required · feeds attendance</span></div>
+      <div class="trow" style="--c:var(--t-party)"><span class="sw"></span><span class="nm">Party</span></div>
+      <div class="trow" style="--c:var(--t-service)"><span class="sw"></span><span class="nm">Community Service</span></div>
+      <div class="trow edit" style="--c:var(--t-phil)"><span class="sw"></span><span class="nm">Philanthropy<i></i></span>
+        <span class="pal"><i style="--c:var(--t-chapter)"></i><i style="--c:var(--t-service)"></i><i class="on" style="--c:var(--t-phil)"></i><i style="--c:var(--t-alumni)"></i></span></div>
+      <div class="trow" style="--c:var(--t-deadline)"><span class="sw"></span><span class="nm">Deadline</span><span class="tag">From Tasks</span></div>
+    </div>
+    <div class="weeks">
+      <div class="wk"><div class="col"><i style="--c:var(--t-chapter)"></i><i style="--c:var(--t-deadline)"></i></div><small>OCT 19</small></div>
+      <div class="wk heavy"><div class="col"><i style="--c:var(--t-chapter)"></i><i style="--c:var(--t-service)"></i><i style="--c:var(--t-service)"></i></div><small>OCT 26</small></div>
+      <div class="wk"><div class="col"><i style="--c:var(--t-chapter)"></i><i style="--c:var(--t-party)"></i></div><small>NOV 2</small></div>
+      <div class="wk"><div class="col"><i style="--c:var(--t-chapter)"></i><i style="--c:var(--t-phil)"></i></div><small>NOV 9</small></div>
+      <div class="wk"><div class="col"><i style="--c:var(--t-chapter)"></i><i style="--c:var(--t-alumni)"></i><i style="--c:var(--t-deadline)"></i></div><small>NOV 16</small></div>
+      <div class="wk"><div class="col"><i style="--c:var(--t-party)"></i></div><small>NOV 23</small></div>
+    </div>
+    <p class="glance">Color-code your events, and the timeline organizes itself.</p>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 6 · ADD TO CALENDAR ═══ -->
+<section class="slide s6 s-rose">
+  <div class="eyebrow">Timeline · Add to calendar</div>
+  <h1>Synced to Google or Apple <span class="hi">Calendar</span>.</h1>
+  <p class="lede">Members tap once, and the chapter’s events sit beside their classes. No re-sending invites.</p>
+  <div class="stage">
+    <div class="phone"><div class="scr"><span class="notch"></span>
+      <div class="day">Saturday</div>
+      <h4>Nov 21</h4>
+      <div class="slot"><time>10 AM</time><div class="e">ECON 201 review<small>Library, 3rd floor</small></div></div>
+      <div class="slot"><time>1 PM</time><div class="e">Shift · Campus café<small>Until 5 PM</small></div></div>
+      <div class="slot" style="--c:var(--t-party)"><time>7 PM</time><div class="e org moved">Fall formal<small>The Grand Hall</small></div></div>
+      <div class="slot" style="--c:var(--t-deadline)"><time>11 PM</time><div class="e org">Formal photos due<small>Deadline</small></div></div>
+    </div></div>
+    <div class="steps">
+      <div class="step"><span class="n">1</span><div class="bd"><div class="lb">Tap</div><span class="sub"><svg><use href="#cal"/></svg>Add to my calendar</span></div></div>
+      <div class="step"><span class="n">2</span><div class="bd"><div class="lb">Pick yours</div>
+        <div class="apps">
+          <div class="app g on"><span class="ico"><i>NOV</i><b>21</b></span><span>Google Calendar</span></div>
+          <div class="app a"><span class="ico"><i>SAT</i><b>21</b></span><span>Apple Calendar</span></div>
+        </div></div></div>
+      <div class="step"><span class="n">3</span><div class="bd"><div class="lb">Done</div>
+        <span class="done"><svg><use href="#check"/></svg><span>8 events added<small>They update when officers change them</small></span></span></div></div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 7 · CHECK-IN ═══ -->
+<section class="slide s7 s-butter">
+  <div class="eyebrow">Timeline · Live check-in</div>
+  <h1>Attendance in <span class="hi">one tap</span>.</h1>
+  <p class="lede">No reading fifty names off a list. Members check in from their own phones.</p>
+  <div class="stage">
+    <div class="ci">
+      <div class="hd"><b>Chapter Meeting — Week 9</b><span class="live"><i></i>Open · 52 min</span></div>
+      <div class="bd">
+        <span class="here"><svg><use href="#seal"/></svg>I’m here</span>
+        <div class="tally">
+          <div class="n">31 <small>of 48 here</small></div>
+          <div class="bar"><i></i></div>
+          <div class="arr"><span class="av" style="background:var(--sky)">PN</span><span class="av" style="background:var(--rose)">TB</span><span class="av" style="background:var(--lilac)">AW</span><em>just now</em></div>
+        </div>
+      </div>
+      <div class="feed">
+        <div class="fr new"><span class="av" style="background:var(--sky)">PN</span><b>Priya Nair</b><time>8:02 PM</time></div>
+        <div class="fr"><span class="av" style="background:var(--rose)">TB</span><b>Tyler Brooks</b><time>8:02 PM</time></div>
+        <div class="fr"><span class="av" style="background:var(--butter)">MB</span><b>Marcus Bell</b><span class="ex">Excused · exam</span></div>
+      </div>
+    </div>
+    <p class="rec">When it closes, it’s the record: <span class="p">44 present</span><span class="e">3 excused</span><span class="x">1 absent</span></p>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+<!-- ═══ 8 · ASK CHAPT + CTA ═══ -->
+<section class="slide s8">
+  <div class="eyebrow">ChaptOS · Ask Chapt</div>
+  <h1>Still not sure? Just <span class="hi">ask</span>.</h1>
+  <div class="stage">
+    <div class="ask">
+      <div class="q"><svg><use href="#search"/></svg>When is formal?<span class="caret"></span><kbd>⌘K</kbd></div>
+      <div class="a">
+        <div class="who"><svg><use href="#brand"/></svg>Ask Chapt</div>
+        <p class="verdict">Saturday, <span>Nov 21</span>.</p>
+        <div class="rows">
+          <div class="row"><span class="rk">Time</span>7:00 PM</div>
+          <div class="row"><span class="rk">Where</span>The Grand Hall</div>
+          <div class="row"><span class="rk">Wear</span>Black tie</div>
+        </div>
+        <span class="src"><i></i>Timeline · Fall formal</span>
+      </div>
+    </div>
+    <div class="cta">
+      <p>Next time someone asks when formal is, there’s one answer.<small>Timeline, calendar, check-in and Ask Chapt.</small></p>
+      <a href="https://chaptos.com">chaptos.com <svg><use href="#arr"/></svg></a>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="brand"><svg><use href="#brand"/></svg>ChaptOS</div>
+    <div class="pager"><div class="dots"></div></div>
+  </div>
+</section>
+
+</main>
+<script>
+const all=[...document.querySelectorAll(".slide")];
+all.forEach((sl,i)=>{sl.dataset.n=i+1;const d=sl.querySelector(".dots");if(d)d.innerHTML=all.map((_,j)=>`<i${j===i?' class="on"':''}></i>`).join("")});
+</script>
+</body>
+</html>

@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask Chapt Availability</title>
+<!--
+  Ask Chapt — availability reply path. EXPLORATION.
+
+  "When are we free?", "What's busy?", "Is the 13th open?" — today these come back as
+  a list of events the asker has to invert in their head: the answer is the GAPS, and
+  rows can't draw a gap.
+
+  One new optional shape, `availability`, in three modes (open / busy / day) plus an
+  honest-limits variant for "when is everyone free?". Same rule as every shape in
+  _design/Ask Chapt Reply States.html: the model picks the mode, the window and what
+  it needs (e.g. two weekend days), and writes the verdict. The server decides which
+  days are open, from the calendar tools it already ran, and ranks the picks in code.
+  Every state still ships plain `rows`, so older app builds keep working.
+
+  Tokens, shell, ledger and sprite are copied from the Reply States mock.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ---------- tokens (verbatim from Dashboard Paper Mock) -------------------- */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --mark-op:.85;
+  --av-ink:rgba(38,33,27,.72);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --r-sm:10px; --r-md:16px; --r-lg:22px;
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --mark-op:.42;
+  --av-ink:rgba(22,18,14,.78);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+
+/* ---------- base ---------------------------------------------------------- */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em; -webkit-font-smoothing:antialiased; overflow-x:clip; transition:background .35s var(--ease-out), color .35s var(--ease-out)}
+h1,h2,h3,p,ul,ol{margin:0}
+ul,ol{padding:0; list-style:none}
+button,input,textarea{font:inherit; color:inherit}
+button{cursor:pointer}
+svg{display:block}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+.ic{width:18px; height:18px; flex:none}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.hi{position:relative; white-space:nowrap; z-index:0}
+.hi::before{content:''; position:absolute; z-index:-1; left:-.12em; right:-.12em; bottom:.04em; height:.5em; background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em; transform:rotate(-.8deg) scaleX(var(--mx,1)); transform-origin:left center; opacity:var(--mark-op); transition:transform .8s var(--ease-spring) .35s}
+.ak-a:not(.in) .hi::before{--mx:0}
+.eyebrow{display:inline-flex; align-items:center; gap:9px; font-size:.7rem; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.eyebrow::before{content:''; width:18px; height:2px; border-radius:2px; background:var(--eb, var(--peach))}
+.avatar{width:30px; height:30px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:.68rem; font-weight:700; letter-spacing:-.02em; background:var(--av, var(--lilac)); color:var(--av-ink); border:1.5px solid rgba(38,33,27,.08)}
+.avatar--sm{width:24px; height:24px; font-size:.6rem}
+.btn{--bg:var(--ink); --fg:var(--paper); --hs:var(--lilac); display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 17px; border-radius:999px; border:1.5px solid var(--ink); background:var(--bg); color:var(--fg); font-weight:600; font-size:.88rem; box-shadow:3px 3px 0 var(--hs); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.btn .ic{width:15px; height:15px}
+.btn--sm{padding:6px 12px; font-size:.8rem; box-shadow:2px 2px 0 var(--hs)}
+.btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--sky)}
+
+/* ---------- page shell (mock only) ------------------------------------------ */
+.pg{max-width:1180px; margin:0 auto; padding:44px 24px 120px}
+.pg-top{display:flex; align-items:flex-start; gap:20px; flex-wrap:wrap}
+.pg-top h1{font-family:var(--display); font-weight:600; font-size:clamp(2rem,5vw,3rem); letter-spacing:-.035em; line-height:1.05; margin-top:12px}
+.pg-top .lede{margin-top:14px; max-width:62ch; color:var(--ink-2); font-size:1rem; text-wrap:pretty}
+.pg-top .lede code{font-family:var(--mono); font-size:.86em; padding:1px 6px; border-radius:6px; background:var(--paper-2); border:1px solid var(--line)}
+.theme{margin-left:auto; display:inline-flex; gap:2px; padding:3px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--card)}
+.theme button{border:0; background:none; border-radius:999px; padding:5px 12px; font-size:.78rem; font-weight:600; color:var(--ink-3)}
+.theme button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+
+.index{position:sticky; top:0; z-index:5; margin:30px -24px 0; padding:10px 24px; background:color-mix(in srgb, var(--paper) 92%, transparent); backdrop-filter:blur(8px); border-bottom:1.5px solid var(--line); display:flex; gap:6px; overflow-x:auto; scrollbar-width:none}
+.index a{flex:none; display:inline-flex; align-items:center; gap:7px; padding:5px 12px 5px 6px; border-radius:999px; border:1.5px solid var(--line); background:var(--card); text-decoration:none; color:var(--ink-2); font-size:.8rem; font-weight:550; transition:border-color .15s, color .15s}
+.index a:hover,.index a.on{border-color:var(--ink); color:var(--ink)}
+.index a i{font-style:normal; font-family:var(--mono); font-size:.62rem; width:22px; height:22px; border-radius:50%; display:grid; place-items:center; background:var(--c, var(--paper-2)); color:var(--ink)}
+
+.st{padding-top:64px; scroll-margin-top:40px}
+.st-h{display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 16px; align-items:baseline; margin-bottom:18px}
+.st-h .num{font-family:var(--mono); font-size:.8rem; color:var(--ink-3); grid-row:span 2}
+.st-h h2{font-family:var(--display); font-weight:600; font-size:1.7rem; letter-spacing:-.03em; line-height:1.1}
+.st-h p{color:var(--ink-2); font-size:.94rem; max-width:64ch}
+.st-g{display:grid; grid-template-columns:minmax(0,732px) minmax(0,1fr); gap:28px; align-items:start}
+@media (max-width:1120px){ .st-g{grid-template-columns:minmax(0,1fr)} }
+
+/* build notes: an index card beside each spotlight */
+.notes{position:sticky; top:72px; padding:16px 18px; border-radius:var(--r-md); border:1.5px solid var(--line); background:var(--paper-2); font-size:.84rem; color:var(--ink-2); display:grid; gap:14px}
+.notes h4{margin:0 0 5px; font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.notes pre{margin:0; padding:10px 12px; border-radius:10px; background:var(--card); border:1.5px solid var(--line); font-family:var(--mono); font-size:.7rem; line-height:1.55; color:var(--ink-2); white-space:pre-wrap; overflow-wrap:anywhere}
+.notes pre b{color:var(--lilac-ink); font-weight:600}
+.notes .tools{display:flex; flex-wrap:wrap; gap:5px}
+.notes .tools span{font-family:var(--mono); font-size:.68rem; padding:2px 8px; border-radius:6px; background:var(--card); border:1px solid var(--line-2); color:var(--ink-2)}
+.notes .rule{padding-left:10px; border-left:2.5px solid var(--butter); line-height:1.5}
+@media (max-width:1120px){ .notes{position:static} }
+
+/* ---------- the spotlight shell (from the paper mock / paper-chat.css) ------ */
+.spot{display:flex; flex-direction:column; width:100%; background:var(--card); border:1.5px solid var(--ink); border-radius:20px; box-shadow:5px 5px 0 var(--lilac); overflow:hidden}
+.ak-bar{display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1.5px solid var(--line)}
+.ak-bar .tick{width:7px; height:7px; border-radius:2px; background:var(--lilac-ink); transform:rotate(45deg)}
+.ak-bar .title{font-family:var(--display); font-weight:600; font-size:.9rem; letter-spacing:-.015em; margin-left:2px}
+.ak-bar .spacer{flex:1}
+.barbtn{border:1.5px solid var(--line); background:none; border-radius:999px; padding:4px 10px; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); transition:border-color .15s, color .15s}
+.barbtn:hover{border-color:var(--ink-3); color:var(--ink)}
+.barbtn.plain{border-radius:7px}
+.barbtn.replay{border-style:dashed; color:var(--lilac-ink); border-color:var(--lilac-bd)}
+.asas{font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.1em; color:var(--ink-3); padding:3px 9px; border-radius:999px; border:1.5px dashed var(--line-2)}
+.spot-b{padding:4px 18px 18px; font-size:.94em}
+.dock{display:flex; align-items:flex-end; gap:8px; margin:0 14px 14px; padding:6px 6px 6px 14px; border:1.5px solid var(--line-2); border-radius:14px; background:var(--paper-2)}
+.dock span{flex:1; padding:6px 0; font-size:.9rem; color:var(--ink-3)}
+.dock .send{width:34px; height:34px; flex:none; display:grid; place-items:center; border-radius:10px; border:0; background:var(--paper-3); color:var(--ink-3)}
+.dock .send .ic{width:15px; height:15px}
+
+.ak-turn{padding-top:14px}
+.ak-q{display:flex; justify-content:flex-end}
+.ak-q span{max-width:80%; padding:8px 14px; border-radius:16px 16px 4px 16px; background:var(--paper-2); border:1.5px solid var(--line); font-size:.92rem; font-weight:500}
+
+/* reasoning ledger + trace */
+.rl{margin-top:12px; position:relative; padding:2px 0 2px 2px}
+.rl ol{position:relative; display:grid; gap:2px}
+.rl ol::before{content:''; position:absolute; left:8px; top:10px; bottom:10px; width:1.5px; background:var(--line-2)}
+.rl li{position:relative; display:grid; grid-template-columns:18px minmax(0,1fr) auto; gap:10px; align-items:center; padding:4px 0; font-size:.86rem; color:var(--ink-3); transition:color .25s}
+.rl .nd{width:18px; height:18px; border-radius:50%; background:var(--card); border:1.5px solid var(--line-2); display:grid; place-items:center; position:relative; z-index:1}
+.rl .nd .ic{width:10px; height:10px; color:var(--card); opacity:0}
+.rl li.active{color:var(--ink)}
+.rl li.active .nd{border-color:var(--lilac-ink); border-top-color:transparent; animation:spin .8s linear infinite; box-shadow:0 0 0 4px var(--lilac-soft)}
+.rl li.done{color:var(--ink-2)}
+.rl li.done .nd{background:var(--lilac-ink); border-color:var(--lilac-ink)}
+.rl li.done .nd .ic{opacity:1}
+html[data-theme="dark"] .rl li.done .nd .ic{color:#15110D}
+.rl .sc{color:var(--ink-3); font-size:.78rem; margin-left:6px}
+.rl .fd{font-family:var(--mono); font-size:.74rem; color:var(--ink-2); padding:1px 7px; border-radius:6px; opacity:0; transform:translateX(-4px); transition:opacity .3s, transform .35s var(--ease-spring)}
+.rl li.done .fd{opacity:1; transform:none}
+.rl.live li.done .fd{animation:post 1.2s var(--ease-out)}
+@keyframes post{0%,35%{background:var(--butter-soft); box-shadow:0 0 0 1.5px var(--butter-bd)}100%{background:transparent; box-shadow:0 0 0 1.5px transparent}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.trace{margin-top:12px; display:flex; align-items:center; gap:8px; width:100%; padding:7px 0; border:0; border-bottom:1px dashed var(--line-2); background:none; text-align:left; font-size:.8rem; color:var(--ink-3)}
+.trace:hover{color:var(--ink)}
+.trace .tk{width:16px; height:16px; border-radius:50%; background:var(--lilac-soft); border:1.5px solid var(--lilac-bd); color:var(--lilac-ink); display:grid; place-items:center; flex:none}
+.trace .tk .ic{width:9px; height:9px}
+.trace .chev{margin-left:auto; width:13px; height:13px; transition:transform .2s var(--ease-spring)}
+.trace[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.trace + .rl{margin-top:6px}
+.thinking .trace,.thinking .ak-a{display:none}
+
+/* answer chrome */
+.ak-a{animation:rise .45s var(--ease-spring) both}
+@keyframes rise{from{opacity:0; transform:translateY(8px)}}
+.verdict{margin-top:10px; font-family:var(--display); font-weight:500; font-size:1.16rem; letter-spacing:-.022em; line-height:1.38; color:var(--ink-2); text-wrap:pretty}
+.verdict .hi{color:var(--ink); font-weight:650}
+.res-list{margin-top:12px; border:1.5px solid var(--line); border-radius:var(--r-md); overflow:hidden; background:var(--card)}
+.res{display:grid; grid-template-columns:28px minmax(0,1fr) auto 16px; gap:12px; align-items:center; width:100%; padding:8px 12px; border:0; border-top:1px solid var(--paper-3); background:none; text-align:left; transition:background .15s}
+.res:first-child{border-top:0}
+.res:hover{background:var(--paper-2)}
+.res .avatar,.res .glyph{width:28px; height:28px}
+.res .glyph{border-radius:10px; display:grid; place-items:center; background:var(--p-bg, var(--paper-2)); border:1.5px solid var(--p-bd, var(--line)); color:var(--p-fg, var(--ink-2))}
+.res .glyph .ic{width:14px; height:14px}
+.res .t{display:block; font-size:.9rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.res .s{display:block; font-size:.76rem; color:var(--ink-3); margin-top:1px}
+.res .val{font-family:var(--mono); font-size:.8rem; color:var(--ink); white-space:nowrap}
+.res .val.risk{color:var(--peach-ink); font-weight:600}
+.res .chev{width:14px; height:14px; color:var(--ink-3); transition:transform .18s var(--ease-out)}
+.res:hover .chev{color:var(--ink); transform:translateX(2px)}
+.ak-meta{margin-top:12px; display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px}
+.sources{display:flex; flex-wrap:wrap; align-items:center; gap:6px}
+.sources .lbl,.fb .lbl{font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.src{display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:999px; border:1.5px solid var(--line); background:var(--paper); font-size:.72rem; font-weight:600; color:var(--ink-2)}
+.src i{width:6px; height:6px; border-radius:50%; background:var(--c, var(--lilac-ink))}
+.fb{margin-left:auto; display:flex; align-items:center; gap:4px}
+.fb button{width:28px; height:28px; display:grid; place-items:center; border-radius:9px; border:1.5px solid transparent; background:none; color:var(--ink-3)}
+.fb button:hover{background:var(--paper-2); color:var(--ink)}
+.fb button[aria-pressed="true"]{border-color:var(--ink); color:var(--ink); background:var(--butter-soft)}
+.fb .ic{width:14px; height:14px}
+.fb .flip{transform:scaleY(-1)}
+.follows{margin-top:12px; display:flex; flex-wrap:wrap; gap:7px}
+.follows button{display:inline-flex; align-items:center; gap:6px; border:1.5px solid var(--line-2); background:var(--card); border-radius:999px; padding:5px 12px; font-size:.8rem; color:var(--ink-2); transition:border-color .15s, color .15s, background .15s}
+.follows button:hover{border-color:var(--lilac-ink); color:var(--ink); background:var(--lilac-soft)}
+.follows button .ic{width:12px; height:12px; color:var(--lilac-ink)}
+.follows button.do .ic{color:var(--butter-ink)}
+.cap{margin-top:8px; font-size:.74rem; color:var(--ink-3); display:flex; align-items:center; gap:6px}
+.cap .ic{width:12px; height:12px}
+
+/* shared "sheet" every shape sits on */
+.sheet{margin-top:12px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); position:relative}
+.sheet-h{display:flex; align-items:center; gap:10px; padding:11px 14px 0; flex-wrap:wrap}
+.kicker{font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.legend{margin-left:auto; display:flex; flex-wrap:wrap; gap:4px 12px; font-size:.72rem; color:var(--ink-3)}
+.legend span{display:inline-flex; align-items:center; gap:5px}
+.legend i{width:9px; height:9px; border-radius:50%; border:1.5px solid var(--ink); background:var(--c)}
+.legend i.bar{width:2px; height:11px; border:0; border-radius:1px; background:var(--ink)}
+.legend i.dash{width:14px; height:0; border:0; border-top:1.5px dashed var(--ink-2); border-radius:0}
+.tip{position:absolute; z-index:6; pointer-events:none; padding:5px 10px; border-radius:8px; background:var(--ink); color:var(--paper); font-size:.74rem; white-space:nowrap; transform:translate(-50%,calc(-100% - 8px)); opacity:0; transition:opacity .12s}
+.tip.on{opacity:1}
+.tip b{font-family:var(--mono); font-weight:600; margin-left:6px}
+.seen{display:flex; gap:8px; align-items:flex-start; margin-top:10px; font-size:.76rem; color:var(--ink-3); line-height:1.45}
+.seen .ic{width:13px; height:13px; margin-top:2px}
+.seen b{color:var(--ink-2); font-weight:600}
+
+/* category pastels (PAPER_HUE by slug) */
+.c-chapter{--c:var(--lilac); --c-soft:var(--lilac-soft); --c-bd:var(--lilac-bd); --c-ink:var(--lilac-ink)}
+.c-social,.c-party{--c:var(--rose); --c-soft:var(--rose-soft); --c-bd:var(--rose-bd); --c-ink:var(--rose-ink)}
+.c-service{--c:var(--mint); --c-soft:var(--mint-soft); --c-bd:var(--mint-bd); --c-ink:var(--mint-ink)}
+.c-program{--c:var(--sky); --c-soft:var(--sky-soft); --c-bd:var(--sky-bd); --c-ink:var(--sky-ink)}
+.c-deadline{--c:var(--peach); --c-soft:var(--peach-soft); --c-bd:var(--peach-ink); --c-ink:var(--peach-ink)}
+
+/* ═════ 01 OPEN DATES — a month page, the gaps washed mint, the pick bracketed ═════ */
+.mo{position:relative; display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); margin-top:10px; border-top:1px solid var(--paper-3)}
+.mo-w{padding:6px 8px; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); border-bottom:1px solid var(--paper-3)}
+.mo-w.we{background:var(--paper-2)}
+.md{position:relative; min-height:78px; padding:5px 6px 6px; border-left:1px solid var(--paper-3); border-bottom:1px solid var(--paper-3); display:flex; flex-direction:column; gap:3px; min-width:0; transition:background .4s var(--ease-out)}
+.md.c1{border-left:0}
+.md.we{background:var(--paper-2)}
+.md .n{font-family:var(--display); font-weight:600; font-size:.92rem; letter-spacing:-.02em; line-height:1.2; color:var(--ink-2)}
+.md.out .n{color:var(--line-2)}
+.md.past{opacity:.45}
+.md.today .n{align-self:flex-start; padding:0 6px; border-radius:7px; background:var(--ink); color:var(--paper)}
+.md.open{background:var(--mint-soft)}
+.md.open::after{content:'open'; position:absolute; right:6px; bottom:5px; font-family:var(--mono); font-size:.56rem; letter-spacing:.08em; text-transform:uppercase; color:var(--mint-ink); opacity:0; transition:opacity .3s; transition-delay:calc(var(--i)*18ms + 200ms)}
+.in .md.open::after{opacity:.9}
+.md:not(.open):not(.out):not(.past){}
+.mi{display:block; width:100%; padding:2px 5px; border:0; border-left:3px solid var(--c); border-radius:3px 6px 6px 3px; background:var(--c-soft); font-size:.64rem; font-weight:550; line-height:1.35; text-align:left; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity:0; transform:translateY(3px); transition:opacity .25s, transform .35s var(--ease-spring); transition-delay:calc(var(--i)*18ms + 120ms)}
+.in .mi{opacity:1; transform:none}
+.mi.mand{font-weight:700; border-left-color:var(--ink)}
+.mi.c-deadline{border-left-style:dashed; border-left-color:var(--peach-ink); background:transparent; color:var(--peach-ink)}
+.md.hol{background:repeating-linear-gradient(-45deg, var(--butter-soft) 0 6px, transparent 6px 11px)}
+.md.hol .hl{font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.04em; color:var(--butter-ink)}
+.pick-ov{position:relative; z-index:2; margin:2px; border:2.5px solid var(--ink); border-radius:12px; pointer-events:none; opacity:0; transform:scale(1.06); transition:opacity .3s, transform .45s var(--ease-spring); transition-delay:.9s}
+.in .pick-ov{opacity:1; transform:none}
+.pick-ov.dash{border-style:dashed; border-color:var(--ink-3); border-width:2px; transition-delay:1.15s}
+.pick-ov .tab{position:absolute; right:8px; top:-11px; padding:1px 8px; border-radius:6px; background:var(--ink); color:var(--paper); font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap}
+.pick-ov.dash .tab{background:var(--card); color:var(--ink-3); border:1.5px dashed var(--ink-3)}
+.pks{margin-top:12px; border:1.5px solid var(--line); border-radius:var(--r-md); overflow:hidden; background:var(--card)}
+.pkr{display:grid; grid-template-columns:26px minmax(0,1fr) auto; gap:12px; align-items:center; width:100%; padding:10px 12px; border:0; border-top:1px solid var(--paper-3); background:none; text-align:left; transition:background .15s}
+.pkr:first-child{border-top:0}
+.pkr:hover{background:var(--paper-2)}
+.pkr .rk{width:26px; height:26px; border-radius:50%; display:grid; place-items:center; font-family:var(--mono); font-size:.74rem; font-weight:600; border:1.5px solid var(--line-2); color:var(--ink-3)}
+.pkr.best .rk{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+.pkr .wh{display:block; font-size:.9rem; font-weight:600}
+.pkr .wh small{font-weight:400; color:var(--ink-3); margin-left:6px; font-size:.84em}
+.tags{display:flex; flex-wrap:wrap; gap:4px; margin-top:4px}
+.tags span{display:inline-flex; align-items:center; gap:4px; font-size:.68rem; padding:1px 7px; border-radius:999px; border:1px solid var(--line); background:var(--paper); color:var(--ink-2)}
+.tags .pro{border-color:var(--mint-bd); background:var(--mint-soft); color:var(--mint-ink)}
+.tags .con{border-color:var(--peach-bd); background:var(--peach-soft); color:var(--peach-ink)}
+.tags .soft{border-color:var(--butter-bd); background:var(--butter-soft); color:var(--butter-ink)}
+.pkr .hold{font-size:.72rem; font-weight:600; padding:3px 11px; border-radius:999px; border:1.5px solid var(--line-2); color:var(--ink-2); white-space:nowrap}
+.pkr.best .hold{border-color:var(--ink); color:var(--ink); box-shadow:2px 2px 0 var(--mint)}
+@media (max-width:600px){
+  .md{min-height:54px; padding:4px}
+  .mi{height:6px; padding:0; border-left-width:0; border-radius:3px; background:var(--c); font-size:0}
+  .mi.mand{box-shadow:inset 0 0 0 1.5px var(--ink)}
+  .mi.c-deadline{background:none; border:1.5px dashed var(--peach-ink); height:7px}
+  .md.open::after,.md.hol .hl{display:none}
+  .pick-ov .tab{font-size:.52rem; right:4px}
+}
+
+/* ═════ 02 BUSY — a load strip: one column per day, one block per event ═════ */
+.ld{position:relative; display:grid; grid-template-columns:repeat(14,minmax(0,1fr)); grid-template-rows:34px auto auto; column-gap:5px; padding:4px 14px 12px}
+.lc{grid-row:2 / span 2; display:grid; grid-template-rows:subgrid; border-radius:10px; padding:0 3px}
+.lc.we{background:var(--paper-2)}
+.stk{height:128px; display:flex; flex-direction:column-reverse; gap:4px; padding-top:6px}
+.lb{flex:none; height:28px; padding:0; border-radius:7px; border:1.5px solid var(--c-bd); background:var(--c-soft); transform:scaleY(0); transform-origin:bottom; transition:transform .45s var(--ease-spring), box-shadow .15s; transition-delay:calc(var(--i)*40ms + 150ms)}
+.in .lb{transform:none}
+.lb.mand{background:var(--c); border-color:var(--ink); background-image:repeating-linear-gradient(-45deg, transparent 0 5px, rgba(38,33,27,.14) 5px 7px)}
+.lb.c-deadline{height:16px; border-style:dashed; border-color:var(--peach-ink); background:transparent}
+.in .lb:hover,.lb:focus-visible{box-shadow:2px 2px 0 var(--ink); border-color:var(--ink); transition-delay:0s; outline:none}
+.opn{margin-top:auto; height:16px; border-radius:7px; border:1.5px dashed var(--mint-ink); background:var(--mint-soft); opacity:0; transition:opacity .3s; transition-delay:calc(var(--i)*40ms + 300ms)}
+.in .opn{opacity:1}
+.lc-l{display:grid; justify-items:center; gap:1px; padding:7px 0 4px; border-top:1.5px solid var(--line-2)}
+.lc-l .dw{font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.lc-l .dn{font-family:var(--display); font-weight:600; font-size:.95rem; letter-spacing:-.02em; line-height:1.15; padding:0 5px; border-radius:6px; color:var(--ink-3)}
+.lc.busy .lc-l{border-top-color:var(--ink)}
+.lc.busy .lc-l .dn{background:var(--ink); color:var(--paper)}
+.lc.free .lc-l .dn{color:var(--mint-ink)}
+.crunch{grid-row:1; align-self:end; position:relative; margin:0 2px 2px; height:12px; border:2px solid var(--peach-ink); border-bottom:0; border-radius:8px 8px 0 0; opacity:0; transition:opacity .35s 1.1s}
+.in .crunch{opacity:1}
+.crunch span{position:absolute; left:50%; bottom:calc(100% + 3px); transform:translateX(-50%); padding:1px 8px; border-radius:6px; background:var(--peach-soft); border:1.5px solid var(--peach-bd); font-family:var(--mono); font-size:.6rem; font-weight:600; color:var(--peach-ink); white-space:nowrap}
+.dg{width:28px; height:28px; border-radius:9px; display:grid; place-items:center; align-content:center; background:var(--paper-2); border:1.5px solid var(--line); line-height:1}
+.dg i{font-style:normal; font-family:var(--mono); font-size:.5rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3)}
+.dg b{font-family:var(--display); font-size:.8rem; font-weight:650; color:var(--ink)}
+.dg.mand{background:var(--ink); border-color:var(--ink)}
+.dg.mand i{color:color-mix(in srgb, var(--paper) 65%, transparent)} .dg.mand b{color:var(--paper)}
+.wide{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:12px 14px 14px}
+.wide .kicker{margin-right:4px}
+.wide button{display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:999px; border:1.5px dashed var(--mint-ink); background:var(--mint-soft); font-size:.76rem; font-weight:600; color:var(--mint-ink); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.wide button:hover{transform:translate(-1px,-1px); box-shadow:2px 2px 0 var(--mint-ink); border-style:solid}
+.busy-list{margin:0 14px}
+@media (max-width:600px){
+  .ld{column-gap:3px; padding:4px 8px 10px}
+  .lc{padding:0 1px; border-radius:7px}
+  .stk{height:104px}
+  .lb{height:20px; border-radius:5px}
+  .lc-l .dw{font-size:.5rem; letter-spacing:0}
+  .lc-l .dn{font-size:.78rem; padding:0 3px}
+  .crunch span{font-size:.54rem}
+  .busy-list{margin:0 8px} .wide{margin:12px 8px 12px}
+}
+
+/* ═════ 03 ONE DATE — a ticket for the day asked about, stamped ═════ */
+.clash{position:relative; display:grid; grid-template-columns:96px minmax(0,1fr); margin-top:12px; border:1.5px solid var(--ink); border-radius:var(--r-md); background:var(--card); box-shadow:4px 4px 0 var(--rose); overflow:hidden}
+.cl-stub{display:grid; align-content:center; justify-items:center; gap:2px; padding:14px 8px; background:var(--rose-soft); border-right:1.5px dashed var(--ink)}
+.cl-stub .dw{font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-2)}
+.cl-stub .dn{font-family:var(--display); font-weight:650; font-size:2.6rem; letter-spacing:-.05em; line-height:.95}
+.cl-stub .mn{font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.cl-b{padding:10px 14px 12px}
+.cl-b .kicker{display:block; margin:4px 0 6px}
+.cl-ev{display:grid; grid-template-columns:62px minmax(0,1fr) auto; gap:10px; align-items:center; width:100%; padding:7px 10px; border-radius:10px; border:1.5px solid var(--c-bd); background:var(--c-soft); text-align:left; transition:box-shadow .15s, border-color .15s}
+.cl-ev:hover{border-color:var(--ink); box-shadow:2px 2px 0 var(--ink)}
+.cl-ev .tm{font-family:var(--mono); font-size:.74rem; color:var(--ink-2)}
+.cl-ev b{display:block; font-size:.88rem; font-weight:600}
+.cl-ev small{display:block; font-size:.72rem; color:var(--ink-3)}
+.cl-ev .mtag{font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; padding:2px 7px; border-radius:6px; background:var(--ink); color:var(--paper)}
+.cl-gap{display:flex; align-items:center; gap:8px; margin:8px 0 4px 26px; font-family:var(--mono); font-size:.66rem; color:var(--peach-ink); font-weight:600}
+.cl-gap::before{content:''; width:2px; height:22px; border-radius:2px; background:repeating-linear-gradient(to bottom, var(--peach-ink) 0 3px, transparent 3px 6px)}
+.stamp{position:absolute; right:16px; top:12px; padding:4px 12px; border:2.5px solid var(--rose-ink); border-radius:7px; color:var(--rose-ink); font-family:var(--mono); font-weight:600; font-size:.76rem; letter-spacing:.16em; text-transform:uppercase; background:color-mix(in srgb, var(--card) 70%, transparent); opacity:0}
+.in .stamp{animation:thump .45s var(--ease-spring) .8s both}
+@keyframes thump{0%{transform:rotate(7deg) scale(1.7); opacity:0} 60%{opacity:.9} 100%{transform:rotate(7deg) scale(1); opacity:.88}}
+.alts{margin-top:14px}
+.alts .kicker{display:block; margin-bottom:8px}
+.alt-g{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px}
+.alt{display:grid; gap:2px; padding:10px 12px 11px; border-radius:14px; border:1.5px solid var(--line-2); background:var(--card); text-align:left; transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .15s}
+.alt:hover,.alt:focus-visible{border-color:var(--ink); transform:translate(-1.5px,-1.5px); box-shadow:3.5px 3.5px 0 var(--mint)}
+.alt .ad{font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.alt .an{font-family:var(--display); font-weight:600; font-size:1.08rem; letter-spacing:-.025em}
+.alt .tags{margin-top:5px}
+.alt.best{border-color:var(--ink); box-shadow:3px 3px 0 var(--mint)}
+.alt.best .ad{color:var(--mint-ink)}
+.alt.sel{background:var(--mint-soft)}
+.draft{margin-top:12px; border:1.5px solid var(--ink); border-radius:var(--r-md); background:var(--card); box-shadow:4px 4px 0 var(--butter); overflow:hidden; animation:rise .4s var(--ease-spring) both}
+.draft[hidden]{display:none}
+.dr-h{display:flex; align-items:center; gap:8px; padding:9px 14px; border-bottom:1.5px dashed var(--line-2); background:var(--butter-soft)}
+.dr-h .kicker{color:var(--butter-ink)}
+.dr-h .perm{margin-left:auto; font-size:.72rem; color:var(--ink-3)}
+.dr-b{display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px 16px; padding:12px 14px; font-size:.86rem}
+.dr-b dt{font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); padding-top:2px}
+.dr-b dd{margin:0; color:var(--ink)}
+.dr-f{display:flex; gap:8px; padding:0 14px 14px}
+@media (max-width:600px){
+  .alt-g{grid-template-columns:minmax(0,1fr)}
+  .clash{grid-template-columns:72px minmax(0,1fr)}
+  .cl-stub .dn{font-size:2rem}
+  .cl-ev{grid-template-columns:minmax(0,1fr) auto}
+  .cl-ev .tm{grid-column:1 / -1}
+  .stamp{top:10px; left:12px; right:auto; padding:2px 7px; font-size:.58rem; letter-spacing:.12em}
+}
+
+/* ═════ 04 EVERYONE — what the calendar can and can't see ═════ */
+.ev-w{position:relative; display:grid; grid-template-columns:44px repeat(7,minmax(0,1fr)); padding:6px 14px 4px}
+.ev-ax{position:relative; height:150px; margin-top:28px}
+.ev-ax span{position:absolute; right:8px; transform:translateY(-50%); font-family:var(--mono); font-size:.6rem; color:var(--ink-3)}
+.ec{display:grid; grid-template-rows:28px 150px; border-left:1px solid var(--paper-3)}
+.ec-h{display:flex; align-items:baseline; justify-content:center; gap:4px; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.ec-h b{font-family:var(--display); font-size:.9rem; letter-spacing:-.02em; color:var(--ink-2)}
+.ec-b{position:relative; background-image:repeating-linear-gradient(to bottom, var(--paper-3) 0 1px, transparent 1px 25px)}
+.ec.clear .ec-b{background-color:var(--mint-soft)}
+.ec.clear .ec-h b{color:var(--mint-ink)}
+.ec .cl{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%) rotate(-90deg); font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:var(--mint-ink); opacity:0; transition:opacity .3s; transition-delay:calc(var(--i)*80ms + 300ms); white-space:nowrap}
+.in .ec .cl{opacity:.8}
+.pin{position:absolute; left:4px; right:4px; display:flex; align-items:center; gap:4px; padding:0; border:0; background:none; transform:translateY(-50%); opacity:0; transition:opacity .25s; transition-delay:calc(var(--i)*80ms + 200ms)}
+.in .pin{opacity:1}
+.pin::before{content:''; flex:none; width:9px; height:9px; border-radius:50%; background:var(--c); border:1.5px solid var(--ink)}
+.pin::after{content:none}
+
+.pin em{font-style:normal; font-size:.62rem; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; order:1; flex:0 1 auto; min-width:0}
+.pin.mand::before{background:var(--ink)}
+.blind{margin-top:12px; padding:12px 14px; border-radius:var(--r-md); border:1.5px dashed var(--line-2); background:var(--paper-2)}
+.blind .kicker{display:block; margin-bottom:8px}
+.bl-r{display:flex; flex-wrap:wrap; gap:6px}
+.bl-r span{display:inline-flex; align-items:center; gap:6px; padding:3px 10px 3px 7px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--card); font-size:.76rem; color:var(--ink-3); text-decoration:line-through; text-decoration-color:var(--line-2)}
+.bl-r .ic{width:13px; height:13px}
+.blind p{margin-top:8px; font-size:.78rem; color:var(--ink-2)}
+.poll{margin-top:12px; border:1.5px solid var(--ink); border-radius:var(--r-md); background:var(--card); box-shadow:4px 4px 0 var(--lilac); overflow:hidden}
+.poll .dr-h{background:var(--lilac-soft)}
+.poll .dr-h .kicker{color:var(--lilac-ink)}
+.po{display:grid; gap:6px; padding:12px 14px}
+.po label{display:grid; grid-template-columns:20px minmax(0,1fr) auto; gap:10px; align-items:center; padding:7px 10px; border-radius:10px; border:1.5px solid var(--line); font-size:.86rem; cursor:pointer}
+.po label:hover{border-color:var(--ink-3)}
+.po input{accent-color:var(--lilac-ink); width:16px; height:16px; margin:0}
+.po small{font-family:var(--mono); font-size:.7rem; color:var(--mint-ink)}
+.po label.off small{color:var(--ink-3)}
+@media (max-width:600px){
+  .ev-w{grid-template-columns:30px repeat(7,minmax(0,1fr)); padding:6px 8px 4px}
+  .pin em{display:none}
+  .ec-h{flex-direction:column; align-items:center; gap:0; font-size:.5rem}
+}
+/* ---------- small screens ----------------------------------------------- */
+@media (max-width:600px){
+  .pg{padding:28px 14px 80px}
+  .index{margin:24px -14px 0; padding:8px 14px}
+  .spot-b{padding:4px 12px 14px}
+  .res{grid-template-columns:28px minmax(0,1fr) 14px; gap:10px}
+  .res .val{grid-column:2; justify-self:start; margin-top:-4px}
+  .res .chev{grid-row:1; grid-column:3}
+  .asas{display:none}
+}
+@media (prefers-reduced-motion:reduce){ *,*::before,*::after{transition-duration:.01ms !important; animation-duration:.01ms !important; transition-delay:0s !important; animation-delay:0s !important} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-spark" viewBox="0 0 24 24"><path d="M12 2.6c.7 5.1 3.6 8 8.7 8.8-5.1.7-8 3.6-8.7 8.7-.7-5.1-3.6-8-8.7-8.7 5.1-.8 8-3.7 8.7-8.8Z" fill="currentColor"/></symbol>
+    <symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-receipt" viewBox="0 0 24 24"><path d="M6 2.9h12v18.4l-2.4-1.7-2.4 1.7-2.4-1.7-2.4 1.7L6 19.6V2.9Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M9.4 8h5.2M9.4 12.2h5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="d-hand" viewBox="0 0 24 24"><path d="M8.6 11V5.4a1.5 1.5 0 0 1 3 0V10m0-1.1a1.5 1.5 0 0 1 3 0v1.4m0-.7a1.5 1.5 0 0 1 3 0v4.6c0 3.4-2.4 6.1-5.8 6.1-3 0-4.6-1.5-6.2-4.2l-1.7-3a1.4 1.4 0 0 1 2.2-1.7l1.5 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-chat" viewBox="0 0 24 24"><path d="M20.6 11.6c0 4.2-3.9 7.6-8.6 7.6-1 0-2-.2-2.9-.5l-5 1.6 1.6-4a7 7 0 0 1-2.3-4.7C3.4 7.4 7.3 4 12 4s8.6 3.4 8.6 7.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-star" viewBox="0 0 24 24"><path d="M12 3.4c.9 4.2 2.6 6 6.6 6.9-4 .9-5.7 2.7-6.6 6.9-.9-4.2-2.6-6-6.6-6.9 4-.9 5.7-2.7 6.6-6.9Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="d-mug" viewBox="0 0 24 24"><path d="M4.2 7.4h12.2v7.4a5 5 0 0 1-5 5h-2.2a5 5 0 0 1-5-5V7.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M16.6 9.4h1.8a2.6 2.6 0 0 1 0 5.2h-1.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8 4.4c.7-.9.7-1.5 0-2.2M11.8 4.4c.7-.9.7-1.5 0-2.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="d-plant" viewBox="0 0 24 24"><path d="M12 21v-8.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M12 13.4C9 13.4 6.6 11 6.6 8c3 0 5.4 2.4 5.4 5.4ZM12 12.2c0-3 2.4-5.4 5.4-5.4 0 3-2.4 5.4-5.4 5.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.4 21h7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-clip" viewBox="0 0 24 24"><rect x="4.4" y="4.2" width="15.2" height="16.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 4.2c0-1.2 1.3-2 3-2s3 .8 3 2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.4 11.4h7.2M8.4 15.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-pencil" viewBox="0 0 24 24"><path d="M4 20.2 4.9 16 16.4 4.5a2.1 2.1 0 0 1 3 3L7.9 19.1 4 20.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14.6 6.4 17.8 9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-folder" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-board" viewBox="0 0 24 24"><path d="M4.6 3.4v17.2M12 3.4v10.4M19.4 3.4v14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="d-key" viewBox="0 0 24 24"><circle cx="8" cy="8.4" r="4.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m11.2 11.6 8.4 8.4M16.4 16.8l2-2M13.6 14l2-2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 6.8V12l3.6 2.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-heart" viewBox="0 0 24 24"><path d="M12 20.4C6.4 16.8 3 13.6 3 9.8A4.6 4.6 0 0 1 7.6 5.2c1.8 0 3.4 1 4.4 2.6 1-1.6 2.6-2.6 4.4-2.6A4.6 4.6 0 0 1 21 9.8c0 3.8-3.4 7-9 10.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-link" viewBox="0 0 24 24"><path d="M10.2 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M13.8 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.6-1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-camera" viewBox="0 0 24 24"><rect x="3.4" y="6.4" width="17.2" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="12" cy="13.4" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.6 6.4 10 3.6h4l1.4 2.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-note" viewBox="0 0 24 24"><path d="M9.4 18V5.2l9.4-2v12.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="7" cy="18.4" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="16.4" cy="15.8" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+    <symbol id="d-flag" viewBox="0 0 24 24"><path d="M5.4 21V3.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M5.4 4.6h11.8l-2.2 3.8 2.2 3.8H5.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-bars" viewBox="0 0 24 24"><path d="M5.4 20.4V12M12 20.4V4.4M18.6 20.4v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <!-- app-only glyphs, drawn in the same hand -->
+    <symbol id="d-home" viewBox="0 0 24 24"><path d="M3.6 11.2 12 4l8.4 7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.8 9.6v9.6c0 .8.6 1.4 1.4 1.4h9.6c.8 0 1.4-.6 1.4-1.4V9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M10 20.4v-5.2h4v5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-timeline" viewBox="0 0 24 24"><path d="M6 4v16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><circle cx="6" cy="7" r="1.9" fill="currentColor"/><circle cx="6" cy="17" r="1.9" fill="currentColor"/><path d="M10 7h9.4M10 12h6M10 17h8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-box" viewBox="0 0 24 24"><rect x="3.8" y="3.8" width="16.4" height="16.4" rx="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m8.2 12.4 2.6 2.6 5-5.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-gavel" viewBox="0 0 24 24"><path d="M5 20.4h9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m9.6 4.6 5.8 5.8M7.2 7l5.8 5.8M8.4 5.8l5.8 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m14.2 11.6 5.6 5.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+    <symbol id="d-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-moon" viewBox="0 0 24 24"><path d="M19.6 14.6A8 8 0 0 1 9.4 4.4a8 8 0 1 0 10.2 10.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-monitor" viewBox="0 0 24 24"><rect x="3" y="4.4" width="18" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 20.2h6M12 16.6v3.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-door" viewBox="0 0 24 24"><path d="M13.4 3.8H6.6c-.8 0-1.4.6-1.4 1.4v13.6c0 .8.6 1.4 1.4 1.4h6.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M10.4 12h10m0 0-3.4-3.4m3.4 3.4-3.4 3.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+    <symbol id="d-search" viewBox="0 0 24 24"><circle cx="10.6" cy="10.6" r="6.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m15.4 15.4 5 5" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+    <symbol id="d-updown" viewBox="0 0 24 24"><path d="m7.6 9.4 4.4-4.4 4.4 4.4M7.6 14.6 12 19l4.4-4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-chev-r" viewBox="0 0 24 24"><path d="m9.4 5.6 6.4 6.4-6.4 6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-chev-l" viewBox="0 0 24 24"><path d="m14.6 5.6-6.4 6.4 6.4 6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-rail" viewBox="0 0 24 24"><rect x="3.4" y="4.4" width="17.2" height="15.2" rx="3" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9.4 4.6v14.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m15.6 9.6-2.4 2.4 2.4 2.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h11M4 17h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="d-envelope" viewBox="0 0 24 24"><rect x="3.2" y="5.4" width="17.6" height="13.2" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-trash" viewBox="0 0 24 24"><path d="M4.6 6.6h14.8M9.6 6.4V4.4h4.8v2M6.6 6.8l.9 12.4c.1.8.7 1.4 1.5 1.4h6c.8 0 1.4-.6 1.5-1.4l.9-12.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.2 10.6v6M13.8 10.6v6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-dots" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="18.5" cy="12" r="1.9" fill="currentColor"/></symbol>
+    <symbol id="d-pin" viewBox="0 0 24 24"><path d="M12 21s-6.4-5.6-6.4-11a6.4 6.4 0 0 1 12.8 0c0 5.4-6.4 11-6.4 11Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.3" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+    <symbol id="d-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-eye" viewBox="0 0 24 24"><path d="M2.6 12s3.4-6.4 9.4-6.4 9.4 6.4 9.4 6.4-3.4 6.4-9.4 6.4S2.6 12 2.6 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+    <symbol id="d-thumb" viewBox="0 0 24 24"><path d="M7.4 10.6v9.6H4.2v-9.6h3.2Zm0 0 3.8-6.4c1.4 0 2.4 1.1 2.2 2.5l-.5 3.3h5.3c1.3 0 2.2 1.2 1.9 2.4l-1.6 6.1c-.3 1-1.2 1.7-2.2 1.7H7.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="d-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6.4 16-2.4-6.8L4 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-doc" viewBox="0 0 24 24"><path d="M6.2 2.9h8l4.6 4.7v12.2c0 .8-.6 1.4-1.4 1.4H6.2c-.8 0-1.4-.6-1.4-1.4V4.3c0-.8.6-1.4 1.4-1.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14 3.2v4.6h4.6M8.6 12.4h6.8M8.6 16h4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-sheet" viewBox="0 0 24 24"><rect x="3.6" y="4.2" width="16.8" height="15.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.8 9.6h16.4M3.8 14.6h16.4M9.6 4.4v15.2" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="d-form" viewBox="0 0 24 24"><rect x="4.6" y="4.4" width="14.8" height="16.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9.2 4.4c0-1.1 1.2-1.8 2.8-1.8s2.8.7 2.8 1.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m8.6 13.2 2.2 2.2 4.4-4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-drive" viewBox="0 0 24 24"><path d="M8.6 3.8h6.8l5.6 9.8-3.4 5.8H6.4L3 13.6l5.6-9.8Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.6 3.8 15 15M3.2 13.6h11.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="d-tack" viewBox="0 0 24 24"><path d="M9 3.2h6M10 3.4l-.6 6.2-3.4 3h12l-3.4-3-.6-6.2M12 12.8v8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-grip" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="9" cy="6" r="1.8"/><circle cx="15" cy="6" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="18" r="1.8"/><circle cx="15" cy="18" r="1.8"/></g></symbol>
+    <symbol id="d-out" viewBox="0 0 24 24"><path d="M8 16 17.6 6.4M9.4 6h8.4v8.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-copy" viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="12" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 5.6V5c0-1.1-.9-2-2-2H5.2c-1.1 0-2 .9-2 2v8.4c0 1.1.9 2 2 2h.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-refresh" viewBox="0 0 24 24"><path d="M19.4 12a7.4 7.4 0 0 1-13 4.8M4.6 12a7.4 7.4 0 0 1 13-4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M17.8 3.4v4h-4M6.2 20.6v-4h4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-move" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.6 13.4h6.6m0 0-2.6-2.6m2.6 2.6-2.6 2.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-jar" viewBox="0 0 24 24"><path d="M7.4 3.4h9.2v3.2H7.4z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8 6.6c-2 1.1-3.2 2.9-3.2 5.2v6.4c0 1.3 1.1 2.4 2.4 2.4h9.6c1.3 0 2.4-1.1 2.4-2.4v-6.4c0-2.3-1.2-4.1-3.2-5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M10 4.9h4M8.6 14.4h6.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="d-x" viewBox="0 0 24 24"><path d="m6.4 6.4 11.2 11.2M17.6 6.4 6.4 17.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+    <symbol id="d-briefcase" viewBox="0 0 24 24"><rect x="3.2" y="7.2" width="17.6" height="12.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.8 7V5.2c0-.8.6-1.4 1.4-1.4h3.6c.8 0 1.4.6 1.4 1.4V7M3.4 12.4h17.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-book" viewBox="0 0 24 24"><path d="M4.4 5.2c0-.9.7-1.6 1.6-1.6h12.6v14.2H6a1.6 1.6 0 0 0-1.6 1.6V5.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M4.4 19.4c0 .9.7 1.6 1.6 1.6h12.6v-3.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+<main class="pg">
+  <header class="pg-top">
+    <div>
+      <span class="eyebrow" style="--eb:var(--mint-ink)">Ask Chapt · new reply path · exploration</span>
+      <h1>When are we <span class="hi" style="--mark:var(--mint)">free</span>?</h1>
+      <p class="lede">Ask “what's free in November?” today and you get a list of what's <em>on</em> — then you do the subtraction yourself. Availability answers draw the gaps. One new <code>shape</code>, <code>availability</code>, in three modes plus an honest variant: the model names the window and what it needs; the server decides which days are open from the calendar tools it already ran, and ranks the picks in code. It never claims to know anyone's personal schedule.</p>
+    </div>
+    <div class="theme" role="group" aria-label="Theme">
+      <button aria-pressed="true" data-theme-set="light">Day</button>
+      <button aria-pressed="false" data-theme-set="dark">Night</button>
+    </div>
+  </header>
+
+  <nav class="index" aria-label="States">
+    <a href="#open"><i style="--c:var(--mint)">01</i>Open dates</a>
+    <a href="#busy"><i style="--c:var(--peach)">02</i>Busy dates</a>
+    <a href="#day"><i style="--c:var(--rose)">03</i>One date</a>
+    <a href="#everyone"><i style="--c:var(--lilac)">04</i>Everyone free?</a>
+  </nav>
+
+  <!-- ═════════════════════════════ 01 OPEN DATES ═════════════════════════════ -->
+  <section class="st" id="open">
+    <div class="st-h"><span class="num">01</span><h2>Open dates</h2><p>“When are we free for…?” is answered on a month page, not a list. Clear days are washed mint, the days you can't use are already full of ink, and the pick that fits what was asked gets bracketed. Then the picks ranked, each with its reasons.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>When are we free for a retreat weekend in November?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 3 sources · 1.3s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Read the Timeline<span class="sc">Nov 4–30</span></span><span class="fd">15 events</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked deadlines<span class="sc">Tasks</span></span><span class="fd">2 due</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked the term<span class="sc">Fall 26</span></span><span class="fd">ends Dec 12</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Found open weekends<span class="sc">Sat + Sun</span></span><span class="fd">1 clean · 1 holiday</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict">One clean weekend: <span class="hi" style="--mark:var(--mint)">Nov 21–22</span>. Thanksgiving weekend is empty too, but probably because people will be away.</p>
+            <div class="sheet">
+              <div class="sheet-h"><span class="kicker">November · Sat + Sun, both clear</span><div class="legend"><span><i style="--c:var(--mint-soft); border-color:var(--mint-ink)"></i>Open</span><span><i style="--c:var(--lilac)"></i>Booked</span><span><i style="--c:var(--butter-soft); border-color:var(--butter-ink)"></i>Holiday</span></div></div>
+              <div class="mo" id="mo"><div class="tip" id="mo-tip"></div></div>
+            </div>
+            <div class="pks">
+              <button class="pkr best"><span class="rk">1</span><span><span class="wh">Sat–Sun · Nov 21–22<small>2 days</small></span><span class="tags"><span class="pro">Both days clear</span><span class="pro">3 weeks before term ends</span><span class="con">Initiation Fri 7 PM</span></span></span><span class="hold">Hold</span></button>
+              <button class="pkr"><span class="rk">2</span><span><span class="wh">Sat–Sun · Nov 28–29<small>2 days</small></span><span class="tags"><span class="pro">Both days clear</span><span class="soft">Thanksgiving weekend</span></span></span><span class="hold">Hold</span></button>
+              <button class="pkr"><span class="rk">3</span><span><span class="wh">Sat afternoon – Sun · Nov 14–15<small>partial</small></span><span class="tags"><span class="con">Philanthropy 5K Sat 8 AM · mandatory</span><span class="pro">Sunday clear</span></span></span><span class="hold">Hold</span></button>
+            </div>
+            <p class="seen"><svg class="ic"><use href="#d-eye"/></svg><span><b>Open means nothing's on the chapter calendar.</b> I can't see exams, away games or anyone's own plans.</span></p>
+            <div class="ak-meta"><div class="sources"><span class="lbl">Sources</span><span class="src" style="--c:var(--sky-ink)"><i></i>Timeline</span><span class="src" style="--c:var(--peach-ink)"><i></i>Tasks</span><span class="src" style="--c:var(--ink-3)"><i></i>Term</span></div><div class="fb"><span class="lbl">Helpful?</span><button aria-pressed="false"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-pressed="false"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="follows"><button class="do"><svg class="ic"><use href="#d-pencil"/></svg>Hold Nov 21–22 for the retreat</button><button><svg class="ic"><use href="#d-spark"/></svg>Any clean weekends in December?</button><button><svg class="ic"><use href="#d-spark"/></svg>Poll the chapter on 1 vs 2</button></div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>The question asks for free dates: “when are we free”, “what's open”, “any free weekends”, “a good date for…”. The window caps at ~6 weeks; longer stays as rows.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "availability",
+  mode: "open",
+  start: "2026-11-04", end: "2026-11-30",
+  need: { span: 2, days: ["sat","sun"] } }
+// server fills:
+days:  [{ date, items: [{ ref, title, time,
+          cat, mandatory }], open }]
+marks: [{ date, kind: "holiday" | "term_end" }]
+picks: [{ start, end, pros[], cons[] }]</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>list_calendar_events</span><span>list_deadlines</span><span>list_parties</span><span>list_service_events</span></div></div>
+        <div class="rule"><b>Open</b> = no event on that date. Deadlines are drawn but don't block a day: a due date isn't a booking. Picks are ranked in code: a clean span beats a partial one; a holiday, or an event the night before or after, is a con. The model writes <code>need</code> and the verdict, never which days are open.</div>
+        <div class="rule">Holidays come from a fixed table (US federal + Thanksgiving week) and the term end from the Semester row. Both are soft marks; neither makes a day busy.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 02 BUSY DATES ═════════════════════════════ -->
+  <section class="st" id="busy">
+    <div class="st-h"><span class="num">02</span><h2>Busy dates</h2><p>“What's busy?” as a load strip: one column per day, one block per event, mandatory ones filled and hatched. Busy days get inked labels, back-to-back stretches get a bracket, and the open days are named at the bottom so you don't have to count blank columns.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>Which days are busy the next two weeks?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 2 sources · 0.9s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Read the Timeline<span class="sc">Nov 5–18</span></span><span class="fd">12 events</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked deadlines<span class="sc">Tasks</span></span><span class="fd">2 due</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict">Five busy days. The tightest stretch is <span class="hi" style="--mark:var(--peach)">Fri 13 into Sat 14</span>: a mixer at 9 PM, then the mandatory 5K at 8 AM.</p>
+            <div class="sheet">
+              <div class="sheet-h"><span class="kicker">Nov 5 – 18 · one block per event</span><div class="legend"><span><i style="--c:var(--lilac); background-image:repeating-linear-gradient(-45deg, transparent 0 2px, rgba(38,33,27,.3) 2px 3px)"></i>Mandatory</span><span><i class="dash" style="border-top-color:var(--peach-ink)"></i>Deadline</span><span><i style="--c:var(--mint-soft); border:1.5px dashed var(--mint-ink)"></i>Open</span></div></div>
+              <div class="ld" id="ld"><div class="tip" id="ld-tip"></div></div>
+              <div class="res-list busy-list" id="busy-list"></div>
+              <div class="wide"><span class="kicker">Wide open</span><button>Fri 6</button><button>Tue 10</button><button>Wed 11</button><button>Sun 15</button><button>Tue 17</button></div>
+            </div>
+            <div class="ak-meta"><div class="sources"><span class="lbl">Sources</span><span class="src" style="--c:var(--sky-ink)"><i></i>Timeline</span><span class="src" style="--c:var(--peach-ink)"><i></i>Tasks</span></div><div class="fb"><span class="lbl">Helpful?</span><button aria-pressed="false"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-pressed="false"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="follows"><button><svg class="ic"><use href="#d-spark"/></svg>Can the mixer move to the 6th?</button><button><svg class="ic"><use href="#d-spark"/></svg>Who's running the 5K?</button><button class="do"><svg class="ic"><use href="#d-pencil"/></svg>Add something Tue 10</button></div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>The question asks what's taken: “busy”, “packed”, “what's on”, “slammed” over 8–21 days. Seven days or fewer goes to the existing <b>Week</b> shape, which already does this better.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "availability",
+  mode: "busy",
+  start: "2026-11-05", end: "2026-11-18" }
+// server fills days[] (as in open) +
+busy:    [date]       // mandatory, or 2+ events
+crunch:  [{ from, to, gapHours: 11 }]
+rows: busy days, mandatory first</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>list_calendar_events</span><span>list_deadlines</span></div></div>
+        <div class="rule"><b>Busy</b> is a rule in code (any mandatory event, or two or more), shown the same way every time. Events only store a start time, so a crunch is measured <em>start to start</em> (under 14h, across two days) and labelled that way. No block pretends to know how long anything runs.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 03 ONE DATE ═════════════════════════════ -->
+  <section class="st" id="day">
+    <div class="st-h"><span class="num">03</span><h2>One date</h2><p>“Is the 13th open?” is a yes or no, so the day gets its own ticket and a stamp. When it's taken, the answer shows what's on it and the morning after, then offers the nearest nights that actually work. Tap one and the hold is drafted.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>Is Friday the 13th open for a date party?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 2 sources · 0.8s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Read “Friday the 13th”<span class="sc">this month</span></span><span class="fd">Fri Nov 13</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked that night + the next day<span class="sc">Timeline</span></span><span class="fd">2 events</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Looked for open nights nearby<span class="sc">Fri + Sat · ±9 days</span></span><span class="fd">3 open</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict">No, it's <span class="hi" style="--mark:var(--rose)">taken</span>: the ΑΦ mixer is that night. <b>Sat Nov 21</b> is the closest night that's fully clear.</p>
+            <div class="clash">
+              <div class="cl-stub"><span class="dw">Fri</span><span class="dn">13</span><span class="mn">Nov</span></div>
+              <div class="cl-b">
+                <span class="kicker">That night</span>
+                <button class="cl-ev c-party"><span class="tm">9:00 PM</span><span><b>Mixer w/ ΑΦ</b><small>Party · 48 RSVPs</small></span><span></span></button>
+                <div class="cl-gap">11h to the next start</div>
+                <span class="kicker">Next morning · Sat 14</span>
+                <button class="cl-ev c-service"><span class="tm">8:00 AM</span><span><b>Philanthropy 5K</b><small>Service · Riverside Park</small></span><span class="mtag">Mandatory</span></button>
+              </div>
+              <span class="stamp">Taken</span>
+            </div>
+            <div class="alts">
+              <span class="kicker">Open nights nearby · tap to hold</span>
+              <div class="alt-g">
+                <button class="alt best" data-d="Sat Nov 21"><span class="ad">Best · +8 days</span><span class="an">Sat Nov 21</span><span class="tags"><span class="pro">Clear all day</span><span class="pro">Nothing next morning</span></span></button>
+                <button class="alt" data-d="Fri Nov 6"><span class="ad">−7 days</span><span class="an">Fri Nov 6</span><span class="tags"><span class="pro">Night is clear</span><span class="soft">Tailgate 11 AM Sat</span></span></button>
+                <button class="alt" data-d="Sat Nov 14"><span class="ad">+1 day</span><span class="an">Sat Nov 14</span><span class="tags"><span class="pro">Evening clear</span><span class="con">5K that morning</span></span></button>
+              </div>
+            </div>
+            <div class="draft" id="draft" hidden>
+              <div class="dr-h"><svg class="ic" style="width:14px;height:14px;color:var(--butter-ink)"><use href="#d-cal"/></svg><span class="kicker">Draft · add to Timeline</span><span class="perm">You can approve this</span></div>
+              <dl class="dr-b"><dt>What</dt><dd>Date party</dd><dt>When</dt><dd id="draft-when">Sat Nov 21 · 9:00 PM</dd><dt>Type</dt><dd>Party · not mandatory</dd></dl>
+              <div class="dr-f"><button class="btn btn--sm" style="--hs:var(--mint)"><svg class="ic"><use href="#d-check"/></svg>Approve</button><button class="btn btn--sm btn--ghost"><svg class="ic"><use href="#d-pencil"/></svg>Edit</button></div>
+            </div>
+            <div class="ak-meta"><div class="sources"><span class="lbl">Sources</span><span class="src" style="--c:var(--sky-ink)"><i></i>Timeline</span><span class="src" style="--c:var(--rose-ink)"><i></i>Parties</span></div><div class="fb"><span class="lbl">Helpful?</span><button aria-pressed="false"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-pressed="false"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="follows"><button><svg class="ic"><use href="#d-spark"/></svg>What about December?</button><button><svg class="ic"><use href="#d-spark"/></svg>Could the mixer move?</button></div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>One named date is asked about: “is the 13th free”, “can we do Saturday”, “anything on Nov 21?”. Open gets an <b>Open</b> stamp in mint and the same ticket.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "availability",
+  mode: "day",
+  date: "2026-11-13",
+  near: { days: ["fri","sat"], within: 9 } }
+// server fills:
+day:   { open, items[], after: items[] }
+nearby:[{ date, offset, pros[], cons[] }]</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>list_calendar_events</span><span>list_parties</span><span>propose_add_calendar_event</span></div></div>
+        <div class="rule">Bare days resolve the way <code>day_of_month</code> already does: pinned to the month in context, and shown in the ledger (“Fri Nov 13”) so a wrong guess is visible. Tapping a nearby night opens the existing <code>propose_add_calendar_event</code> writ, with its permission gate. Nothing is written until Approve.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 04 EVERYONE FREE ═════════════════════════════ -->
+  <section class="st" id="everyone">
+    <div class="st-h"><span class="num">04</span><h2>Everyone free?</h2><p>“When is everyone free?” is the question Ask Chapt can't fully answer, and the reply says so before anything else. It shows the evenings the <em>chapter calendar</em> leaves clear, names what it can't see, and offers the one move that gets the real answer: asking everyone.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>When is everyone free next week for a brotherhood dinner?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 2 sources · 0.9s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Read evenings on the Timeline<span class="sc">Nov 9–15 · after 5 PM</span></span><span class="fd">4 events</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked open polls<span class="sc">Polls</span></span><span class="fd">none on dates</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict">I can't see anyone's classes or shifts. What I can see: the chapter calendar leaves <span class="hi" style="--mark:var(--lilac)">four evenings clear</span>.</p>
+            <div class="sheet">
+              <div class="sheet-h"><span class="kicker">Evenings · Nov 9 – 15 · 5 – 11 PM</span><div class="legend"><span><i style="--c:var(--lilac)"></i>Starts here</span><span><i style="--c:var(--mint-soft); border-color:var(--mint-ink)"></i>Clear evening</span></div></div>
+              <div class="ev-w" id="ev-w"><div class="tip" id="ev-tip"></div></div>
+            </div>
+            <div class="blind">
+              <span class="kicker">What I can't see</span>
+              <div class="bl-r"><span><svg class="ic"><use href="#d-book"/></svg>Class schedules</span><span><svg class="ic"><use href="#d-briefcase"/></svg>Work shifts</span><span><svg class="ic"><use href="#d-cal"/></svg>Personal calendars</span></div>
+              <p>So “clear” means nothing chapter-run, not that people are free. A poll is the only way to know.</p>
+            </div>
+            <div class="poll">
+              <div class="dr-h"><svg class="ic" style="width:14px;height:14px;color:var(--lilac-ink)"><use href="#d-hand"/></svg><span class="kicker">Draft poll · whole chapter</span><span class="perm">Closes Sun 8 PM</span></div>
+              <div class="po">
+                <label><input type="checkbox" checked><span>Tue Nov 10 · 7:00 PM</span><small>clear</small></label>
+                <label><input type="checkbox" checked><span>Wed Nov 11 · 7:00 PM</span><small>clear</small></label>
+                <label><input type="checkbox" checked><span>Sun Nov 15 · 6:00 PM</span><small>clear</small></label>
+                <label class="off"><input type="checkbox"><span>Sat Nov 14 · 7:00 PM</span><small>5K that morning</small></label>
+              </div>
+              <div class="dr-f"><button class="btn btn--sm" style="--hs:var(--lilac)"><svg class="ic"><use href="#d-send"/></svg>Send to chapter</button><button class="btn btn--sm btn--ghost"><svg class="ic"><use href="#d-pencil"/></svg>Edit</button></div>
+            </div>
+            <div class="ak-meta"><div class="sources"><span class="lbl">Sources</span><span class="src" style="--c:var(--sky-ink)"><i></i>Timeline</span><span class="src" style="--c:var(--lilac-ink)"><i></i>Polls</span></div><div class="fb"><span class="lbl">Helpful?</span><button aria-pressed="false"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-pressed="false"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="follows"><button><svg class="ic"><use href="#d-spark"/></svg>Which day had the best attendance last term?</button><button class="do"><svg class="ic"><use href="#d-pencil"/></svg>Just hold Wed 11</button></div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>The question is about <em>people's</em> time: “everyone”, “most of us”, “when can exec meet”. Any people-free question goes to 01–03.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "availability",
+  mode: "open", grain: "evening",
+  start: "2026-11-09", end: "2026-11-15",
+  people: true }        // → blind panel
+// server fills pins[] at start time,
+// clear[] evenings; poll options =
+// clear evenings, model picks the times</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>list_calendar_events</span><span>list_polls</span><span class="new" style="border-style:dashed">propose_create_poll · new</span></div></div>
+        <div class="rule"><code>people: true</code> makes the blind panel compulsory; the model can't drop it. Events are drawn as <b>pins at their start time</b>, never as blocks, because the data has no end time. The poll writ is new: it mirrors <code>propose_add_calendar_event</code>, gated on whoever can create polls, and its options can only be clear evenings from this answer.</div>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  var root = document.documentElement;
+  function useIc(id, cls){ return '<svg class="ic' + (cls ? ' ' + cls : '') + '"><use href="#d-' + id + '"/></svg>'; }
+  function esc(s){ return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+
+  /* theme */
+  document.querySelectorAll('[data-theme-set]').forEach(function(b){
+    b.addEventListener('click', function(){
+      root.dataset.theme = b.dataset.themeSet;
+      document.querySelectorAll('[data-theme-set]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+    });
+  });
+
+  /* the chapter calendar — one source for every state. [title, time, cat, mandatory] */
+  var EV = {
+    2:  [['Chapter meeting', '7:00 PM', 'chapter', 1]],
+    5:  [['Exec meeting', '8:30 PM', 'chapter', 0]],
+    7:  [['Homecoming tailgate', '11:00 AM', 'social', 0], ['Alumni dinner', '6:30 PM', 'social', 0]],
+    8:  [['Lakeshore path cleanup', '10:00 AM', 'service', 0], ['Composite photo forms', 'due', 'deadline', 0]],
+    9:  [['Chapter meeting', '7:00 PM', 'chapter', 1]],
+    12: [['Info night', '7:00 PM', 'program', 0], ['Exec meeting', '8:30 PM', 'chapter', 0], ['Formal RSVPs close', 'due', 'deadline', 0]],
+    13: [['Mixer w/ ΑΦ', '9:00 PM', 'party', 0]],
+    14: [['Philanthropy 5K', '8:00 AM', 'service', 1]],
+    16: [['Chapter meeting', '7:00 PM', 'chapter', 1]],
+    18: [['Study hall', '6:00 PM', 'program', 0]],
+    19: [['Exec meeting', '8:30 PM', 'chapter', 0]],
+    20: [['Initiation', '7:00 PM', 'chapter', 1]],
+    23: [['Chapter meeting', '7:00 PM', 'chapter', 1]],
+    30: [['Chapter meeting', '7:00 PM', 'chapter', 1]]
+  };
+  var TODAY = 4, DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  function dow(d){ return DOW[(d - 1) % 7]; }               // Nov 1 2026 is a Sunday
+  function events(d){ return (EV[d] || []).filter(function(e){ return e[2] !== 'deadline'; }); }
+
+  function wireTip(host, tip, sel){
+    function show(el){
+      var r = el.getBoundingClientRect(), p = host.getBoundingClientRect();
+      tip.innerHTML = esc(el.dataset.n) + '<b>' + esc(el.dataset.v) + '</b>';
+      tip.style.left = (r.left - p.left + r.width / 2) + 'px'; tip.style.top = (r.top - p.top) + 'px';
+      tip.classList.add('on');
+    }
+    host.addEventListener('mouseover', function(e){ var el = e.target.closest(sel); if (el) show(el); });
+    host.addEventListener('focusin', function(e){ var el = e.target.closest(sel); if (el) show(el); });
+    host.addEventListener('mouseleave', function(){ tip.classList.remove('on'); });
+    host.addEventListener('focusout', function(){ tip.classList.remove('on'); });
+  }
+
+  /* 01 open — Mon-first month page, Oct 26 → Dec 6, picks bracketed */
+  var mo = document.getElementById('mo'), h = '';
+  ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(function(w, k){ h += '<span class="mo-w' + (k > 4 ? ' we' : '') + '" style="grid-row:1; grid-column:' + (k + 1) + '">' + w + '</span>'; });
+  for (var idx = 0; idx < 42; idx++){
+    var d = idx - 5, row = Math.floor(idx / 7) + 2, col = idx % 7 + 1, inMonth = d >= 1 && d <= 30;
+    var cls = 'md c' + col + (col > 5 ? ' we' : ''), body = '';
+    if (!inMonth){ cls += ' out'; body = '<span class="n">' + (d < 1 ? 31 + d : d - 30) + '</span>'; }
+    else {
+      if (d < TODAY) cls += ' past';
+      if (d === TODAY) cls += ' today';
+      if (d === 26) cls += ' hol';
+      else if (d >= TODAY && !events(d).length) cls += ' open';
+      body = '<span class="n">' + d + '</span>';
+      if (d === 26) body += '<span class="hl">Thanksgiving</span>';
+      (EV[d] || []).forEach(function(e){
+        body += '<button class="mi c-' + e[2] + (e[3] ? ' mand' : '') + '" style="--i:' + idx + '" data-n="' + esc(e[0]) + '" data-v="' + (e[2] === 'deadline' ? 'due' : e[1]) + (e[3] ? ' · mandatory' : '') + '">' + esc(e[0]) + '</button>';
+      });
+    }
+    h += '<div class="' + cls + '" style="grid-row:' + row + '; grid-column:' + col + '; --i:' + idx + '">' + body + '</div>';
+  }
+  /* Nov 21–22 = row 5, Nov 28–29 = row 6, both Sat+Sun columns */
+  h += '<div class="pick-ov" style="grid-row:5; grid-column:6 / span 2"><span class="tab">Best · 21–22</span></div>';
+  h += '<div class="pick-ov dash" style="grid-row:6; grid-column:6 / span 2"><span class="tab">Holiday wknd</span></div>';
+  mo.insertAdjacentHTML('beforeend', h);
+  wireTip(mo, document.getElementById('mo-tip'), '.mi');
+
+  /* 02 busy — Nov 5..18, one column per day */
+  var ld = document.getElementById('ld'), s = '', busy = [];
+  for (var k = 0; k < 14; k++){
+    var day = 5 + k, items = EV[day] || [], evs = events(day), w = dow(day);
+    var isBusy = evs.some(function(e){ return e[3]; }) || evs.length >= 2;
+    if (isBusy) busy.push(day);
+    var stack = items.map(function(e, j){
+      return '<button class="lb c-' + e[2] + (e[3] ? ' mand' : '') + '" style="--i:' + (k * 2 + j) + '" data-n="' + esc(e[0]) + '" data-v="' + w + ' ' + day + ' · ' + (e[2] === 'deadline' ? 'due' : e[1]) + '" aria-label="' + esc(e[0]) + ', ' + w + ' Nov ' + day + '"></button>';
+    }).join('');
+    if (!evs.length) stack += '<span class="opn" style="--i:' + k + '" title="Open"></span>';
+    s += '<div class="lc' + (w === 'Sat' || w === 'Sun' ? ' we' : '') + (isBusy ? ' busy' : '') + (!evs.length ? ' free' : '') + '" style="grid-column:' + (k + 1) + '">' +
+      '<div class="stk">' + stack + '</div><div class="lc-l"><span class="dw">' + w.slice(0, window.innerWidth < 600 ? 1 : 3) + '</span><span class="dn">' + day + '</span></div></div>';
+  }
+  s += '<div class="crunch" style="grid-column:9 / span 2"><span>11h · back to back</span></div>';  // Fri 13 → Sat 14
+  ld.insertAdjacentHTML('beforeend', s);
+  wireTip(ld, document.getElementById('ld-tip'), '.lb');
+
+  var order = busy.slice().sort(function(a, b){ return (events(b).some(function(e){ return e[3]; }) ? 1 : 0) - (events(a).some(function(e){ return e[3]; }) ? 1 : 0) || a - b; });
+  var subs = { 14: '11h after the mixer starts', 12: 'Formal RSVPs also close' };
+  document.getElementById('busy-list').innerHTML = order.map(function(day){
+    var evs = events(day), mand = evs.some(function(e){ return e[3]; });
+    var t = evs.map(function(e){ return e[0]; }).join(' + ');
+    var sub = evs.map(function(e){ return e[1]; }).join(' · ') + (subs[day] ? ' · ' + subs[day] : '');
+    return '<button class="res"><span class="dg' + (mand ? ' mand' : '') + '"><i>' + dow(day) + '</i><b>' + day + '</b></span><span><span class="t">' + esc(t) + '</span><span class="s">' + esc(sub) + '</span></span><span class="val' + (mand ? ' risk' : '') + '">' + (mand ? 'Mandatory' : evs.length + ' events') + '</span>' + useIc('chev-r', 'chev') + '</button>';
+  }).join('');
+
+  /* 04 everyone — evening lanes, 5 PM (top) → 11 PM (bottom), pins at start time */
+  var ew = document.getElementById('ev-w'), e4 = '<div class="ev-ax">';
+  [5, 7, 9, 11].forEach(function(hr){ e4 += '<span style="top:' + ((hr - 5) / 6 * 100) + '%">' + hr + 'p</span>'; });
+  e4 += '</div>';
+  function hours(t){ var m = t.match(/(\d+):(\d+) (AM|PM)/); if (!m) return null; var hh = +m[1] % 12 + (m[3] === 'PM' ? 12 : 0); return hh + m[2] / 60; }
+  for (var j = 0; j < 7; j++){
+    var dd = 9 + j, eve = events(dd).filter(function(e){ var x = hours(e[1]); return x !== null && x >= 17; });
+    var pins = eve.map(function(e){
+      var top = (hours(e[1]) - 17) / 6 * 100;
+      return '<button class="pin c-' + e[2] + (e[3] ? ' mand' : '') + '" style="top:' + top + '%; --i:' + j + '" data-n="' + esc(e[0]) + '" data-v="' + e[1] + '"><em>' + esc(e[0]) + '</em></button>';
+    }).join('');
+    e4 += '<div class="ec' + (eve.length ? '' : ' clear') + '" style="--i:' + j + '"><span class="ec-h">' + dow(dd) + ' <b>' + dd + '</b></span><div class="ec-b">' + pins + (eve.length ? '' : '<span class="cl">clear</span>') + '</div></div>';
+  }
+  ew.insertAdjacentHTML('beforeend', e4);
+  wireTip(ew, document.getElementById('ev-tip'), '.pin');
+
+  /* 03 one date — tap a nearby night to draft the hold */
+  var draft = document.getElementById('draft');
+  document.querySelectorAll('.alt').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('.alt').forEach(function(x){ x.classList.toggle('sel', x === b); });
+      document.getElementById('draft-when').textContent = b.dataset.d + ' · 9:00 PM';
+      draft.hidden = false; draft.style.animation = 'none'; void draft.offsetWidth; draft.style.animation = '';
+    });
+  });
+
+  /* helpful */
+  document.querySelectorAll('.fb').forEach(function(fb){
+    fb.addEventListener('click', function(e){ var b = e.target.closest('button'); if (!b) return;
+      fb.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b && x.getAttribute('aria-pressed') !== 'true')); }); });
+  });
+
+  /* trace toggle */
+  document.querySelectorAll('.trace').forEach(function(t){
+    t.addEventListener('click', function(){ var rl = t.nextElementSibling, open = t.getAttribute('aria-expanded') === 'true'; t.setAttribute('aria-expanded', String(!open)); rl.hidden = open; });
+  });
+
+  /* entrance on first view */
+  var io = new IntersectionObserver(function(es){ es.forEach(function(e){ if (e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); }, { threshold: .2 });
+  document.querySelectorAll('.ak-a').forEach(function(a){ io.observe(a); });
+
+  /* replay: run the ledger live, then re-enter the answer */
+  document.querySelectorAll('.replay').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var spot = btn.closest('.spot'), turn = spot.querySelector('.ak-turn'), tr = turn.querySelector('.trace'), rl = turn.querySelector('.rl'), a = turn.querySelector('.ak-a');
+      if (turn.classList.contains('thinking')) return;
+      var lis = [].slice.call(rl.querySelectorAll('li'));
+      turn.classList.add('thinking'); a.classList.remove('in');
+      tr.setAttribute('aria-expanded', 'false'); rl.hidden = false; rl.classList.add('live');
+      lis.forEach(function(li){ li.className = ''; });
+      var k = 0;
+      (function step(){
+        if (k > 0) lis[k - 1].className = 'done';
+        if (k < lis.length){ lis[k].className = 'active'; k++; setTimeout(step, 620); return; }
+        setTimeout(function(){
+          rl.hidden = true; rl.classList.remove('live'); turn.classList.remove('thinking');
+          a.style.animation = 'none'; void a.offsetWidth; a.style.animation = '';
+          requestAnimationFrame(function(){ a.classList.add('in'); });
+        }, 420);
+      })();
+    });
+  });
+
+  /* index highlights the section in view */
+  var links = [].slice.call(document.querySelectorAll('.index a'));
+  var so = new IntersectionObserver(function(es){ es.forEach(function(e){ if (e.isIntersecting) links.forEach(function(l){ l.classList.toggle('on', l.getAttribute('href') === '#' + e.target.id); }); }); }, { rootMargin: '-40% 0px -55% 0px' });
+  document.querySelectorAll('.st').forEach(function(s){ so.observe(s); });
+})();
+</script>
+</body>
+</html>

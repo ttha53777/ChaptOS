@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Meetings · Date stubs</title>
+<!--
+  /chapter (Meetings), paper look, with ONE change: every meeting's date is drawn the way Tasks
+  draws a date. The On deck card's big calendar is the Task Spotlight's tear-off page (month band,
+  washi tape, tilt, hard shadow); every Past meetings row gets the task row's tear-off stub
+  (ink border, coloured month band, big day number) in place of the old DOW / 12 / OCT box.
+  Band colour tells the row's state, same idea as Tasks' sky / rose:
+    sky    next meeting        butter  tonight
+    sky    minutes filed       peach   no minutes yet (dashed row stays)
+  MOCK dock: Next week / Tonight · stub Left / Right · Night (T). All records fictional.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ---------- tokens (Dashboard Paper Mock / Tasks Simple) ----------------- */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --note-ink:#26211B; --note-filter:none;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --note-filter:brightness(.93) saturate(.85);
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em; -webkit-font-smoothing:antialiased; overflow-x:hidden; transition:background .35s var(--ease-out), color .35s var(--ease-out)}
+h1,h2,h3,p,ul{margin:0}
+ul{padding:0; list-style:none}
+button{font:inherit; color:inherit; cursor:pointer}
+svg{display:block}
+.ic{width:16px; height:16px; flex:none}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+[data-r]{animation:rise .55s var(--ease-out) both; animation-delay:var(--d,0ms)}
+@keyframes rise{from{opacity:0; transform:translateY(10px)}}
+
+/* ---------- app frame ---------------------------------------------------- */
+.app{display:flex; min-height:100vh}
+.main{flex:1; min-width:0}
+.sb{position:sticky; top:0; height:100vh; width:252px; flex:none; display:flex; flex-direction:column; background:color-mix(in srgb, var(--paper-2) 88%, transparent); border-right:1.5px solid var(--line)}
+.sb-org{display:flex; align-items:center; gap:11px; height:66px; padding:0 14px; border-bottom:1.5px solid var(--line)}
+.orglogo{width:36px; height:36px; flex:none; border-radius:11px; display:grid; place-items:center; background:var(--butter); border:2px solid var(--note-ink); color:var(--note-ink); font-family:var(--display); font-weight:700; font-size:.82rem; transform:rotate(-3deg); box-shadow:2px 2px 0 var(--peach); filter:var(--note-filter)}
+.sb-org b{display:block; font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:-.022em; line-height:1.15}
+.sb-org small{display:block; font-family:var(--mono); font-size:.66rem; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-3)}
+.sb-nav{padding:14px 10px}
+.item{display:flex; align-items:center; gap:11px; height:38px; padding:0 11px; margin:2px 0; border-radius:12px; border:1.5px solid transparent; color:var(--ink-2); font-size:.9rem; font-weight:500}
+.item .ic{color:var(--ink-3)}
+.item[aria-current="page"]{background:var(--card); color:var(--ink); font-weight:600; border-color:var(--ink); box-shadow:2.5px 2.5px 0 var(--butter)}
+.item[aria-current="page"] .ic{color:var(--ink)}
+.topbar{display:none}
+.pg{max-width:1040px; margin:0 auto; padding:40px 40px 140px}
+
+/* ---------- briefing ----------------------------------------------------- */
+.brief{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:24px; align-items:end}
+.kick{font-family:var(--mono); font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.greet{font-family:var(--display); font-weight:600; letter-spacing:-.032em; line-height:1.06; font-size:clamp(2rem,3.6vw,2.8rem); margin-top:14px}
+.greet em{font-style:italic; font-weight:500}
+.sub{margin-top:10px; color:var(--ink-2); max-width:58ch}
+.acts{display:flex; gap:10px}
+.btn{--bg:var(--ink); --fg:var(--paper); --hs:var(--butter); display:inline-flex; align-items:center; gap:8px; padding:10px 17px; border-radius:999px; border:1.5px solid var(--ink); background:var(--bg); color:var(--fg); font-weight:600; font-size:.88rem; white-space:nowrap; box-shadow:2.5px 2.5px 0 var(--hs); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.btn .ic{width:15px; height:15px}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.btn.ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--peach)}
+.btn.soft{--bg:transparent; --fg:var(--ink-2); border-color:var(--line-2); box-shadow:none}
+
+.sec{display:flex; align-items:baseline; gap:12px; margin:34px 0 12px}
+.sec h2{font-family:var(--display); font-weight:600; font-size:1.4rem; letter-spacing:-.03em; white-space:nowrap}
+.sec .rule{flex:1; border-top:1.5px dashed var(--line-2); transform:translateY(-4px)}
+.sec .cnt{font-family:var(--mono); font-size:.72rem; color:var(--ink-3); white-space:nowrap}
+
+/* ---------- the tear-off calendar page (Task Spotlight .cal) ------------ */
+.cal{--cc:var(--sky); position:relative; width:118px; flex:none; align-self:start; border-radius:16px; border:1.8px solid var(--ink); background:var(--card); text-align:center; box-shadow:4px 4px 0 var(--cc); transform:rotate(-3deg); animation:calin .5s var(--ease-spring) .1s both}
+@keyframes calin{from{transform:translateY(-14px) rotate(-9deg); opacity:0}}
+.cal::before{content:''; position:absolute; left:50%; top:-9px; width:54px; height:17px; transform:translateX(-50%) rotate(4deg); background:color-mix(in srgb, var(--butter) 75%, transparent); border-inline:1.5px dashed rgba(38,33,27,.18); z-index:2; filter:var(--note-filter)}
+.cal small{display:block; padding:4px 0 3px; border-radius:14px 14px 0 0; background:var(--cc); color:var(--note-ink); border-bottom:1.8px solid var(--ink); font-family:var(--mono); font-size:.72rem; font-weight:600; letter-spacing:.14em; filter:var(--note-filter)}
+.cal b{display:block; padding:6px 0 0; font-family:var(--display); font-weight:600; font-size:3.3rem; letter-spacing:-.05em; line-height:1}
+.cal span{display:block; padding:2px 0 9px; font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.12em; color:var(--ink-3)}
+.cal.live{--cc:var(--butter)}
+.cal.live::before{background:color-mix(in srgb, var(--peach) 80%, transparent)}
+.cal .time{font-style:normal; position:absolute; left:50%; bottom:-13px; transform:translateX(-50%) rotate(3deg); padding:1px 9px; border-radius:7px; border:1.5px solid var(--ink); background:var(--card); font-family:var(--mono); font-size:.68rem; font-weight:700; letter-spacing:.04em; white-space:nowrap; color:var(--ink)}
+
+/* ---------- on deck ------------------------------------------------------ */
+.ondeck{display:flex; gap:30px; padding:26px 28px 24px; border-radius:24px; background:var(--card); border:1.5px solid var(--ink); box-shadow:4px 4px 0 var(--sky)}
+.ondeck.live{box-shadow:4px 4px 0 var(--butter)}
+.od-body{flex:1; min-width:0}
+.od-top{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+.pill{display:inline-flex; align-items:center; gap:6px; padding:3px 11px; border-radius:999px; border:1.5px solid var(--ink); background:var(--card); font-size:.76rem; font-weight:700}
+.ondeck.live .pill{background:var(--ink); color:var(--paper); box-shadow:2px 2px 0 var(--peach)}
+.pill .dot{width:6px; height:6px; border-radius:50%; background:var(--peach)}
+.od-top .when{font-family:var(--mono); font-size:.74rem; color:var(--ink-3)}
+.ondeck h3{margin-top:10px; font-family:var(--display); font-weight:600; font-size:1.7rem; letter-spacing:-.03em; line-height:1.1}
+.od-meta{display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:10px; font-size:.88rem; color:var(--ink-2)}
+.od-meta span{display:inline-flex; align-items:center; gap:6px}
+.od-meta .ic{width:15px; height:15px; color:var(--ink-3)}
+.od-prog{margin-top:16px; padding:12px 14px; border-radius:14px; border:1.5px solid var(--line); background:var(--paper-2)}
+.od-prog.none{border-style:dashed; background:transparent}
+.od-prog .ph{display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap}
+.od-prog .pl{font-size:.66rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.od-prog .pl.ok{color:var(--mint-ink)}
+.od-prog .pc{font-family:var(--mono); font-size:.78rem; color:var(--ink-3)}
+.od-prog .pc b{font-family:var(--display); font-size:1.25rem; font-weight:600; color:var(--ink)}
+.od-prog .pm{margin-top:4px; font-size:.86rem; color:var(--ink-2)}
+.meter{margin-top:10px; height:10px; border-radius:6px; background:var(--paper-3); overflow:hidden}
+.meter i{display:block; height:100%; background:var(--mint-ink); border-radius:6px}
+.od-acts{display:flex; gap:10px; flex-wrap:wrap; margin-top:18px}
+
+/* ---------- past meetings ------------------------------------------------ */
+.tabs{display:inline-flex; gap:3px; padding:3px; margin-bottom:12px; border-radius:999px; background:var(--paper-2); border:1.5px solid var(--line)}
+.tabs button{padding:6px 13px; border:0; border-radius:999px; background:none; font-size:.82rem; font-weight:600; color:var(--ink-2)}
+.tabs button.on{background:var(--card); color:var(--ink); box-shadow:var(--sh-1)}
+.tabs .ct{font-family:var(--mono); font-size:.68rem; opacity:.75; margin-left:3px}
+.ledger{display:grid; gap:8px}
+.row{display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:16px; width:100%; padding:12px 18px 12px 14px; border-radius:16px; border:1.5px solid var(--line); background:var(--card); text-align:left; transition:transform .2s var(--ease-spring), box-shadow .2s, border-color .2s}
+.row:hover{transform:translateX(3px); border-color:var(--line-2); box-shadow:var(--sh-2)}
+.row.missing{border-style:dashed; border-color:var(--peach-bd); background:color-mix(in srgb, var(--peach-soft) 60%, var(--card))}
+.r-main{min-width:0}
+.r-t{display:flex; align-items:center; gap:8px; font-weight:600; font-size:.95rem; letter-spacing:-.01em}
+.r-t .opt{font-family:var(--mono); font-size:.6rem; letter-spacing:.08em; border:1.5px solid var(--line-2); border-radius:5px; padding:1px 6px; color:var(--ink-3); font-weight:600}
+.r-sum{margin-top:3px; font-size:.84rem; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.r-sum.empty{color:var(--peach-ink); font-style:italic}
+.r-side{display:flex; align-items:center; gap:14px}
+.tag{font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.06em; padding:2px 8px; border-radius:6px; border:1.3px solid var(--mint-bd); background:var(--mint-soft); color:var(--mint-ink); white-space:nowrap}
+.tag.no{border-color:var(--peach-bd); background:var(--peach-soft); color:var(--peach-ink)}
+.stat{text-align:right; min-width:44px}
+.stat b{display:block; font-family:var(--display); font-weight:600; font-size:1.05rem; letter-spacing:-.02em; line-height:1.1}
+.stat b.lo{color:var(--peach-ink)}
+.stat small{font-family:var(--mono); font-size:.6rem; color:var(--ink-3); letter-spacing:.06em}
+.chev{color:var(--ink-3)}
+
+/* the task row's tear-off stub, at meeting-row size */
+.stub{--sc:var(--paper-3); width:50px; flex:none; border-radius:10px; border:1.5px solid var(--ink); background:var(--card); overflow:hidden; text-align:center; box-shadow:2px 2px 0 var(--sc)}
+.stub small{display:block; padding:1px 0; background:var(--sc); color:var(--note-ink); border-bottom:1.5px solid var(--ink); font-family:var(--mono); font-size:.56rem; font-weight:600; letter-spacing:.1em; filter:var(--note-filter)}
+.stub b{display:block; padding:2px 0 0; font-family:var(--display); font-weight:600; font-size:1.3rem; letter-spacing:-.04em; line-height:1.1}
+.stub i{display:block; padding:0 0 3px; font-style:normal; font-family:var(--mono); font-size:.5rem; font-weight:600; letter-spacing:.1em; color:var(--ink-3)}
+.stub.filed{--sc:var(--sky)}
+.stub.nomin{--sc:var(--peach)}
+.row:hover .stub{transform:rotate(-3deg)}
+.stub{transition:transform .25s var(--ease-spring)}
+
+/* stub on the right, beside its words (exactly the Tasks row layout) */
+.when{display:none; font-family:var(--mono); font-size:.72rem; font-weight:600; color:var(--ink-3); white-space:nowrap; text-align:right}
+html[data-side="right"] .row{grid-template-columns:minmax(0,1fr) auto auto; padding-left:18px}
+html[data-side="right"] .row > .stub{order:3}
+html[data-side="right"] .row .when{display:block}
+html[data-side="right"] .r-side .chev{display:none}
+
+/* ---------- dock (mock only) --------------------------------------------- */
+.dock{position:fixed; z-index:80; left:50%; bottom:18px; transform:translateX(-50%); display:flex; align-items:center; gap:4px; padding:5px; border-radius:999px; background:var(--card); border:1.5px solid var(--ink); box-shadow:4px 4px 0 var(--lilac); max-width:calc(100vw - 24px); overflow-x:auto; scrollbar-width:none}
+.dock button{padding:7px 12px; border-radius:999px; border:0; background:none; font-size:.8rem; font-weight:600; color:var(--ink-2); white-space:nowrap}
+.dock button:hover{background:var(--paper-2); color:var(--ink)}
+.dock button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+.dock .lbl{font-family:var(--mono); font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); padding:0 4px 0 8px; white-space:nowrap}
+.dock .sep{width:1.5px; height:20px; flex:none; background:var(--line-2); margin:0 4px}
+.dock .ib{width:32px; height:32px; padding:0; display:grid; place-items:center; flex:none}
+
+@media (max-width:900px){
+  .sb{display:none}
+  .topbar{display:flex; position:sticky; top:0; z-index:20; align-items:center; gap:10px; height:56px; padding:0 16px; background:color-mix(in srgb, var(--paper) 92%, transparent); border-bottom:1.5px solid var(--line); backdrop-filter:blur(10px)}
+  .topbar .orglogo{width:30px; height:30px; font-size:.7rem}
+  .topbar b{font-family:var(--display); font-weight:600; font-size:.98rem}
+  .topbar span{font-size:.82rem; color:var(--ink-3)}
+  .pg{padding:28px 20px 130px}
+}
+@media (max-width:600px){
+  .pg{padding:20px 16px 120px}
+  .brief{grid-template-columns:minmax(0,1fr)}
+  .greet{font-size:1.9rem}
+  .ondeck{gap:18px; padding:20px 16px 18px; border-radius:20px}
+  .cal{width:84px}
+  .cal b{font-size:2.3rem}
+  .cal .time{font-size:.6rem}
+  .ondeck h3{font-size:1.3rem}
+  .od-acts .btn{flex:1; justify-content:center}
+  .row, html[data-side="right"] .row{gap:12px; padding:11px 12px}
+  .r-sum{white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
+  .r-side .tag, .r-side .chev, .when{display:none !important}
+  .stub{width:44px}
+  .stub b{font-size:1.15rem}
+  .tabs{display:flex}
+  .tabs button{flex:1; padding:6px 6px}
+  .dock{bottom:12px}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms !important; animation-duration:.01ms !important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.6 11.2 12 4l8.4 7.2M5.8 9.6v9.6c0 .8.6 1.4 1.4 1.4h9.6c.8 0 1.4-.6 1.4-1.4V9.6M10 20.4v-5.2h4v5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-timeline" viewBox="0 0 24 24"><path d="M6 4v16M10 7h9.4M10 12h6M10 17h8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><circle cx="6" cy="7" r="1.9" fill="currentColor"/><circle cx="6" cy="17" r="1.9" fill="currentColor"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><rect x="3.8" y="3.8" width="16.4" height="16.4" rx="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m8.2 12.4 2.6 2.6 5-5.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-gavel" viewBox="0 0 24 24"><path d="M5 20.4h9M9.6 4.6l5.8 5.8M7.2 7l5.8 5.8M8.4 5.8l5.8 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m14.2 11.6 5.6 5.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+  <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6.2 2.9h8l4.6 4.7v12.2c0 .8-.6 1.4-1.4 1.4H6.2c-.8 0-1.4-.6-1.4-1.4V4.3c0-.8.6-1.4 1.4-1.4ZM14 3.2v4.6h4.6M8.6 12.4h6.8M8.6 16h4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 7.4V12l3 2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.6-6-6.6-11.2a6.6 6.6 0 0 1 13.2 0C18.6 15 12 21 12 21Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="12" cy="9.8" r="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+  <symbol id="i-sheet" viewBox="0 0 24 24"><rect x="4.4" y="3.4" width="15.2" height="17.2" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.4 8.4h7.2M8.4 12h7.2M8.4 15.6h4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.6 14.6A8 8 0 0 1 9.4 4.4a8 8 0 1 0 10.2 10.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h11M4 17h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="sb" aria-label="Main navigation">
+    <div class="sb-org"><span class="orglogo">ΟΚ</span><span><b>Oozma Kappa</b><small>Fall 2026</small></span></div>
+    <nav class="sb-nav">
+      <a class="item"><svg class="ic"><use href="#i-home"/></svg>Dashboard</a>
+      <a class="item"><svg class="ic"><use href="#i-timeline"/></svg>Timeline</a>
+      <a class="item"><svg class="ic"><use href="#i-box"/></svg>Tasks</a>
+      <a class="item" aria-current="page"><svg class="ic"><use href="#i-gavel"/></svg>Meetings</a>
+      <a class="item"><svg class="ic"><use href="#i-people"/></svg>Brotherhood</a>
+      <a class="item"><svg class="ic"><use href="#i-wallet"/></svg>Treasury</a>
+      <a class="item"><svg class="ic"><use href="#i-doc"/></svg>Docs</a>
+    </nav>
+  </aside>
+  <main class="main">
+    <div class="topbar"><svg class="ic"><use href="#i-menu"/></svg><span class="orglogo">ΟΚ</span><b>Oozma Kappa</b><span>· Meetings</span></div>
+    <div class="pg">
+      <div class="brief" data-r>
+        <div>
+          <p class="kick">Thursday, November 5 · Chapter Meetings</p>
+          <h1 class="greet">The <em>minutes</em>.</h1>
+          <p class="sub">Five meetings this term. One still needs its minutes, and turnout dipped under 70% on Oct 15.</p>
+        </div>
+        <div class="acts">
+          <button class="btn soft"><svg class="ic"><use href="#i-sheet"/></svg>Templates</button>
+          <button class="btn"><svg class="ic"><use href="#i-plus"/></svg>Add meeting</button>
+        </div>
+      </div>
+
+      <div class="sec" data-r style="--d:60ms"><h2>On deck</h2><span class="rule"></span><span class="cnt" id="odcnt"></span></div>
+      <div id="ondeck" data-r style="--d:100ms"></div>
+
+      <div class="sec" data-r style="--d:140ms"><h2>Past meetings</h2><span class="rule"></span><span class="cnt" id="pcnt"></span></div>
+      <div data-r style="--d:180ms">
+        <div class="tabs" id="tabs"></div>
+        <div class="ledger" id="ledger"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<nav class="dock" aria-label="Mock view">
+  <button data-scene="next">Next week</button>
+  <button data-scene="live">Tonight</button>
+  <span class="sep"></span>
+  <span class="lbl">Stub</span>
+  <button data-side="left">Left</button>
+  <button data-side="right">Right</button>
+  <span class="sep"></span>
+  <button class="ib" data-act="theme" aria-label="Toggle dark mode" title="Toggle dark mode (T)"><svg class="ic"><use href="#i-moon"/></svg></button>
+</nav>
+
+<script>
+(function () {
+  var MON = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  var Mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var DOW = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+  var Dow = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var TODAY = new Date(2026, 10, 5);
+  var ROSTER = 24;
+
+  // past meetings, newest first (fictional)
+  var PAST = [
+    { d: "2026-10-29", t: "Chapter meeting", sum: null, came: 19 },
+    { d: "2026-10-22", t: "Chapter meeting", sum: "Formal moved to Dec 5; Philanthropy budget approved at $600; Rush recap.", came: 20 },
+    { d: "2026-10-19", t: "Exec board", opt: true, sum: "Fall retreat shortlist down to two cabins; dues reminder goes out Friday.", came: null },
+    { d: "2026-10-15", t: "Chapter meeting", sum: "Homecoming float sign-ups; new-member education schedule; vote on house rules.", came: 15 },
+    { d: "2026-10-08", t: "Chapter meeting", sum: "Midterm study hours; service day at the food bank on the 17th.", came: 21 }
+  ];
+  var NEXT = {
+    next: { d: "2026-11-12", time: "7:00 PM", where: "Kirkland Hall 204" },
+    live: { d: "2026-11-05", time: "7:00 PM", where: "Kirkland Hall 204" }
+  };
+  var S = { scene: "next", side: "left", filter: "all" };
+
+  function dOf(s) { var p = s.split("-"); return new Date(+p[0], p[1] - 1, +p[2]); }
+  function days(s) { return Math.round((dOf(s) - TODAY) / 864e5); }
+  function ic(n) { return '<svg class="ic"><use href="#i-' + n + '"/></svg>'; }
+  function ago(s) { var n = -days(s); return n < 7 ? n + "d ago" : Math.round(n / 7) + "w ago"; }
+  var LOW = .7;
+  function low(m) { return m.came != null && m.came / ROSTER < LOW; }
+
+  function renderOnDeck() {
+    var m = NEXT[S.scene], d = dOf(m.d), live = S.scene === "live", n = days(m.d);
+    document.getElementById("odcnt").textContent = live ? "Tonight" : "In " + n + " days";
+    var prog = live
+      ? '<div class="od-prog"><div class="ph"><span class="pl ok">Check-in opens at 6:50 PM</span><span class="pc"><b>0</b> / ' + ROSTER + ' here so far</span></div><div class="meter"><i style="width:0"></i></div><p class="pm">Anyone who hasn’t checked in when it closes is marked absent.</p></div>'
+      : '<div class="od-prog none"><div class="ph"><span class="pl">Attendance</span></div><p class="pm">Required for everyone. Check-in opens on the night.</p></div>';
+    document.getElementById("ondeck").innerHTML =
+      '<div class="ondeck' + (live ? " live" : "") + '">' +
+        '<div class="cal' + (live ? " live" : "") + '" aria-hidden="true"><small>' + MON[d.getMonth()] + '</small><b>' + d.getDate() + '</b><span>' + DOW[d.getDay()] + '</span><em class="time">' + m.time + '</em></div>' +
+        '<div class="od-body">' +
+          '<div class="od-top"><span class="pill">' + (live ? '<i class="dot"></i>Tonight' : "Next meeting") + '</span><span class="when">' + Dow[d.getDay()] + ' · ' + Mon[d.getMonth()] + ' ' + d.getDate() + (live ? "" : " · in " + n + " days") + '</span></div>' +
+          '<h3>Chapter meeting</h3>' +
+          '<p class="od-meta"><span>' + ic("clock") + m.time + '</span><span>' + ic("pin") + m.where + '</span><span>' + ic("people") + 'Required for everyone</span></p>' +
+          prog +
+          '<div class="od-acts">' + (live ? '<button class="btn">' + ic("check") + 'Open check-in</button>' : "") +
+            '<button class="btn ghost">' + ic("sheet") + 'Open the agenda</button><button class="btn soft">Edit</button></div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function renderPast() {
+    var missing = PAST.filter(function (m) { return !m.sum; }), lows = PAST.filter(low);
+    document.getElementById("pcnt").textContent = PAST.length + " meetings · newest first";
+    document.getElementById("tabs").innerHTML = [["all", "All", PAST.length], ["missing", "No minutes", missing.length], ["low", "Under 70%", lows.length]].map(function (t) {
+      return '<button data-filter="' + t[0] + '" class="' + (S.filter === t[0] ? "on" : "") + '">' + t[1] + '<span class="ct">' + t[2] + '</span></button>';
+    }).join("");
+    var list = S.filter === "missing" ? missing : S.filter === "low" ? lows : PAST;
+    document.getElementById("ledger").innerHTML = list.map(function (m) {
+      var d = dOf(m.d), filed = !!m.sum;
+      return '<button class="row' + (filed ? "" : " missing") + '">' +
+        '<span class="stub ' + (filed ? "filed" : "nomin") + '" aria-hidden="true"><small>' + MON[d.getMonth()] + '</small><b>' + d.getDate() + '</b><i>' + DOW[d.getDay()] + '</i></span>' +
+        '<span class="r-main"><span class="r-t">' + m.t + (m.opt ? '<span class="opt">OPTIONAL</span>' : "") + '</span>' +
+          (filed ? '<span class="r-sum">' + m.sum + '</span>' : '<span class="r-sum empty">Minutes not filed — add notes before the next meeting.</span>') + '</span>' +
+        '<span class="r-side"><span class="when">' + ago(m.d) + '</span><span class="tag' + (filed ? "" : " no") + '">' + (filed ? "Minutes" : "No minutes") + '</span>' +
+          '<span class="stat"><b class="' + (low(m) ? "lo" : "") + '">' + (m.came == null ? "—" : m.came + "/" + ROSTER) + '</b><small>present</small></span>' +
+          '<span class="chev">' + ic("chev") + '</span></span>' +
+      '</button>';
+    }).join("");
+  }
+
+  function sync() {
+    document.documentElement.dataset.side = S.side;
+    document.querySelectorAll(".dock [data-scene]").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.scene === S.scene); });
+    document.querySelectorAll(".dock [data-side]").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.side === S.side); });
+    var dark = document.documentElement.dataset.theme === "dark";
+    document.querySelector('[data-act="theme"]').innerHTML = ic(dark ? "sun" : "moon");
+  }
+  function theme() { var h = document.documentElement; h.dataset.theme = h.dataset.theme === "dark" ? "light" : "dark"; sync(); }
+
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.scene) { S.scene = b.dataset.scene; renderOnDeck(); sync(); }
+    else if (b.dataset.side) { S.side = b.dataset.side; sync(); }
+    else if (b.dataset.filter) { S.filter = b.dataset.filter; renderPast(); }
+    else if (b.dataset.act === "theme") theme();
+  });
+  document.addEventListener("keydown", function (e) { if ((e.key === "t" || e.key === "T") && !e.metaKey && !e.ctrlKey) theme(); });
+
+  renderOnDeck(); renderPast(); sync();
+})();
+</script>
+</body>
+</html>
