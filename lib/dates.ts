@@ -31,7 +31,9 @@ export function todayISO(now: Date = new Date()): string {
  */
 export function isValidCalendarDate(value: string): boolean {
   if (!DATE_RE.test(value)) return false;
-  const [y, m, d] = value.split("-").map(Number);
+  // Defaults only satisfy noUncheckedIndexedAccess (the app compiles this file): DATE_RE
+  // has already guaranteed all three parts.
+  const [y = NaN, m = NaN, d = NaN] = value.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }

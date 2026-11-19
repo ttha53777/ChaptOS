@@ -232,7 +232,7 @@ describe("flow-state: grad / gradIvory", () => {
    slugify() backs the name step's slugline and the blueprint's URL field;
    suggestSlug() is what draftToCreateOrgInput falls back to when the founder
    never edits that field. They used to be separate implementations, so a name
-   with a diacritic previewed as chaptos.app/caf while the payload asked for
+   with a diacritic previewed as chaptos.com/caf while the payload asked for
    "cafe" — a URL preview that isn't the URL. */
 
 describe("flow-state: slugify agrees with suggestSlug", () => {
