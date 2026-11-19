@@ -15,15 +15,11 @@ import { armTaskFlight } from "./task-fly";
 import { TaskSpotlight } from "./TaskSpotlight";
 import type { Task, Poll } from "../../../data";
 import { requestJson } from "../../../lib/api";
+import { canComplete as canCompleteFor, canVote as canVoteFor, isMine as isMineFor, startOfToday } from "@/lib/tasks/list";
 import "../../../components/dashboard/dashboard-ledger.css";
 
 type AssigneeFilter = "all" | "mine";
 
-// ── Date helpers ──────────────────────────────────────────────────────────────
-function startOfToday(): Date {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
 
 export default function TasksPage() {
   const { taskList, setTaskList, pollList, setPollList, brotherList, currentUser, can, loadedSections } = useChapter();
@@ -76,9 +72,8 @@ export default function TasksPage() {
     requestJson<RoleOption[]>("/api/roles").then(setRoles).catch(() => setRoles([]));
   }, []);
 
-  const isMine = useCallback((t: Task) => t.everyone != null || t.assignments.some(a =>
-    (a.brotherId != null && a.brotherId === selfId) || (a.roleId != null && myRoleIds.has(a.roleId)),
-  ), [selfId, myRoleIds]);
+  const me = useMemo(() => ({ selfId, myRoleIds }), [selfId, myRoleIds]);
+  const isMine = useCallback((t: Task) => isMineFor(t, me), [me]);
 
   const openAdd = useCallback(() => { setFormError(null); setModal({ kind: "add" }); }, []);
   const openAddPoll = useCallback(() => { setPollFormError(null); setPollModal({ kind: "add" }); }, []);
@@ -87,9 +82,7 @@ export default function TasksPage() {
 
   // Whether the current user may vote on a poll: everyone can on a whole-chapter
   // poll; on an older targeted one, assigned directly or via a held role.
-  const canVote = useCallback((p: Poll) => p.everyone || p.assignments.some(a =>
-    (a.brotherId != null && a.brotherId === selfId) || (a.roleId != null && myRoleIds.has(a.roleId)),
-  ), [selfId, myRoleIds]);
+  const canVote = useCallback((p: Poll) => canVoteFor(p, me), [me]);
 
   // The task spotlight: a row tap or a ?task= link opens it, for every viewer.
   const [taskViewId, setTaskViewId] = useState<number | null>(null);
@@ -311,7 +304,7 @@ export default function TasksPage() {
   }
 
   // An assignee can flip status even without MANAGE_TASKS.
-  const canCompleteTask = (t: Task) => canManage || isMine(t);
+  const canCompleteTask = (t: Task) => canCompleteFor(t, me, canManage);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
@@ -346,7 +339,7 @@ export default function TasksPage() {
                 taskList={taskList}
                 pollList={pollList}
                 today={today}
-                me={{ selfId, myRoleIds }}
+                me={me}
                 semesterLabel={activeSemester?.label ?? null}
                 canManage={canManage}
                 canManagePolls={canManagePolls}
@@ -404,7 +397,7 @@ export default function TasksPage() {
       )}
 
       {taskView && (
-        <TaskSpotlight key={taskView.id} task={taskView} today={today} me={{ selfId, myRoleIds }} brothers={brotherList}
+        <TaskSpotlight key={taskView.id} task={taskView} today={today} me={me} brothers={brotherList}
           canComplete={canCompleteTask(taskView)} canManage={canManage}
           onToggle={() => setStatus(taskView, taskView.status === "done" ? "open" : "done")}
           onEdit={() => { setTaskViewId(null); setFormError(null); setModal({ kind: "edit", task: taskView, fromSpot: true }); }}

@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-11-19T20:20:42.217Z",
+  "capturedAt": "2026-11-19T21:32:47.088Z",
   "who": {
     "busy": {
       "org": {
@@ -36,16 +36,58 @@
       "dayone-admin-day-fold.png",
       "dayone-member-day-full.png",
       "dayone-member-day-fold.png"
+    ],
+    "tasks": [
+      "busy-admin-day-ballot.png",
+      "busy-admin-day-done.png",
+      "busy-admin-day-fold.png",
+      "busy-admin-day-full.png",
+      "busy-admin-day-mine.png",
+      "busy-admin-day-new-poll.png",
+      "busy-admin-day-new-task-all.png",
+      "busy-admin-day-new-task-roles.png",
+      "busy-admin-day-new-task.png",
+      "busy-admin-day-spot-hist.png",
+      "busy-admin-day-spot.png",
+      "busy-member-day-ballot.png",
+      "busy-member-day-done.png",
+      "busy-member-day-fold.png",
+      "busy-member-day-full.png",
+      "busy-member-day-mine.png",
+      "busy-member-day-spot-each.png",
+      "busy-member-day-spot-hist.png",
+      "busy-member-day-spot.png",
+      "dayone-admin-day-fold.png",
+      "dayone-admin-day-full.png",
+      "dayone-member-day-fold.png",
+      "dayone-member-day-full.png"
     ]
   },
   "problems": [
-    "_design/parity/web/chapter/dayone-admin-day-minutes.png: missing .led-row:not(.missing)",
-    "_design/parity/web/chapter/dayone-admin-day-minutes-sum.png: missing .led-row:not(.missing)",
-    "_design/parity/web/chapter/dayone-admin-day-minutes-att.png: missing .led-row:not(.missing)",
-    "_design/parity/web/chapter/dayone-admin-day-minutes-none.png: missing .led-row.missing",
-    "_design/parity/web/chapter/dayone-member-day-minutes.png: missing .led-row:not(.missing)",
-    "_design/parity/web/chapter/dayone-member-day-minutes-sum.png: missing .led-row:not(.missing)",
-    "_design/parity/web/chapter/dayone-member-day-minutes-att.png: missing .led-row:not(.missing)",
-    "_design/parity/web/chapter/dayone-member-day-minutes-none.png: missing .led-row.missing"
+    "_design/parity/web/tasks/busy-admin-day-spot-each.png: locator.click: Timeout 30000ms exceeded.",
+    "_design/parity/web/tasks/busy-member-day-new-task.png: missing .tks-head-btns .tks-btn:not(.soft)",
+    "_design/parity/web/tasks/busy-member-day-new-task-roles.png: missing .tks-head-btns .tks-btn:not(.soft)",
+    "_design/parity/web/tasks/busy-member-day-new-task-all.png: missing .tks-head-btns .tks-btn:not(.soft)",
+    "_design/parity/web/tasks/busy-member-day-new-poll.png: missing .tks-head-btns .tks-btn.soft",
+    "_design/parity/web/tasks/dayone-admin-day-mine.png: missing .tks-ctl .tks-seg button:nth-child(2)",
+    "_design/parity/web/tasks/dayone-admin-day-done.png: missing .tks-col-side .tks-done-bar",
+    "_design/parity/web/tasks/dayone-admin-day-spot.png: missing .tks-pile.over .tks-t",
+    "_design/parity/web/tasks/dayone-admin-day-spot-each.png: locator.click: Timeout 30000ms exceeded.",
+    "_design/parity/web/tasks/dayone-admin-day-spot-hist.png: missing .tks-pile.up .tks-t",
+    "_design/parity/web/tasks/dayone-admin-day-ballot.png: missing .tks-col-side .tks-vote-h .q",
+    "_design/parity/web/tasks/dayone-admin-day-new-task.png: missing .tks-head-btns .tks-btn:not(.soft)",
+    "_design/parity/web/tasks/dayone-admin-day-new-task-roles.png: missing .tks-head-btns .tks-btn:not(.soft)",
+    "_design/parity/web/tasks/dayone-admin-day-new-task-all.png: missing .tks-head-btns .tks-btn:not(.soft)",
+    "_design/parity/web/tasks/dayone-admin-day-new-poll.png: missing .tks-head-btns .tks-btn.soft",
+    "_design/parity/web/tasks/dayone-member-day-mine.png: missing .tks-ctl .tks-seg button:nth-child(2)",
+    "_design/parity/web/tasks/dayone-member-day-done.png: missing .tks-col-side .tks-done-bar",
+    "_design/parity/web/tasks/dayone-member-day-spot.png: missing .tks-pile.over .tks-t",
+    "_design/parity/web/tasks/dayone-member-day-spot-each.png: locator.click: Timeout 30000ms exceeded.",
+    "_design/parity/web/tasks/dayone-member-day-spot-hist.png: missing .tks-pile.up .tks-t",
+    "_design/parity/web/tasks/dayone-member-day-ballot.png: missing .tks-col-side .tks-vote-h .q",
+    "_design/parity/web/tasks/dayone-member-day-new-task.png: missing .tks-head-btns .tks-btn:not(.soft)",
+    "_design/parity/web/tasks/dayone-member-day-new-task-roles.png: missing .tks-head-btns .tks-btn:not(.soft)",
+    "_design/parity/web/tasks/dayone-member-day-new-task-all.png: missing .tks-head-btns .tks-btn:not(.soft)",
+    "_design/parity/web/tasks/dayone-member-day-new-poll.png: missing .tks-head-btns .tks-btn.soft"
   ]
 }

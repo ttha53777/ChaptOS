@@ -1,145 +1,134 @@
 /**
- * Tasks (U5, in More as on the web's phone bar): On you (my open tasks as a deck), the ballots I'm asked into, and the
- * board (Overdue / Upcoming, as on the web). Reads GET /api/tasks and GET /api/polls; the
- * sheet adds GET /api/tasks/[id] and names from GET /api/brothers.
+ * Tasks (the web's app/org/[slug]/tasks: page.tsx + PaperTasks.tsx), reached from More,
+ * in the web phone's order, from the shared rules in @/lib/tasks/list:
  *
- * A member's writes are tick (PATCH /api/tasks/[id] { status }, the same path Today's
- * plate uses, ~/tasks/tick) and vote (POST /api/polls/[id]/vote). Officers (MANAGE_TASKS)
- * also get New task (header) and Edit / Delete from the task sheet (~/tasks/TaskForm).
+ *   head      TASKS + term, "2 overdue, 9 coming up", the line under it, New poll (MANAGE_POLLS)
+ *             / New task (MANAGE_TASKS)
+ *   whose     Everyone's / Just mine
+ *   piles     Overdue (or "Nothing overdue."), Upcoming; tap a title for the spotlight,
+ *             tick or swipe left to finish (DONE stamp + flight, then ~/tasks/tick)
+ *   done      N done this term, folding open
+ *   votes     Votes + New poll / "N open", the vote cards; a question opens the ballot
+ *   day one   no tasks and no polls: "Nothing to do yet", the two little piles, one button
  *
- * States: first load = skeletons in the deck's and rows' shapes; nothing loaded and an
- * error = ErrorState; offline or a failed refresh over last-known data (the persisted
- * cache) = StaleNote; a chapter with no tasks and no polls = the day-one empty, with
- * "Hand out the first task" for officers and no button for members.
+ * Reads GET /api/tasks, GET /api/polls, GET /api/brothers (names, faces, role holders).
+ * Sheets sit in slots, so opening one doesn't re-render the lists.
  */
-import type { Poll } from "@/lib/api-types";
-import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
-import { localDay } from "~/data/home";
+import type { Poll, Task } from "@/lib/api-types";
+import { canComplete, canVote, pollShelf, startOfToday, taskPiles, type Me } from "@/lib/tasks/list";
+import { useCallback, useMemo, useState } from "react";
+import { StyleSheet, View } from "react-native";
 import { usePolls, useRoster, useTasks } from "~/data/tasks";
 import { useEntryOf } from "~/entry/EntryContext";
+import { navLabel } from "~/more/model";
 import { Screen } from "~/shell/Screen";
-import { EmptyState, ErrorState, FadeIn, SkeletonCard, StaleNote } from "~/shell/states";
-import { useTheme } from "~/theme/PaperProvider";
-import { T } from "~/ui/T";
-import { Ballot } from "~/tasks/Ballot";
-import { Board } from "~/tasks/Board";
-import { Deck } from "~/tasks/Deck";
-import { byDue, canVote, isMine, pileOf, viewerOf, type Viewer } from "~/tasks/model";
+import { useSlot, SlotView } from "~/shell/slot";
+import { ErrorState, SkeletonCard, StaleNote } from "~/shell/states";
+import { BallotSheet, FIRST_VOTE } from "~/tasks/BallotSheet";
+import { ClearLine, DoneSection, NoVotes, Pile, TasksDayOne, TasksHead, VoteCard, VotesHead, Whose, type RowEnv } from "~/tasks/List";
+import { DeletePoll, PollForm } from "~/tasks/PollForm";
+import { TaskSpotlight } from "~/tasks/Spotlight";
 import { DeleteTask, TaskForm } from "~/tasks/TaskForm";
-import { TaskSheet } from "~/tasks/TaskSheet";
-import type { Task } from "@/lib/api-types";
-import { Icon } from "~/icons/Icon";
+import { tickTask } from "~/tasks/tick";
+import { castVote } from "~/tasks/vote";
+
+const MANAGE_TASKS = 1 << 12;
+const MANAGE_POLLS = 1 << 13;
 
 export default function Tasks() {
-  const { c } = useTheme();
   const entry = useEntryOf("ready");
   const tasks = useTasks();
   const polls = usePolls();
   const roster = useRoster();
-  const [openId, setOpenId] = useState<number | null>(null);
-  // the form: null = closed, "new" = a new task, a Task = editing it
-  const [form, setForm] = useState<Task | "new" | null>(null);
-  const [doomed, setDoomed] = useState<Task | null>(null);
-  const today = localDay();
+  const [mineOnly, setMineOnly] = useState(false);
+  const spot = useSlot<number>();
+  const ballot = useSlot<number>();
+  const taskForm = useSlot<Task | "new">();
+  const pollForm = useSlot<Poll | "new">();
+  const doomedTask = useSlot<Task>();
+  const doomedPoll = useSlot<Poll>();
+  const today = useMemo(() => startOfToday(), []);
 
-  const viewer = useMemo(() => (entry ? viewerOf(entry.me) : null), [entry]);
-  const people = useMemo(() => new Map((roster.data ?? []).map(b => [b.id, b] as const)), [roster.data]);
+  const meRow = entry?.me ?? null;
+  const me: Me = useMemo(() => ({ selfId: meRow?.id ?? null, myRoleIds: new Set((meRow?.roles ?? []).map(r => r.id)) }), [meRow]);
+  const canManage = !!meRow && (meRow.permissions & MANAGE_TASKS) !== 0;
+  const canManagePolls = !!meRow && (meRow.permissions & MANAGE_POLLS) !== 0;
 
-  if (!entry || !viewer) return null;
+  const onOpen = useCallback((t: Task) => spot.set(t.id), [spot]);
+  const onTick = useCallback((t: Task) => tickTask(t, true), []);
+  const env: RowEnv = useMemo(() => ({ today, me, canManage, onOpen, onTick }), [today, me, canManage, onOpen, onTick]);
+  const onVote = useCallback((p: Poll, optionId: number) => castVote(p, optionId, { confirm: FIRST_VOTE }), []);
+  const onOpenPoll = useCallback((p: Poll) => ballot.set(p.id), [ballot]);
+
   const list = tasks.data;
+  const pollList = polls.data;
+  const piles = useMemo(() => (list ? taskPiles(list, today, mineOnly, me) : null), [list, today, mineOnly, me]);
+  const shelf = useMemo(() => pollShelf(pollList ?? [], mineOnly, canManagePolls, me), [pollList, mineOnly, canManagePolls, me]);
+
+  if (!entry || !meRow) return null;
+  const term = meRow.org?.activeTerm?.label ?? null;
   const refresh = () => Promise.all([tasks.refetch(), polls.refetch(), roster.refetch()]);
-  const open = openId != null ? list?.find(t => t.id === openId) ?? null : null;
-  const right = viewer.canManage ? (
-    <Pressable onPress={() => setForm("new")} accessibilityRole="button" accessibilityLabel="New task" hitSlop={8}
-      style={({ pressed }) => [styles.plus, { backgroundColor: c.ink, boxShadow: `${pressed ? 1 : 2}px ${pressed ? 1 : 2}px 0 ${c.note.fill.peach}` }, pressed && { transform: [{ translateX: 1 }, { translateY: 1 }] }]}>
-      <Icon name="plus" size={16} color={c.paper} />
-    </Pressable>
-  ) : undefined;
+  const newTask = () => taskForm.set("new");
+  const newPoll = () => pollForm.set("new");
+  // Polls only hold the page back when there are no tasks to show (it could be day one).
+  const loading = !list || (!pollList && !polls.isError && list.length === 0);
+  const dayOne = !!list && list.length === 0 && (pollList ?? []).length === 0;
+  const openPolls = shelf.filter(p => p.status === "open").length;
 
-  const mineOpen = (list ?? []).filter(t => t.status !== "done" && isMine(t, viewer)).sort(byDue);
-  const over = mineOpen.filter(t => pileOf(t, today) === "over").length;
-  const subtitle = !list ? undefined
-    : mineOpen.length === 0 ? "Nothing is on you."
-    : `${over ? `${over} overdue · ` : ""}${mineOpen.length - over} coming up`;
-
-  return (
-    <Screen title="Tasks" subtitle={subtitle} large back="More" onRefresh={refresh} right={right}>
-      {list ? <StaleNote updatedAt={tasks.dataUpdatedAt} failed={tasks.isError || polls.isError} onRetry={() => void refresh()} /> : null}
-
-      {list ? (
-        list.length === 0 && (polls.data ?? []).length === 0 ? (
-          <EmptyState
-            pictures={[
-              { icon: "note", tone: "lilac", label: "Tasks handed to you" },
-              { icon: "envelope", tone: "sky", label: "Sealed ballots" },
-              { icon: "check", tone: "mint", label: "Ticked off" },
-            ]}
-            title="Nothing here yet."
-            line="When an officer hands out a task or asks the chapter to vote, it shows up here. Anything handed to you lands on top."
-            action={viewer.canManage ? { label: "Hand out the first task", icon: "plus", onPress: () => setForm("new") } : undefined}
-          />
-        ) : (
-          <FadeIn style={{ gap: 28 }}>
-            <Deck mine={mineOpen} viewer={viewer} today={today} onOpen={t => setOpenId(t.id)}
-              nameOf={id => (id == null ? null : people.get(id)?.name ?? null)} />
-            <Polls polls={polls.data} error={polls.isError ? polls.error : null} onRetry={() => void polls.refetch()} viewer={viewer} today={today} />
-            <Board tasks={list} viewer={viewer} today={today} onOpen={t => setOpenId(t.id)} />
-          </FadeIn>
-        )
-      ) : tasks.isError ? (
-        <ErrorState title="Couldn't load Tasks." error={tasks.error} onRetry={() => void tasks.refetch()} />
-      ) : (
-        <View style={styles.sk}>
-          <SkeletonCard height={230} lines={4} radius={14} />
-          <SkeletonCard lines={3} />
-          <SkeletonCard lines={2} lead />
+  let body: React.ReactNode;
+  if (tasks.isError && !list) {
+    body = <ErrorState title="Couldn't load Tasks." error={tasks.error} onRetry={() => void tasks.refetch()} />;
+  } else if (loading || !piles) {
+    body = <View style={{ gap: 18 }}><SkeletonCard height={120} title={false} lines={0} /><SkeletonCard height={220} /><SkeletonCard height={150} /></View>;
+  } else if (dayOne) {
+    body = <TasksDayOne term={term} canManage={canManage} canManagePolls={canManagePolls} onNewTask={newTask} onNewPoll={newPoll} />;
+  } else {
+    body = (
+      <View>
+        <TasksHead term={term} over={piles.over.length} up={piles.up.length} mineOnly={mineOnly}
+          canManage={canManage} canManagePolls={canManagePolls} onNewTask={newTask} onNewPoll={newPoll} />
+        <View style={{ marginTop: 18 }}><Whose mineOnly={mineOnly} onChange={setMineOnly} /></View>
+        <View style={{ marginTop: 20, gap: 14 }}>
+          {piles.over.length ? <Pile kind="over" tasks={piles.over} env={env} empty="" /> : <ClearLine />}
+          <Pile kind="up" tasks={piles.up} env={env} empty={`Nothing coming up${mineOnly ? " for you" : ""}.`} />
+          <DoneSection done={piles.done} env={env} onReopen={t => tickTask(t, false)} />
         </View>
-      )}
+        <View style={{ marginTop: 30, gap: 14 }}>
+          <VotesHead canManagePolls={canManagePolls} openCount={openPolls} onNewPoll={newPoll} />
+          {polls.isError && !pollList
+            ? <ErrorState compact title="Couldn't load the polls." error={polls.error} onRetry={() => void polls.refetch()} />
+            : shelf.length === 0
+              ? <NoVotes canManagePolls={canManagePolls} onNewPoll={newPoll} />
+              : shelf.map(p => <VoteCard key={p.id} poll={p} today={today} canVote={canVote(p, me)} onVote={onVote} onOpen={onOpenPoll} />)}
+        </View>
+      </View>
+    );
+  }
 
-      <TaskSheet task={open} viewer={viewer} today={today} roster={people} onClose={() => setOpenId(null)}
-        onEdit={viewer.canManage ? t => { setOpenId(null); setForm(t); } : undefined}
-        onDelete={viewer.canManage ? t => { setOpenId(null); setDoomed(t); } : undefined} />
-      <TaskForm open={form != null} task={form === "new" ? null : form} onClose={() => setForm(null)} />
-      <DeleteTask task={doomed} onClose={() => setDoomed(null)} />
+  const rosterList = roster.data ?? [];
+  return (
+    <Screen title={navLabel(meRow, "Tasks")} back="More" onRefresh={refresh}>
+      {list ? <StaleNote updatedAt={tasks.dataUpdatedAt} failed={tasks.isError || polls.isError} onRetry={() => void refresh()} /> : null}
+      <View style={styles.page}>{body}</View>
+
+      <SlotView slot={spot}>{(id, close) => {
+        const t = id != null ? list?.find(x => x.id === id) ?? null : null;
+        return <TaskSpotlight task={t} today={today} me={me} roster={rosterList} canComplete={!!t && canComplete(t, me, canManage)} canManage={canManage}
+          onEdit={x => { close(); taskForm.set(x); }} onDelete={x => { close(); doomedTask.set(x); }} onClose={close} />;
+      }}</SlotView>
+      <SlotView slot={ballot}>{(id, close) => {
+        const p = id != null ? pollList?.find(x => x.id === id) ?? null : null;
+        return <BallotSheet poll={p} today={today} rosterSize={rosterList.length} canManage={canManagePolls} canVote={!!p && canVote(p, me)}
+          onEdit={x => { close(); pollForm.set(x); }} onDelete={x => { close(); doomedPoll.set(x); }} onClose={close} />;
+      }}</SlotView>
+      {canManage ? <SlotView slot={taskForm}>{(v, close) => <TaskForm open={v != null} task={v === "new" || v == null ? null : v} onClose={close} />}</SlotView> : null}
+      {canManagePolls ? <SlotView slot={pollForm}>{(v, close) => <PollForm open={v != null} poll={v === "new" || v == null ? null : v} onClose={close} />}</SlotView> : null}
+      {canManage ? <SlotView slot={doomedTask}>{(t, close) => <DeleteTask task={t} onClose={close} />}</SlotView> : null}
+      {canManagePolls ? <SlotView slot={doomedPoll}>{(p, close) => <DeletePoll poll={p} onClose={close} />}</SlotView> : null}
     </Screen>
   );
 }
 
-/**
- * Ballots I'm asked into: open ones I haven't voted on first (soonest closing), then ones
- * I've voted on, then the two most recently decided. Same order as the web.
- */
-function Polls({ polls, error, onRetry, viewer, today }: {
-  polls: Poll[] | undefined; error: unknown; onRetry: () => void; viewer: Viewer; today: string;
-}) {
-  const { c } = useTheme();
-  const shown = useMemo(() => {
-    const mine = (polls ?? []).filter(p => canVote(p, viewer));
-    const openP = mine.filter(p => p.status === "open").sort((a, b) =>
-      (a.myVoteOptionId == null) !== (b.myVoteOptionId == null)
-        ? (a.myVoteOptionId == null ? -1 : 1)
-        : (a.closeDate ?? "9") < (b.closeDate ?? "9") ? -1 : (a.closeDate ?? "9") > (b.closeDate ?? "9") ? 1 : a.id - b.id);
-    const decided = mine.filter(p => p.status === "closed").sort((a, b) => (b.closedAt ?? "").localeCompare(a.closedAt ?? "")).slice(0, 2);
-    return [...openP, ...decided];
-  }, [polls, viewer]);
-  const waiting = shown.filter(p => p.status === "open" && p.myVoteOptionId == null).length;
-
-  if (polls === undefined) return error ? <ErrorState compact title="Couldn't load the polls." error={error} onRetry={onRetry} /> : <SkeletonCard lines={3} />;
-  if (!shown.length) return null;
-  return (
-    <View style={{ gap: 12 }}>
-      <View style={styles.head}>
-        <T v="heading" accessibilityRole="header">Polls</T>
-        <T v="mono" color={c.ink3} style={{ fontSize: 11.5 }}>{waiting ? `${waiting} waiting on you` : "all voted"}</T>
-      </View>
-      {shown.map(p => <Ballot key={p.id} poll={p} today={today} canVote={canVote(p, viewer)} />)}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  sk: { gap: 12 },
-  plus: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-  head: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
+  page: { paddingBottom: 12 },
 });

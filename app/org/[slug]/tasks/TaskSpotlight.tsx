@@ -13,46 +13,13 @@
  */
 
 import React, { useEffect, useRef, useState } from "react";
-import { fmtDate, type Brother, type Task } from "../../../data";
-import type { TaskDetail, TaskHistoryEntry } from "@/lib/api-types";
+import type { Brother, Task } from "../../../data";
+import type { TaskDetail } from "@/lib/api-types";
 import { requestJson } from "../../../lib/api";
-import { Ic, MON, PAvatar, burst, dFrom, dateOf, first, plusDays, type Me } from "./PaperTasks";
-import { fmtDueTime } from "./task-forms";
+import { Ic, PAvatar, burst } from "./PaperTasks";
+import { DOW, MON, deskCal, first, forNames as forNamesOf, historyLines, historyStamp, longD, partsOf, plural, shortD, spotHead, andList, type Me } from "@/lib/tasks/list";
 
-const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const FULLDOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const MONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const MONL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const DAY_MS = 86_400_000;
 const FOCUSABLE = 'button:not([disabled]), [href], input, textarea, select, summary, [tabindex]:not([tabindex="-1"])';
-
-const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const shortD = (d: Date) => `${MONS[d.getMonth()]} ${d.getDate()}`;
-const longD = (d: Date) => `${DOW[d.getDay()]}, ${MONS[d.getMonth()]} ${d.getDate()}`;
-const daysBetween = (a: Date, b: Date) => Math.round((midnight(b).getTime() - midnight(a).getTime()) / DAY_MS);
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-function clock(d: Date): string {
-  const h = d.getHours(), m = d.getMinutes();
-  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
-}
-function andList(xs: string[]): string {
-  if (xs.length <= 1) return xs.join("");
-  return `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
-}
-
-/** What an update event changed, in words. */
-function editedWhat(fields: string[] | null): string {
-  const said: string[] = [];
-  const has = (f: string) => fields?.includes(f);
-  if (has("title")) said.push("renamed it");
-  if (has("dueDate")) said.push("changed the due date");
-  else if (has("dueTime")) said.push("changed the due time");
-  if (has("notes")) said.push("edited the note");
-  if (has("assignees") || has("everyone")) said.push("changed who’s on it");
-  return said.length ? andList(said) : "edited it";
-}
-
-type Line = { at: Date; actorId: number | null; text: string; tone: "c" | "d" | "e" | "r" };
 
 export function TaskSpotlight({ task, today, me, brothers, canComplete, canManage, onToggle, onEdit, onDelete, onClose }: {
   task: Task;
@@ -125,36 +92,22 @@ export function TaskSpotlight({ task, today, me, brothers, canComplete, canManag
   const byId = new Map(brothers.map(b => [b.id, b]));
   const nameOf = (id: number | null) => id == null ? "Someone" : id === me.selfId ? "You" : byId.has(id) ? first(byId.get(id)!.name) : "Someone";
 
-  const each = task.everyone === "each";
-  const done = task.status === "done";
-  const due = task.dueDate ? dateOf(task.dueDate) : null;
-  const at = due && task.dueTime ? `, by ${fmtDueTime(task.dueTime)}` : "";
-  const n = task.dueDate ? dFrom(task.dueDate, today) : null;
-  const late = !done && n != null && n < 0;
-  const tone = done ? "done" : late ? "over" : "up";
-  const finAt = done && task.completedAt ? new Date(task.completedAt) : null;
-  const chip = done ? (each ? "Your part’s done" : "Done") : late ? "Overdue" : due ? "Upcoming" : "No date";
+  const { each, done, due, late, tone, finAt, chip, when: w } = spotHead(task, today, nameOf);
 
   // ── the sentence under the title ──
   let when: React.ReactNode;
-  if (done) {
-    const who = each ? "You did your part" : task.completedById != null ? `${nameOf(task.completedById)} finished it` : "Finished";
-    let rel = "";
-    if (due && finAt) {
-      const k = daysBetween(due, finAt);
-      rel = k > 0 ? `, ${plural(k, "day")} after it was due` : k < 0 ? `, ${plural(-k, "day")} early` : ", on the day it was due";
-    }
-    when = <><b>{who}</b>{finAt ? <> on {longD(finAt)}</> : null}{rel}.</>;
-  } else if (!due || n == null) {
+  if (w.kind === "done") {
+    when = <><b>{w.who}</b>{w.on ? <> on {w.on}</> : null}{w.rel}.</>;
+  } else if (w.kind === "none") {
     when = <>No date. It waits at the bottom of <b>Upcoming</b> until someone gets to it.</>;
-  } else if (late) {
-    when = <>Was due <b>{FULLDOW[due.getDay()]}, {shortD(due)}{at}</b>. <em>{n === -1 ? "Yesterday" : `${-n} days ago`}.</em></>;
+  } else if (w.kind === "late") {
+    when = <>Was due <b>{w.day}</b>. <em>{w.ago}.</em></>;
   } else {
-    when = <>Due <b>{n === 0 ? "today " : n === 1 ? "tomorrow " : ""}{FULLDOW[due.getDay()]}, {shortD(due)}{at}</b>{n === 0 ? (at ? "." : ", by the end of the day.") : n === 1 ? "." : `, in ${n} days.`}</>;
+    when = <>Due <b>{w.day}</b>{w.tail}</>;
   }
 
   // ── who it's for ──
-  const forNames = task.everyone ? ["everyone"] : task.assignments.map(a => a.role?.name ?? (a.brother ? (a.brother.id === me.selfId ? "you" : first(a.brother.name)) : "")).filter(Boolean);
+  const forNames = forNamesOf(task, me.selfId);
   const holders = (roleId: number) => brothers.filter(b => b.roles?.some(r => r.id === roleId));
 
   function tick() {
@@ -260,70 +213,19 @@ function RoleHolders({ hs, selfId }: { hs: Brother[]; selfId: number | null }) {
 
 /** Start → due bookends, then the weeks between as a desk calendar beside the one number. */
 function WhenSection({ task, today, due, finAt, late }: { task: Task; today: Date; due: Date; finAt: Date | null; late: boolean }) {
-  const a0 = midnight(new Date(task.createdAt));
-  const fin = finAt ? midnight(finAt) : null;
-  const now = fin ?? today;
-  const from = new Date(Math.min(a0.getTime(), due.getTime(), now.getTime()));
-  const last = new Date(Math.max(due.getTime(), now.getTime()));
-  // Mon-first weeks. Up to five weeks show whole; a longer stretch (a task set
-  // months ahead, or long overdue) keeps just the weeks holding start, due and
-  // today, with the skipped weeks counted in between.
-  const weekOf = (d: Date) => plusDays(d, -((d.getDay() + 6) % 7));
-  let weeks: Date[] = [];
-  if (daysBetween(weekOf(from), weekOf(last)) <= 28) {
-    for (let w = weekOf(from); w <= last; w = plusDays(w, 7)) weeks.push(w);
-  } else {
-    const keys = [a0, due, now].map(d => weekOf(d).getTime());
-    weeks = [...new Set(keys)].sort((x, y) => x - y).map(t => new Date(t));
-  }
-
-  let big: string, cap: string, tone: "late" | "left" | "fin";
-  if (fin) {
-    const k = daysBetween(due, fin);
-    big = k === 0 ? "✓" : String(Math.abs(k));
-    cap = k === 0 ? "on the day" : `${Math.abs(k) === 1 ? "day" : "days"} ${k > 0 ? "late" : "early"}`;
-    tone = k > 0 ? "late" : "fin";
-  } else if (late) {
-    const k = daysBetween(due, today);
-    big = String(k); cap = `${k === 1 ? "day" : "days"} late`; tone = "late";
-  } else {
-    const k = daysBetween(today, due);
-    big = String(k); cap = k === 0 ? "due today" : `${k === 1 ? "day" : "days"} left`; tone = "left";
-  }
-
-  const cells: React.ReactNode[] = [];
-  weeks.forEach((w, wi) => {
-    if (wi > 0) {
-      const skipped = daysBetween(weeks[wi - 1], w) / 7 - 1;
-      if (skipped > 0) cells.push(<span key={`gap${w.getTime()}`} className="dc-gap"><span>{plural(skipped, "week")} later</span></span>);
-    }
-    for (let i = 0; i < 7; i++) cells.push(dayCell(plusDays(w, i)));
-  });
-  function dayCell(d: Date) {
-    const t = d.getTime();
-    const c: string[] = [];
-    const marks: React.ReactNode[] = [];
-    if (d < from || d > last) c.push("out");
-    else {
-      if (t === a0.getTime()) { c.push("as"); marks.push(<span key="s" className="tag s">START</span>); }
-      if (t === due.getTime()) { c.push("due"); marks.push(<span key="d" className="tag d">DUE</span>); }
-      if (fin && t === fin.getTime()) { c.push("dn"); marks.push(<span key="f" className="tickm"><Ic name="check" /></span>); }
-      if (!fin && t === today.getTime()) c.push("today");
-      if (d > due && d <= now) c.push("late");
-      else if (!fin && d > today && d < due) c.push("left");
-      else if (d < now && t !== due.getTime()) c.push("gone");
-    }
-    return <span key={t} className={`dc ${c.join(" ")}`}><i>{d.getDate()}</i>{marks}</span>;
-  }
-  const span = daysBetween(a0, due);
-  const gs = weeks[0], ge = plusDays(weeks[weeks.length - 1], 6);
-  const monthLabel = MONL[gs.getMonth()] + (gs.getMonth() !== ge.getMonth() || gs.getFullYear() !== ge.getFullYear() ? ` – ${MONL[ge.getMonth()]}` : "");
+  const { a0, fin, big, cap, tone, cells: grid, spanText, monthLabel, foot } = deskCal(task, today, due, finAt, late);
+  const cells: React.ReactNode[] = grid.map(c => c.kind === "gap"
+    ? <span key={c.key} className="dc-gap"><span>{c.label}</span></span>
+    : <span key={c.key} className={`dc ${c.cls.join(" ")}`}><i>{c.day}</i>{c.marks.map(m => m === "s"
+        ? <span key="s" className="tag s">START</span>
+        : m === "d" ? <span key="d" className="tag d">DUE</span>
+        : <span key="f" className="tickm"><Ic name="check" /></span>)}</span>);
 
   return (
     <>
       <div className="sp-sec ends">
         <span className="end s"><i /><span><small>Start</small><b>{longD(a0)}</b></span></span>
-        <span className="len"><span>{span > 0 ? `${plural(span, "day")} to do it` : span === 0 ? "Same day" : "Set after its date"}</span></span>
+        <span className="len"><span>{spanText}</span></span>
         <span className="end d"><i><Ic name="flag" /></i><span><small>Due</small><b>{longD(due)}</b></span></span>
       </div>
       <div className="sp-sec when-sec">
@@ -342,7 +244,7 @@ function WhenSection({ task, today, due, finAt, late }: { task: Task; today: Dat
         </div>
         <div className={`count ${tone}`}>
           <b>{big}</b><span>{cap}</span>
-          <small>{fin ? `Finished ${shortD(fin)}` : late ? `It was due ${shortD(due)}` : `Due ${shortD(due)}`}</small>
+          <small>{foot}</small>
         </div>
       </div>
     </>
@@ -351,14 +253,7 @@ function WhenSection({ task, today, due, finAt, late }: { task: Task; today: Dat
 
 /** Everyone · each: a ring of how much of the chapter is done, and every face. */
 function Parts({ task, detail, brothers, me }: { task: Task; detail: TaskDetail | null; brothers: Brother[]; me: Me }) {
-  const doneN = task.doneCount ?? 0, total = task.memberCount ?? brothers.length;
-  const pct = total ? Math.round((doneN / total) * 100) : 0;
-  const doneIds = new Set((detail?.parts ?? []).map(p => p.brotherId));
-  const roster = [...brothers].sort((a, b) => a.name.localeCompare(b.name));
-  const doneB = roster.filter(b => doneIds.has(b.id));
-  const left = roster.filter(b => !doneIds.has(b.id));
-  const name = (b: Brother) => b.id === me.selfId ? "you" : first(b.name);
-  const LIST = 8;
+  const { doneN, total, pct, doneIds, faces, left, leftNames } = partsOf(task, detail, brothers, me.selfId);
   return (
     <div className="sp-sec">
       <p className="sp-lab">Everyone’s part</p>
@@ -368,14 +263,14 @@ function Parts({ task, detail, brothers, me }: { task: Task; detail: TaskDetail 
           {detail ? (
             <>
               <div className="faces">
-                {[...doneB, ...left].map(b => (
+                {faces.map(b => (
                   <span key={b.id} className={`face${doneIds.has(b.id) ? "" : " todo"}${b.id === me.selfId ? " me" : ""}`} title={`${b.name} · ${doneIds.has(b.id) ? "done" : "not yet"}`}>
                     <PAvatar id={b.id} name={b.name} url={b.avatarUrl} size="sm" />
                   </span>
                 ))}
               </div>
               <p>{left.length
-                ? <><b>{left.length} still to go:</b> {left.slice(0, LIST).map(name).join(", ")}{left.length > LIST ? ` and ${left.length - LIST} more` : ""}.</>
+                ? <><b>{left.length} still to go:</b> {leftNames}.</>
                 : <b>Everyone’s done.</b>}</p>
             </>
           ) : <div className="faces wait" aria-hidden />}
@@ -386,33 +281,7 @@ function Parts({ task, detail, brothers, me }: { task: Task; detail: TaskDetail 
 }
 
 function History({ task, detail, failed, nameOf }: { task: Task; detail: TaskDetail | null; failed: boolean; nameOf: (id: number | null) => string }) {
-  const each = task.everyone === "each";
-  const lines: Line[] = [];
-  const events: TaskHistoryEntry[] = detail?.history ?? [];
-  // Tasks moved over from the old Deadlines table have no create event.
-  if (detail && !events.some(e => e.action === "task.created")) {
-    lines.push({ at: new Date(task.createdAt), actorId: task.createdById, text: "assigned it", tone: "c" });
-  }
-  // A tick through PATCH {status} is logged as an update whose only field is
-  // "status", with no completed/reopened event of its own. Status is binary, so
-  // replaying the log in order says which way each flip went.
-  let isDone = false;
-  for (const e of events) {
-    const at = new Date(e.at);
-    if (e.action === "task.created") lines.push({ at, actorId: e.actorId, text: "assigned it", tone: "c" });
-    else if (e.action === "task.completed") { if (!each) isDone = true; lines.push({ at, actorId: e.actorId, text: each ? "did their part" : "marked it done", tone: "d" }); }
-    else if (e.action === "task.reopened") { if (!each) isDone = false; lines.push({ at, actorId: e.actorId, text: each ? "unticked their part" : "reopened it", tone: "r" }); }
-    else if (e.action === "task.updated") {
-      const fields = e.changedFields ?? [];
-      if (fields.includes("status")) {
-        isDone = !isDone;
-        lines.push({ at, actorId: e.actorId, text: isDone ? "marked it done" : "reopened it", tone: isDone ? "d" : "r" });
-      }
-      const rest = fields.filter(f => f !== "status");
-      if (rest.length || fields.length === 0) lines.push({ at, actorId: e.actorId, text: editedWhat(rest), tone: "e" });
-    }
-  }
-  lines.sort((a, b) => b.at.getTime() - a.at.getTime());
+  const lines = historyLines(task, detail);
   return (
     <div className="sp-sec">
       <details className="hist-d">
@@ -426,7 +295,7 @@ function History({ task, detail, failed, nameOf }: { task: Task; detail: TaskDet
                 {lines.map((l, i) => (
                   <li key={i} className={l.tone}>
                     <span><b>{nameOf(l.actorId)}</b> {l.text}</span>
-                    <time dateTime={l.at.toISOString()}>{fmtDate(`${l.at.getFullYear()}-${String(l.at.getMonth() + 1).padStart(2, "0")}-${String(l.at.getDate()).padStart(2, "0")}`)} · {clock(l.at)}</time>
+                    <time dateTime={l.at.toISOString()}>{historyStamp(l.at)}</time>
                   </li>
                 ))}
               </ol>

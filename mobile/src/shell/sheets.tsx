@@ -57,6 +57,8 @@ export interface SheetProps {
   bare?: boolean;
   /** Can't be dragged or tapped away (a step that must be answered). */
   locked?: boolean;
+  /** Untitled sheet whose body draws its own CloseX (a tinted header would hide the floating one). */
+  ownClose?: boolean;
   children?: ReactNode;
   accessibilityLabel?: string;
 }
@@ -309,7 +311,7 @@ function SheetFrame({ entry, above, m }: { entry: Entry; above?: SharedValue<num
                 {props.actions}
                 {!locked && <CloseX onPress={requestClose} />}
               </View>
-            ) : !locked ? <View style={styles.floatX}><CloseX onPress={requestClose} /></View> : null}
+            ) : !locked && !props.ownClose ? <View style={styles.floatX}><CloseX onPress={requestClose} /></View> : null}
           </View>
         </GestureDetector>
         {props.bare ? (

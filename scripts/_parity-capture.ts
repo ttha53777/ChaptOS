@@ -12,7 +12,7 @@
 //     (pages scroll inside <main>, so Playwright's fullPage can't see past the fold)
 //   * sheet scenes use 390×844, the device the app is built for
 import { chromium, devices, webkit, type Page, type Route } from "playwright";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import pg from "pg";
 import { DEV_IMPERSONATE_COOKIE, signImpersonation } from "../lib/auth/dev-bypass";
 
@@ -61,7 +61,19 @@ const PAGES: PageSpec[] = [
     { name: "minutes-att", act: async p => { await tap(".led-row:not(.missing)", 1400)(p); await tap('.mt-chrome .mt-tabs [role="tab"]:nth-child(3)', 1400)(p); } },
     { name: "minutes-none", act: tap(".led-row.missing", 1400) },
   ] },
-  { id: "tasks", path: "/tasks", ready: ".mtb", scenes: [full, fold] },
+  { id: "tasks", path: "/tasks", ready: ".mtb", scenes: [full, fold,
+    // Scoped to the page's own controls so they can't hit a sheet's chips.
+    { name: "mine", tall: true, act: tap('.tks-ctl .tks-seg button:nth-child(2)') },
+    { name: "done", tall: true, act: tap(".tks-col-side .tks-done-bar") },
+    { name: "spot", act: tap(".tks-pile.over .tks-t", 1400) },
+    { name: "spot-each", act: async p => { await p.locator(".tks-t", { hasText: "Sign the risk waiver" }).first().click(); await p.waitForTimeout(1400); } },
+    { name: "spot-hist", act: async p => { await tap(".tks-pile.up .tks-t", 1400)(p); await tap(".tks-spot .hist-d summary")(p); await p.locator(".tks-spot .sp-scroll").evaluate(e => e.scrollTo(0, e.scrollHeight)); await p.waitForTimeout(400); } },
+    { name: "ballot", act: tap(".tks-col-side .tks-vote-h .q", 1200) },
+    { name: "new-task", act: tap(".tks-head-btns .tks-btn:not(.soft)", 1200) },
+    { name: "new-task-roles", act: async p => { await tap(".tks-head-btns .tks-btn:not(.soft)", 1200)(p); await tap('.tsh-modes .mode[data-m="roles"]')(p); } },
+    { name: "new-task-all", act: async p => { await tap(".tks-head-btns .tks-btn:not(.soft)", 1200)(p); await tap('.tsh-modes .mode[data-m="all"]')(p); } },
+    { name: "new-poll", act: tap(".tks-head-btns .tks-btn.soft", 1200) },
+  ] },
   { id: "docs", path: "/docs", ready: ".mtb", scenes: [full] },
   { id: "media", path: "/media", ready: ".mtb", scenes: [full] },
   { id: "programming", path: "/events", ready: ".mtb", scenes: [full] },
@@ -179,6 +191,11 @@ async function guard(p: Page) {
     }
   }
   await browser.close();
-  writeFileSync(`${OUT}/index.json`, JSON.stringify({ capturedAt: new Date().toISOString(), who, index, problems: log }, null, 2));
+  // Merge into the existing index: a filtered run (ONLY=…) must not drop other pages' entries.
+  let prev: { index?: Record<string, string[]> } = {};
+  try { prev = JSON.parse(readFileSync(`${OUT}/index.json`, "utf8")); } catch { /* first run */ }
+  const merged = { ...(prev.index ?? {}) };
+  for (const [k, v] of Object.entries(index)) merged[k] = [...new Set([...(ONLY ? (merged[k] ?? []) : []), ...v])].sort();
+  writeFileSync(`${OUT}/index.json`, JSON.stringify({ capturedAt: new Date().toISOString(), who, index: merged, problems: log }, null, 2));
   console.log(`\n${log.length ? log.join("\n") : "no problems"}`);
 })();

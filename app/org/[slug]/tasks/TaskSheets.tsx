@@ -17,19 +17,16 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { PAvatar, Ic, MON, isoOf, plusDays, dateOf, dFrom, first } from "./PaperTasks";
-import { fmtDueTime, type PollFormInitial, type PollFormValue, type RoleOption, type TaskEveryoneMode, type TaskFormInitial, type TaskFormValue } from "./task-forms";
-import { fmtDate, type Brother } from "../../../data";
+import { PAvatar, Ic } from "./PaperTasks";
+import type { PollFormInitial, PollFormValue, RoleOption, TaskEveryoneMode, TaskFormInitial, TaskFormValue } from "./task-forms";
+import type { Brother } from "../../../data";
+import {
+  DOW, MON, dFrom, dateOf, first, fmtDay as fmtDate, fmtDueTime, inTermOf, isoOf, names, plusDays, pollQuickDays, reachOf,
+  taskQuickDays, validatePoll, validateTask, whoSub, type WhoMode,
+} from "@/lib/tasks/list";
 import "./task-sheets.css";
 
-const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const DAY_NAME = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const CROWD_MAX = 12;
-
-function names(xs: string[]): string {
-  if (xs.length <= 2) return xs.join(" and ");
-  return `${xs.slice(0, 2).join(", ")} and ${xs.length - 2} more`;
-}
 
 /** The roster as faces, capped so a big chapter still fits one strip. */
 function Crowd({ people, kind, mode }: { people: Brother[]; kind: "task" | "poll"; mode: TaskEveryoneMode }) {
@@ -48,8 +45,6 @@ function Crowd({ people, kind, mode }: { people: Brother[]; kind: "task" | "poll
     </div>
   );
 }
-
-type WhoMode = "people" | "roles" | "all";
 
 // ── task sheet ───────────────────────────────────────────────────────────────
 export function PaperTaskSheet({
@@ -73,12 +68,8 @@ export function PaperTaskSheet({
   peopleLoading?: boolean;
 }) {
   const init = initial ?? { title: "", dueDate: "", dueTime: "", notes: "", brotherIds: [], roleIds: [], everyone: null };
-  const inTerm = (iso: string) => (!minDate || iso >= minDate) && (!maxDate || iso <= maxDate);
-  const QUICK = useMemo(() => [
-    { key: "today", label: "Today", iso: isoOf(today) },
-    { key: "tom", label: "Tomorrow", iso: isoOf(plusDays(today, 1)) },
-    { key: "week", label: "Next week", iso: isoOf(plusDays(today, 7)) },
-  ], [today]);
+  const inTerm = inTermOf(minDate, maxDate);
+  const QUICK = useMemo(() => taskQuickDays(today), [today]);
 
   const [title, setTitle] = useState(init.title);
   // An ISO date, or "" for no date. A new task starts on tomorrow when the term allows.
@@ -108,18 +99,10 @@ export function PaperTaskSheet({
   const toggle = (list: number[], id: number) => list.includes(id) ? list.filter(x => x !== id) : [...list, id];
 
   // Who it reaches right now: picked people plus whoever holds a picked role.
-  const reachIds = useMemo(() => {
-    if (mode === "all") return brothers.map(b => b.id);
-    const ids = new Set(brotherIds);
-    for (const b of brothers) if (b.roles?.some(r => roleIds.includes(r.id))) ids.add(b.id);
-    return [...ids];
-  }, [mode, brothers, brotherIds, roleIds]);
+  const reachIds = useMemo(() => reachOf(mode, brothers, brotherIds, roleIds), [mode, brothers, brotherIds, roleIds]);
 
   function submit() {
-    let err: string | null = null;
-    if (!title.trim()) err = "Say what needs doing.";
-    else if (due && due !== init.dueDate && !inTerm(due)) err = "That date is outside this semester.";
-    else if (mode !== "all" && brotherIds.length + roleIds.length === 0) err = mode === "roles" ? "Pick at least one role, or choose People or Everyone." : "Pick at least one person, or choose Roles or Everyone.";
+    const err = validateTask({ title, due, initialDue: init.dueDate, mode, people: brotherIds.length, roles: roleIds.length }, inTerm);
     setLocal(err);
     if (err) { if (!title.trim()) titleRef.current?.focus(); return; }
     const all = mode === "all";
@@ -141,9 +124,7 @@ export function PaperTaskSheet({
     ? <>Due <b>{DOW[d.getDay()]}, {fmtDate(due)}</b>{time && <> at <b>{fmtDueTime(time)}</b></>}</>
     : <>No due date</>;
 
-  const sub = (m: WhoMode) => m === "people" ? (brotherIds.length ? `${brotherIds.length} picked` : "Pick names")
-    : m === "roles" ? (roleIds.length ? `${roleIds.length} role${roleIds.length === 1 ? "" : "s"}` : "By title")
-    : `All ${brothers.length}`;
+  const sub = (m: WhoMode) => whoSub(m, brotherIds.length, roleIds.length, brothers.length);
   const say = mode === "all"
     ? (ev === "each" ? <><b>{brothers.length}</b> people, each on their own</> : <>Any <b>one</b> of {brothers.length}</>)
     : reachIds.length ? <><b>{reachIds.length}</b> {reachIds.length === 1 ? "person" : "people"}</> : <>Nobody yet</>;
@@ -383,13 +364,8 @@ export function PaperPollSheet({
   onSubmit: (value: PollFormValue) => void;
   onCancel: () => void;
 }) {
-  const fri = (5 - today.getDay() + 7) % 7 || 7;
-  const quick = [
-    { label: "Tomorrow", iso: isoOf(plusDays(today, 1)) },
-    { label: DAY_NAME[plusDays(today, fri).getDay()].slice(0, 3), iso: isoOf(plusDays(today, fri)) },
-    { label: "Next week", iso: isoOf(plusDays(today, 7)) },
-  ].filter((x, i, all) => all.findIndex(y => y.iso === x.iso) === i);
-  const inTerm = (iso: string) => (!minDate || iso >= minDate) && (!maxDate || iso <= maxDate);
+  const quick = pollQuickDays(today);
+  const inTerm = inTermOf(minDate, maxDate);
   const legacy = !!initial && !initial.everyone;
 
   const [question, setQuestion] = useState(initial?.question ?? "");
@@ -415,13 +391,8 @@ export function PaperPollSheet({
   function removeOpt(i: number) { setOpts(o => o.filter((_, j) => j !== i)); }
 
   function submit() {
-    const lower = filled.map(l => l.toLowerCase());
     const closeIso = close !== "none" ? close : "";
-    let err: string | null = null;
-    if (!question.trim()) err = "Write the question.";
-    else if (filled.length < 2) err = "Give at least two choices.";
-    else if (lower.some((l, i) => lower.indexOf(l) !== i)) err = "Two choices say the same thing.";
-    else if (closeIso && closeIso !== initial?.closeDate && !inTerm(closeIso)) err = "That date is outside this semester.";
+    const err = validatePoll({ question, options: opts, close: closeIso, initialClose: initial?.closeDate }, inTerm);
     setLocal(err);
     if (err) { if (!question.trim()) qRef.current?.focus(); return; }
     onSubmit({ question: question.trim(), closeDate: closeIso, options: filled });

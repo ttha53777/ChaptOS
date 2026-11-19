@@ -13,53 +13,25 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { PaperIcon, type PaperIconName } from "../../../components/paper/PaperIcon";
-import { fmtDueTime } from "./task-forms";
 import { takeTaskFlight } from "./task-fly";
-import { fmtDate, type Brother, type Poll, type Task } from "../../../data";
+import type { Brother, Poll, Task } from "../../../data";
+import {
+  avTone, ballotSub, ballotWho, briefOf, closesTxt, first, fmtDay, initials, leaderOf, pendingLine, pollShelf, progPct, rowWhenAt, stubOf,
+  taskPiles, voteCardOf, DONE_SHOWN, type Me,
+} from "@/lib/tasks/list";
 import { avatarDisplayUrl } from "@/lib/avatar";
 import "./tasks-paper.css";
 
-// ── date + copy helpers ──────────────────────────────────────────────────────
-const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-export function isoOf(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-export function plusDays(d: Date, n: number): Date { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
-export function dateOf(iso: string): Date { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); }
-/** Whole calendar days from today to `iso` (negative = past). */
-export function dFrom(iso: string, today: Date): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / 86_400_000);
-}
-function dowOf(iso: string): string { return DOW[dateOf(iso).getDay()]; }
-function relClose(iso: string, today: Date): string {
-  const n = dFrom(iso, today);
-  if (n < 0) return "past its close date";
-  if (n === 0) return "today";
-  if (n === 1) return "tomorrow";
-  return `in ${n} days`;
-}
-function andList(xs: string[]): string {
-  if (xs.length <= 1) return xs.join("");
-  return `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
-}
-export const first = (name: string) => name.trim().split(/\s+/)[0] ?? name;
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+// ── date + copy helpers: the shared rules (@/lib/tasks/list) ─────────────────
+export { isoOf, plusDays, dateOf, dFrom, first, MON } from "@/lib/tasks/list";
+export type { Me } from "@/lib/tasks/list";
 
 // ── small pieces ─────────────────────────────────────────────────────────────
-const AV_TONES = ["peach", "sky", "mint", "butter", "lilac", "rose"] as const;
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
-}
 
 /** The mock's pastel initial disc, or the member's photo when they have one. */
 export function PAvatar({ id, name, url, size = "md" }: { id: number; name: string; url?: string | null; size?: "xs" | "sm" | "md" | "lg" }) {
   const src = avatarDisplayUrl(url ?? null, 0);
-  const tone = AV_TONES[Math.abs(id) % AV_TONES.length];
+  const tone = avTone(id);
   return src
     // eslint-disable-next-line @next/next/no-img-element
     ? <img className={`ptk-av ${size}`} src={src} alt="" referrerPolicy="no-referrer" />
@@ -82,8 +54,6 @@ export function burst(x: number, y: number) {
   }
 }
 
-export type Me = { selfId: number | null; myRoleIds: Set<number> };
-
 type RowTask = Pick<Task, "id" | "title" | "status" | "dueDate" | "dueTime" | "notes" | "assignments" | "everyone" | "doneCount" | "memberCount">;
 
 // ── the list: _design/Tasks Simple Paper Mock.html ───────────────────────────
@@ -91,32 +61,10 @@ type RowTask = Pick<Task, "id" | "title" | "status" | "dueDate" | "dueTime" | "n
 // first, undated last) below. The date is a tear-off stub on the right of every
 // row, so "when" reads without a colour key. Classes are tks-, styled by
 // tasks-paper.css inside .tks-scope.
-export const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-
-function pileOf(t: Pick<Task, "dueDate">, today: Date): "over" | "up" {
-  return t.dueDate && dFrom(t.dueDate, today) < 0 ? "over" : "up";
-}
-/** The mock's row words: "4 days late", "Yesterday", "Tomorrow", "Sat · in 3 days". */
-function rowWhen(dueDate: string | null, today: Date): string {
-  if (!dueDate) return "No date";
-  const n = dFrom(dueDate, today);
-  if (n < -1) return `${-n} days late`;
-  if (n === -1) return "Yesterday";
-  if (n === 0) return "Today";
-  if (n === 1) return "Tomorrow";
-  if (n < 7) return `${dowOf(dueDate)} · in ${n} days`;
-  return `in ${n} days`;
-}
-/** Soonest first; undated tasks wait at the bottom. */
-function byDue(a: Pick<Task, "id" | "dueDate">, b: Pick<Task, "id" | "dueDate">): number {
-  if (!a.dueDate || !b.dueDate) return a.dueDate ? -1 : b.dueDate ? 1 : a.id - b.id;
-  return a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : a.id - b.id;
-}
-
 function Stub({ dueDate, today }: { dueDate: string | null; today: Date }) {
-  if (!dueDate) return <span className="tks-stub none" aria-hidden><small>ANY</small><b>—</b></span>;
-  const d = dateOf(dueDate);
-  return <span className={`tks-stub${dFrom(dueDate, today) === 0 ? " today" : ""}`} aria-hidden><small>{MON[d.getMonth()]}</small><b>{d.getDate()}</b></span>;
+  const st = stubOf(dueDate, today);
+  if (!st) return <span className="tks-stub none" aria-hidden><small>ANY</small><b>—</b></span>;
+  return <span className={`tks-stub${st.today ? " today" : ""}`} aria-hidden><small>{st.mon}</small><b>{st.day}</b></span>;
 }
 
 function WhoChips({ task, me }: { task: Pick<Task, "assignments" | "everyone" | "doneCount" | "memberCount">; me: Me }) {
@@ -127,7 +75,7 @@ function WhoChips({ task, me }: { task: Pick<Task, "assignments" | "everyone" | 
         <span className="tks-who all"><Ic name="people" />{task.everyone === "each" ? "Everyone" : "Anyone"}</span>
         {task.everyone === "each" && c != null && n != null && (
           <span className="tks-prog" title={`${c} of ${n} members have done their part`}>
-            <i style={{ ["--w" as string]: n ? Math.round((c / n) * 100) : 0 }} />{c} of {n}
+            <i style={{ ["--w" as string]: progPct(c, n) }} />{c} of {n}
           </span>
         )}
       </>
@@ -164,7 +112,7 @@ function TaskRow({ task, today, me, ticked, fresh, canToggle, onOpen, onTick }: 
   onTick?: (el: HTMLElement) => void;
 }) {
   // A due time rides on the day words: "Tomorrow · by 5 PM".
-  const when = rowWhen(task.dueDate, today) + (task.dueDate && task.dueTime ? ` · by ${fmtDueTime(task.dueTime)}` : "");
+  const when = rowWhenAt(task, today);
   const title = task.title;
   const liRef = useRef<HTMLLIElement>(null);
   const ckRef = useRef<HTMLButtonElement>(null);
@@ -231,22 +179,9 @@ function DoneRow({ task, canToggle, onOpen, onTick }: { task: Task; canToggle: b
       <button type="button" className="tks-ck" disabled={!canToggle} onClick={onTick}
         aria-label={`Reopen “${task.title}”`} title={canToggle ? "Reopen" : undefined}><Ic name="check" /></button>
       <div className="tks-m"><button type="button" className="tks-t" onClick={onOpen}>{task.title}</button></div>
-      <div className="tks-when"><span className="tks-when-d">{task.dueDate ? `Was due ${fmtDate(task.dueDate)}` : "Done"}</span></div>
+      <div className="tks-when"><span className="tks-when-d">{task.dueDate ? `Was due ${fmtDay(task.dueDate)}` : "Done"}</span></div>
     </li>
   );
-}
-
-// The side column stays shorter than the screen: the latest few, the rest on ask.
-const DONE_SHOWN = 6;
-
-/** The viewer's local calendar day of an instant (closedAt is a timestamp, not a date). */
-const localDay = (at: string) => fmtDate(isoOf(new Date(at)));
-
-function closesTxt(p: Poll, today: Date): string {
-  if (p.status === "closed") return `Closed${p.closedAt ? ` ${localDay(p.closedAt)}` : ""}`;
-  if (!p.closeDate) return "No close date";
-  const n = dFrom(p.closeDate, today);
-  return `Closes ${n < 0 ? "any time now" : n === 0 ? "today" : n === 1 ? "tomorrow" : n < 7 ? dowOf(p.closeDate) : fmtDate(p.closeDate)}`;
 }
 
 /** A vote, kept small: tap a choice to cast (or change) it; bars once you have. */
@@ -254,15 +189,8 @@ function VoteCard({ poll, today, canVote, onVote, onOpen }: {
   poll: Poll; today: Date; canVote: boolean; onVote: (optionId: number) => Promise<void>; onOpen: () => void;
 }) {
   const [casting, setCasting] = useState(false);
-  const closed = poll.status === "closed";
-  const mine = poll.myVoteOptionId;
+  const { closed, mine, reveal, live, lead, pct: pctOf, foot } = voteCardOf(poll, canVote);
   const total = poll.totalVotes;
-  // Bars only once the viewer has voted or the vote is over: a blind ballot even
-  // for managers here, who can still peek from the full sheet.
-  const reveal = (closed || mine != null) && poll.options.every(o => o.voteCount != null);
-  const live = !closed && canVote;
-  const lead = leaderOf(poll);
-  const winner = lead != null ? poll.options.find(o => o.id === lead)?.label : null;
   async function cast(id: number) {
     if (!live || casting || id === mine) return;
     setCasting(true);
@@ -276,7 +204,7 @@ function VoteCard({ poll, today, canVote, onVote, onOpen }: {
       </div>
       <div className="tks-vote-o" aria-busy={casting || undefined}>
         {poll.options.map(o => {
-          const pct = reveal && total ? Math.round(((o.voteCount ?? 0) / total) * 100) : 0;
+          const pct = pctOf(o.voteCount);
           return (
             <button key={o.id} type="button" disabled={!live || casting} onClick={() => cast(o.id)}
               className={`${o.id === mine ? "mine" : ""}${closed && o.id === lead ? " win" : ""}`} aria-pressed={o.id === mine}>
@@ -288,19 +216,9 @@ function VoteCard({ poll, today, canVote, onVote, onOpen }: {
           );
         })}
       </div>
-      <p className="tks-vote-f">{closed
-        ? (winner ? `Decided · ${winner} won.` : "Closed with no votes.")
-        : mine != null ? "Your vote is in. Tap another to change it."
-        : canVote ? "Anonymous. Results show after you vote."
-        : "Only the people on it vote."}</p>
+      <p className="tks-vote-f">{foot}</p>
     </div>
   );
-}
-
-function leaderOf(p: Poll): number | null {
-  let best: number | null = null, n = -1;
-  for (const o of p.options) { const c = o.voteCount ?? 0; if (c > n) { n = c; best = o.id; } }
-  return n > 0 ? best : null;
 }
 
 // ── the page body ────────────────────────────────────────────────────────────
@@ -337,24 +255,12 @@ export function PaperTasks({
   const [allDone, setAllDone] = useState(false);
   const mineOnly = assigneeFilter === "mine";
 
-  const vis = mineOnly ? taskList.filter(isMine) : taskList;
-  const open = vis.filter(t => t.status !== "done");
-  const over = open.filter(t => pileOf(t, today) === "over").sort(byDue);
-  const up = open.filter(t => pileOf(t, today) === "up").sort(byDue);
-  const done = vis.filter(t => t.status === "done")
-    .sort((a, b) => (b.completedAt ?? b.createdAt).localeCompare(a.completedAt ?? a.createdAt));
+  const { over, up, done } = taskPiles(taskList, today, mineOnly, me);
   const hasAny = taskList.length > 0 || pollList.length > 0;
 
   // Open votes this viewer is asked into (all of them for a poll manager), then
   // the few most recently decided.
-  const polls = useMemo(() => {
-    const seen = pollList.filter(p => canManagePolls ? (!mineOnly || canVote(p)) : canVote(p));
-    const openP = seen.filter(p => p.status === "open")
-      .sort((a, b) => (a.myVoteOptionId == null) !== (b.myVoteOptionId == null) ? (a.myVoteOptionId == null ? -1 : 1) : (a.closeDate ?? "9") < (b.closeDate ?? "9") ? -1 : 1);
-    const decided = seen.filter(p => p.status === "closed")
-      .sort((a, b) => (b.closedAt ?? "").localeCompare(a.closedAt ?? "")).slice(0, 2);
-    return [...openP, ...decided];
-  }, [pollList, mineOnly, canVote, canManagePolls]);
+  const polls = useMemo(() => pollShelf(pollList, mineOnly, canManagePolls, me), [pollList, mineOnly, canManagePolls, me]);
   const openPolls = polls.filter(p => p.status === "open").length;
 
   // A task just added from the sheet flies into its slot (task-fly.ts); any
@@ -418,7 +324,7 @@ export function PaperTasks({
     );
   }
 
-  const forYou = mineOnly ? " for you" : "";
+  const { forYou, sub } = briefOf(over.length, up.length, mineOnly);
   return (
     <div className="tks-scope">
       <header className="tks-brief">
@@ -427,9 +333,7 @@ export function PaperTasks({
           <h1 className="tks-greet">{over.length
             ? <><span className="tks-hi" style={{ ["--mark" as string]: "var(--peach)" }}>{over.length} overdue</span>{forYou}, {up.length} coming up</>
             : <>Nothing overdue{forYou}. <span className="tks-hi">{up.length} coming up</span></>}</h1>
-          <p className="tks-sub">{over.length
-            ? "Start with the overdue pile, then work down. Tick a task when it’s done."
-            : "You’re on top of it. Everything left is still ahead of its date."}</p>
+          <p className="tks-sub">{sub}</p>
         </div>
         {(canManage || canManagePolls) && (
           <div className="tks-head-btns">
@@ -554,10 +458,7 @@ export function PaperBallot({ poll, today, brothers, canManage, canVote, onVote,
   const counted = poll.options.every(o => o.voteCount != null);
   const lead = leaderOf(poll);
 
-  const roleOnly = !poll.everyone && poll.assignments.length > 0 && poll.assignments.every(a => a.roleId != null);
-  const whoLabel = roleOnly
-    ? `${andList(poll.assignments.map(a => a.role?.name ?? "").filter(Boolean))} vote`
-    : poll.everyone || (poll.assigneeCount >= brothers.length && brothers.length > 1) ? "Everyone votes" : `${plural(poll.assigneeCount, "voter")}`;
+  const whoLabel = ballotWho(poll, brothers.length);
 
   async function cast() {
     if (pick == null || casting) return;
@@ -578,12 +479,7 @@ export function PaperBallot({ poll, today, brothers, canManage, canVote, onVote,
         {closed && <span className="ptk-rubber">Decided</span>}
         <p className="ptk-kick">{closed ? "Final results" : "Ballot"} · {whoLabel} · anonymous</p>
         <h3 className="ptk-pl-q">{poll.question}</h3>
-        <p className="ptk-pl-sub">
-          {closed
-            ? `Closed${poll.closedAt ? ` ${localDay(poll.closedAt)}` : poll.closeDate ? ` ${fmtDate(poll.closeDate)}` : ""}`
-            : poll.closeDate ? `Closes ${dowOf(poll.closeDate)}, ${fmtDate(poll.closeDate)} · ${relClose(poll.closeDate, today)}` : "No close date"}
-          {` · ${tot} of ${poll.assigneeCount} voted`}
-        </p>
+        <p className="ptk-pl-sub">{ballotSub(poll, today)}</p>
 
         {ballot ? (
           <>
@@ -636,7 +532,7 @@ export function PaperBallot({ poll, today, brothers, canManage, canVote, onVote,
             <p className="k">Not voted yet</p>
             <div className="row2">
               <span className="stk">{pending.slice(0, 5).map(v => <PAvatar key={v.brotherId} id={v.brotherId} name={v.name} url={v.avatarUrl} size="sm" />)}</span>
-              <span>{andList(pending.slice(0, 3).map(v => first(v.name)))}{pending.length > 3 ? ` and ${pending.length - 3} more` : ""}</span>
+              <span>{pendingLine(pending)}</span>
             </div>
           </div>
         )}

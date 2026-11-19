@@ -25,7 +25,8 @@ export function onVoteRefused(fn: (pollId: number) => void): () => void {
 
 const queue = new Map<number, Promise<unknown>>();
 
-export function castVote(poll: Poll, optionId: number): void {
+/** `confirm`: a toast once the server has a first vote (the web Tasks page's "Your vote is in…"). */
+export function castVote(poll: Poll, optionId: number, opts?: { confirm?: string }): void {
   if (poll.myVoteOptionId === optionId) return;
   const first = poll.myVoteOptionId == null;
   const restore = patchPollInCache(poll.id, p => votedLocally(p, optionId));
@@ -34,7 +35,11 @@ export function castVote(poll: Poll, optionId: number): void {
   const p = (queue.get(poll.id) ?? Promise.resolve()).catch(() => {}).then(() => postVote(poll.id, optionId));
   queue.set(poll.id, p);
   p.then(
-    fresh => { patchPollInCache(poll.id, fresh); void refreshHome(); },
+    fresh => {
+      patchPollInCache(poll.id, fresh);
+      void refreshHome();
+      if (first && opts?.confirm) { haptics.success(); toast.show(opts.confirm); }
+    },
     e => {
       restore();
       restorePlate();

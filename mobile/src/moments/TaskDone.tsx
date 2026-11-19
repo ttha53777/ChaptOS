@@ -48,9 +48,12 @@ export interface DeckFlightProps {
   /** Where the confetti leaves from, as fractions of the card (the Done button). */
   burstAt?: { x: number; y: number };
   style?: StyleProp<ViewStyle>;
+  /** Where the stamp lands and how big (a list row is shorter than a deck card). */
+  stampStyle?: StyleProp<ViewStyle>;
+  stampSize?: "sm" | "md" | "lg";
 }
 
-export function DeckFlight({ phase, children, stamp = "Done", enterDelay = 0, onImpact, onFlown, burstAt = { x: 0.28, y: 0.86 }, style }: DeckFlightProps) {
+export function DeckFlight({ phase, children, stamp = "Done", enterDelay = 0, onImpact, onFlown, burstAt = { x: 0.28, y: 0.86 }, style, stampStyle, stampSize = "lg" }: DeckFlightProps) {
   const m = useMotion();
   const tx = useSharedValue(phase === "return" ? 70 : 0);
   const ty = useSharedValue(phase === "return" ? -90 : phase === "enter" ? 16 : 0);
@@ -125,7 +128,7 @@ export function DeckFlight({ phase, children, stamp = "Done", enterDelay = 0, on
   return (
     <Animated.View style={[card, style]}>
       {children}
-      <Stamp label={stamp} state={stampState} size="lg" rotate={-9} tone="mint" onImpact={onStampImpact} style={styles.stamp} />
+      <Stamp label={stamp} state={stampState} size={stampSize} rotate={-9} tone="mint" onImpact={onStampImpact} style={[styles.stamp, stampStyle]} />
       {!m.reduced && phase === "done" ? <Confetti burst={burst} at={burstAt} /> : null}
     </Animated.View>
   );

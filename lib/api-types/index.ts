@@ -92,6 +92,9 @@
  *   DELETE /api/tasks/[id]                     204                     (MANAGE_TASKS)
  *   GET    /api/polls                          Poll[]
  *   POST   /api/polls/[id]/vote                Poll
+ *   POST   /api/polls                          Poll                    (201; MANAGE_POLLS; body createPollInput)
+ *   PATCH  /api/polls/[id]                     Poll                    (MANAGE_POLLS: edit, close/reopen)
+ *   DELETE /api/polls/[id]                     204                     (MANAGE_POLLS)
  *   GET    /api/service-events                 ServiceEvent[]
  *   GET    /api/service-participation          ServiceParticipationRow[] (whole org; filter brotherId for "my hours")
  *   GET    /api/service-events/[id]/participation ServiceParticipationRow[]

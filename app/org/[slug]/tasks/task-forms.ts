@@ -49,8 +49,4 @@ export type PollFormInitial = {
 };
 
 /** "17:30" → "5:30 PM", "12:00" → "Noon", "09:00" → "9 AM". */
-export function fmtDueTime(t: string): string {
-  const [h, m] = t.split(":").map(Number);
-  if (h === 12 && m === 0) return "Noon";
-  return `${h % 12 || 12}${m ? `:${String(m).padStart(2, "0")}` : ""} ${h < 12 ? "AM" : "PM"}`;
-}
+export { fmtDueTime } from "@/lib/tasks/list";

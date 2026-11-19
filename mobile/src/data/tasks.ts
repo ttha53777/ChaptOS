@@ -9,10 +9,13 @@
  * Officer writes (MANAGE_TASKS, stage 6): POST /api/tasks, PATCH /api/tasks/[id] with any
  * editable field, DELETE /api/tasks/[id]. Each one refreshes the list, Today's plate and
  * the Timeline (a dated task is a deadline there).
+ *
+ * Poll managers (MANAGE_POLLS, Phase 6): POST /api/polls, PATCH /api/polls/[id] (edit,
+ * close, reopen), DELETE /api/polls/[id]. Each refreshes the polls and Today's plate.
  */
 import type { Brother, Poll, Task, TaskDetail } from "@/lib/api-types";
 import type { createTaskInput, updateTaskInput } from "@/lib/validation/task";
-import type { castVoteInput } from "@/lib/validation/poll";
+import type { castVoteInput, createPollInput, updatePollInput } from "@/lib/validation/poll";
 import { useQuery } from "@tanstack/react-query";
 import type { z } from "zod";
 import { api } from "~/api/client";
@@ -104,6 +107,37 @@ export async function deleteTask(id: number): Promise<void> {
 export function postVote(pollId: number, optionId: number): Promise<Poll> {
   const body: VoteBody = { optionId };
   return api<Poll>(`/api/polls/${pollId}/vote`, { method: "POST", body });
+}
+
+export type NewPollBody = z.input<typeof createPollInput>;
+export type PollEdit = z.input<typeof updatePollInput>;
+
+function pollWritten() {
+  const slug = slugNow();
+  void queryClient.invalidateQueries({ queryKey: taskKeys.polls(slug) });
+  void queryClient.invalidateQueries({ queryKey: ["home", slug] });
+}
+
+/** Poll managers: open a vote to the whole chapter. */
+export async function createPoll(body: NewPollBody): Promise<Poll> {
+  const p = await api<Poll>("/api/polls", { method: "POST", body });
+  queryClient.setQueryData<Poll[]>(taskKeys.polls(slugNow()), list => (list ? [...list, p] : list));
+  pollWritten();
+  return p;
+}
+
+/** Poll managers: edit the question, close date or (before any vote) the choices; or close/reopen it. */
+export async function editPoll(id: number, body: PollEdit): Promise<Poll> {
+  const p = await api<Poll>(`/api/polls/${id}`, { method: "PATCH", body });
+  patchPollInCache(id, p);
+  pollWritten();
+  return p;
+}
+
+export async function deletePoll(id: number): Promise<void> {
+  await api<void>(`/api/polls/${id}`, { method: "DELETE" });
+  queryClient.setQueryData<Poll[]>(taskKeys.polls(slugNow()), list => list?.filter(p => p.id !== id));
+  pollWritten();
 }
 
 /* ── cache edits ──────────────────────────────────────────────────────────────── */

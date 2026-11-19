@@ -39,7 +39,7 @@ import type { listVisibleBrothers, getMemberProfile } from "@/lib/services/broth
 import type { approveJoinRequest, listPendingRequestPage } from "@/lib/services/join-request-service";
 import type { publicBrother } from "@/lib/brother-avatar";
 import type { createTask, getTaskDetail, listTasks, updateTask } from "@/lib/services/task-service";
-import type { listPolls, castVote } from "@/lib/services/poll-service";
+import type { listPolls, castVote, createPoll, updatePoll } from "@/lib/services/poll-service";
 import type { listCalendar, previewDeleteCalendar, updateCalendar } from "@/lib/services/calendar-service";
 import type { listAgendaTemplates } from "@/lib/services/agenda-template-service";
 import type { summarizeMeeting } from "@/lib/services/meeting-summary-service";
@@ -104,6 +104,8 @@ export const taskCreated: Widen<Task> = served<Served<typeof createTask>>();
 export const taskDetail: Widen<TaskDetail> = served<Served<typeof getTaskDetail>>();
 
 export const polls: Widen<Poll[]> = served<Served<typeof listPolls>>();
+export const pollCreated: Widen<Poll> = served<Served<typeof createPoll>>();
+export const pollUpdate: Widen<Poll> = served<Served<typeof updatePoll>>();
 export const vote: Widen<Poll> = served<Served<typeof castVote>>();
 
 export const calendar: Widen<CalendarEvent[]> = served<Served<typeof listCalendar>>();

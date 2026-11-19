@@ -36,7 +36,7 @@ Legend: ✅ matches the web phone · 🟡 built, but from the paper mocks rather
 | Timeline | `(tabs)/timeline` | 🟡 | Uses the spine, not the web's month ledger. Event sheet and day-one copy need diffing in Phase 3. |
 | Members | `(tabs)/members` | 🟡 | Uses the register list and Member Spotlight card. Web has the join-request band, filters, and By role. |
 | Chapter (meetings) | `more/meetings`, `more/meeting/[id]` | 🟡 | Web has the ledger with date stubs, On deck, and the minutes editor (phone sheet). |
-| Tasks | `more/tasks` | 🟡 | App has a deck and board. Web has an Overdue/Upcoming list, spotlight, task/poll sheets, and a who-picker. |
+| Tasks | `more/tasks` | ✅ | Phase 6: the web's Overdue/Upcoming list, spotlight, ballot, task/poll sheets with the who-picker. |
 | Docs | `more/docs` | 🟡 | Web has the index-card shelf, folders, drag to file, and the day-one pictures. |
 | Media | `more/media` | 🟡 | Web Instagram is the paper page (full and day one). |
 | Programming | `more/programming` | 🟡 | Lanes and wrap-ups exist. Web has the gated lanes and day-one steps. |
@@ -154,3 +154,40 @@ Built 2026-11-19, uncommitted.
   - Shared (Yjs) minutes are written only on the web. The app writes unshared minutes: a textarea autosaved 600ms after typing stops, and on leaving; a 409 drops back to read.
   - Download .md and Print are folded into Share as text.
 - **Not exercised in the UI:** the app Write path. ok-today has collaborative notes on, so every meeting reads as shared there.
+
+## Tasks (Phase 6), what landed
+
+Built 2026-11-19.
+
+- **Shared rules:** `lib/tasks/list.ts` (SHARED now whitelists `@/lib/tasks/`, replacing `@/lib/tasks/urgency`).
+  - Dates and words, who may tick or vote (`isMine` / `canVote` / `canComplete`), the piles (`taskPiles`, `DONE_SHOWN`), the poll shelf, the brief line.
+  - Vote cards and ballot words (`voteCardOf`, `ballotWho`, `ballotSub`, `pendingLine`).
+  - Spotlight (`spotHead`, `deskCal`, `partsOf`, `historyLines`) and sheet checks (`taskQuickDays`, `pollQuickDays`, `inTermOf`, `validateTask`, `validatePoll`, `whoSub`, `reachOf`).
+  - "Today" is injected (a `Date` at local midnight), so nothing in it reads the clock.
+  - The web Tasks page, spotlight and sheets render from it. Pixdiff was IDENTICAL on every capture except three frames whose differences are not from code: busy-member-fold and dayone-admin-full (the splash still fading in the "before" frame) and busy-member-spot-each (scrollbar strip only).
+- **Wire (additive):** route-map lines for `POST /api/polls` (201), `PATCH /api/polls/[id]`, `DELETE /api/polls/[id]` (204). Contract entries `pollCreated` / `pollUpdate`, and smoke probes. The bearer static test passes on all 105 routes.
+- **List:**
+  - Head (TASKS + term, count headline, brief line, New poll / New task by permission), then Everyone’s / Just mine.
+  - Overdue pile or "Nothing overdue.", then Upcoming ("Nothing coming up{ for you}."), then N done this term folding open.
+  - Then Votes with the vote cards, and day one with the two pictured piles and one button.
+  - A row ticks from its circle or a left swipe; the DONE stamp + flight plays from the row, then `~/tasks/tick` writes. The deck and board are gone.
+- **Spotlight:** chip + edit/delete + close, calendar page, title, the when sentence, Mark done / Mark my part done / Reopen or the lock line. Then Start/Due bookends, the desk calendar and the count, the note or Add a note, Everyone’s part (ring + faces), For / From, and History folded.
+- **Ballot:** Ballot / Final results kicker, sealed ballot with Peek for poll managers, result bars with your vote / leading / won, Decided stamp. Then Not voted yet, Close poll with the web's confirm, Reopen, edit and delete.
+- **Sheets:**
+  - Task: title; Day chips (outside-term days off) + Pick a date + No date; Time; who-picker with People (faces, search past 8, tray) / Roles (holders, reach) / Everyone (each/any switch, crowd strip).
+  - Also on the task sheet: the note, the list-row preview, and Delete / Cancel / Add task·Save.
+  - Poll: question, 2–10 choices (locked once votes are in), Who votes (everyone; an older targeted poll keeps its audience), closes chips, card preview, Open the vote.
+  - The delete confirms use the web's words.
+- **Verified on :3100** (after `/api/auth/me` returned ok-today):
+  - Spotlight Mark done → Reopen on task 7; the row was restored byte-identical.
+  - Create (Everyone · any) → edit (note, No date) → delete a task.
+  - Create a poll → member 12 votes → close → reopen → delete.
+  - Test ActivityLog / OperationalEvent rows were removed and the sequences reset.
+- **Deviations:**
+  - Time: the web uses a native `<input type="time">`; the app shows the same two chips (Any time / the time) and opens the meetings Clock (15-minute steps) under them.
+  - The spotlight's tint starts under the sheet's grab bar instead of at the very top.
+  - Ticking from the spotlight stamps for ~820ms before writing, longer than the web's 700ms.
+  - A refused row tick has no return motion.
+- **Not exercised:** the swipe gesture itself (the preview has no touch pan; the circle and spotlight share its write path) and the live bearer smoke (it needs a Supabase token, as in earlier phases).
+- **Kept for the Lab:** `tasks/Deck.tsx` and `tasks/Ballot.tsx` stay only because `lab/tasks.tsx` demos them. `Board.tsx` and `TaskSheet.tsx` are deleted.
+
