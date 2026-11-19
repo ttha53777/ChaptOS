@@ -46,7 +46,7 @@ export interface SheetProps {
   title?: string;
   kicker?: string;
   icon?: IconName;
-  /** The tilted pastel lip behind the top edge. */
+  /** The header tile's tone (the edge above the sheet is always butter, as on the web). */
   tone?: Tone;
   size?: SheetSize;
   /** Pinned under the body on a paper-2 band (primary actions). */
@@ -144,9 +144,12 @@ export function SheetHost({ children }: { children: ReactNode }) {
   }, [anyOpen]);
 
   const base = list[0]?.progress;
+  // worklets capture plain values only: `m` carries functions, which would be re-wrapped
+  // for the UI runtime on every render
+  const reduced = m.reduced;
   const canvas = useAnimatedStyle(() => {
     const p = base ? Math.min(Math.max(base.value, 0), 1) : 0;
-    if (m.reduced) return { transform: [], borderRadius: 0 };
+    if (reduced) return { transform: [], borderRadius: 0 };
     const lift = insets.top - 10;
     return {
       borderRadius: p > 0.01 ? CANVAS_RADIUS : 0,
@@ -188,32 +191,43 @@ function SheetFrame({ entry, above, m }: { entry: Entry; above?: SharedValue<num
   const fade = useMemo(() => makeMutable(m.reduced ? 0 : 1), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dur = m.reduced ? DUR.fade : m.sheetMs;
-  // configs built on the JS side: worklets can capture these objects, not call m.timing()
-  const travelCfg = m.timing(dur, "sheet");
-  const snapCfg = m.timing(m.reduced ? DUR.fade : DUR.move + 80, "sheet");
+  // configs built on the JS side: worklets can capture these objects, not call m.timing().
+  // Memoized so the pan gesture isn't rebuilt every time the owner re-renders.
+  const travelCfg = useMemo(() => m.timing(dur, "sheet"), [m, dur]);
+  const snapCfg = useMemo(() => m.timing(m.reduced ? DUR.fade : DUR.move + 80, "sheet"), [m]);
   const key = entry.key;
   const onClose = useRef(props.onClose);
   onClose.current = props.onClose;
   const gone = () => drop(key);
   const requestClose = () => onClose.current();
 
-  // open / close driven by the `open` prop
+  // open / close driven by the `open` prop. A layout effect, so the travel starts in the
+  // same frame the sheet is committed rather than a frame (or a busy JS turn) later.
+  // A `fit` sheet that hasn't been measured yet waits for its onLayout: starting blind
+  // would run part of the travel invisibly and then pop in partway up.
   const wasOpen = useRef(false);
-  useEffect(() => {
+  const waitingForSize = useRef(false);
+  const startOpen = () => {
+    waitingForSize.current = false;
+    if (m.reduced) {
+      progress.value = restAt;
+      fade.value = withTiming(1, m.timing(DUR.fade, "out"));
+    } else {
+      fade.value = 1;
+      progress.value = withTiming(restAt, travelCfg);
+    }
+  };
+  useLayoutEffect(() => {
     if (props.open) {
       wasOpen.current = true;
-      if (m.reduced) {
-        progress.value = restAt;
-        fade.value = withTiming(1, m.timing(DUR.fade, "out"));
-      } else {
-        fade.value = 1;
-        progress.value = withTiming(restAt, m.timing(dur, "sheet"));
-      }
+      if (size === "fit" && !h.value) waitingForSize.current = true;
+      else startOpen();
     } else if (wasOpen.current || progress.value > 0) {
       wasOpen.current = false;
+      waitingForSize.current = false;
       const done = (fin?: boolean) => { "worklet"; if (fin) scheduleOnRN(gone); };
       if (m.reduced) fade.value = withTiming(0, m.timing(DUR.fade, "out"), f => { progress.value = 0; done(f); });
-      else progress.value = withTiming(0, m.timing(dur, "sheet"), done);
+      else progress.value = withTiming(0, travelCfg, done);
     } else {
       drop(key);
     }
@@ -272,21 +286,25 @@ function SheetFrame({ entry, above, m }: { entry: Entry; above?: SharedValue<num
     <Animated.View
       style={[styles.frame, { height, maxHeight: fullH }, frame]}
       pointerEvents={props.open ? "box-none" : "none"}
-      onLayout={size === "fit" ? ev => { h.value = ev.nativeEvent.layout.height; } : undefined}
+      onLayout={size === "fit" ? ev => {
+        h.value = ev.nativeEvent.layout.height;
+        if (waitingForSize.current) startOpen();
+      } : undefined}
       accessibilityViewIsModal
       accessibilityLabel={props.accessibilityLabel ?? props.title}
     >
-      <View style={[styles.tab, { backgroundColor: c.note.fill[tone], borderColor: c.ink }]} />
+      {/* web .bsheet: a 3pt pastel edge above the ink border (box-shadow 0 -3px 0) */}
+      <View style={[styles.edge, { backgroundColor: c.pastel.butter.fill }]} />
       <View style={[styles.inner, { backgroundColor: c.card, borderColor: c.ink }, size !== "fit" && { flex: 1 }]}>
         <GestureDetector gesture={pan}>
           <View>
             <View style={styles.grab}><View style={[styles.grabBar, { backgroundColor: c.line2 }]} /></View>
             {(props.title || props.kicker) ? (
               <View style={styles.head}>
-                {props.icon ? <Tile icon={props.icon} tone={tone} size={42} rotate={-5} /> : null}
+                {props.icon ? <Tile icon={props.icon} tone={tone} size={32} /> : null}
                 <View style={{ flex: 1, minWidth: 0 }}>
                   {props.kicker ? <T v="kicker" color={c.ink3}>{props.kicker}</T> : null}
-                  {props.title ? <T v="title" accessibilityRole="header" numberOfLines={2}>{props.title}</T> : null}
+                  {props.title ? <T v="subhead" accessibilityRole="header" numberOfLines={1} style={styles.title}>{props.title}</T> : null}
                 </View>
                 {props.actions}
                 {!locked && <CloseX onPress={requestClose} />}
@@ -318,8 +336,8 @@ export function CloseX({ onPress, label = "Close" }: { onPress: () => void; labe
   const { c } = useTheme();
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={8}
-      style={[styles.x, { backgroundColor: c.paper3 }]}>
-      <Icon name="x" size={14} color={c.ink2} />
+      style={[styles.x, { backgroundColor: c.paper, borderColor: c.line2 }]}>
+      <Icon name="x" size={15} color={c.ink3} />
     </Pressable>
   );
 }
@@ -327,15 +345,17 @@ export function CloseX({ onPress, label = "Close" }: { onPress: () => void; labe
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "black" }, // the phone behind the canvas, as in the mock (theme-independent)
   canvas: { flex: 1, overflow: "hidden", transformOrigin: "50% 0%" },
-  frame: { position: "absolute", left: 0, right: 0, bottom: 0, paddingTop: 8 },
-  tab: { position: "absolute", left: 14, right: 14, top: 0, height: 40, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1.5, borderBottomWidth: 0, transform: [{ rotate: "-1.2deg" }] },
-  inner: { borderWidth: 1.5, borderBottomWidth: 0, borderTopLeftRadius: 30, borderTopRightRadius: 30, overflow: "hidden", flexShrink: 1 },
-  grab: { paddingTop: 9, paddingBottom: 4, alignItems: "center" },
+  // web mobile-shell.css .bsheet / .bsheet-grab / .bsheet-h / .bsheet-x / .bsheet-b
+  frame: { position: "absolute", left: 0, right: 0, bottom: 0, paddingTop: 3 },
+  edge: { position: "absolute", left: 0, right: 0, top: 0, height: 40, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  inner: { borderWidth: 1.5, borderBottomWidth: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden", flexShrink: 1 },
+  grab: { paddingTop: 9, paddingBottom: 2, alignItems: "center" },
   grabBar: { width: 40, height: 5, borderRadius: 3 },
-  head: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 4, paddingHorizontal: 18, paddingBottom: 10 },
+  head: { flexDirection: "row", alignItems: "center", gap: 11, paddingTop: 8, paddingHorizontal: 16, paddingBottom: 12 },
+  title: { fontSize: 19, letterSpacing: -0.45 },
   floatX: { position: "absolute", top: 14, right: 14, zIndex: 3 },
-  x: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  x: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   fitScroll: { flexGrow: 0, flexShrink: 1 },
-  body: { paddingTop: 6, paddingHorizontal: 18, gap: 18 },
-  foot: { flexDirection: "row", gap: 10, alignItems: "center", paddingTop: 12, paddingHorizontal: 18, borderTopWidth: 1.5 },
+  body: { paddingTop: 0, paddingHorizontal: 16, gap: 16 },
+  foot: { flexDirection: "row", gap: 10, alignItems: "center", paddingTop: 12, paddingHorizontal: 16, borderTopWidth: 1.5 },
 });

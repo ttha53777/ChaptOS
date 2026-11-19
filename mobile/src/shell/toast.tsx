@@ -33,18 +33,27 @@ export interface ToastOpts {
   /** Shows the Undo button and the 10s ring. */
   undo?: () => void;
   undoLabel?: string;
+  /** How long the Undo stays (default UNDO_MS). */
+  undoMs?: number;
+  /** Runs once when an undo toast ends without Undo: timed out, swiped, or replaced. */
+  onExpire?: () => void;
 }
 
-interface Item extends ToastOpts { id: number; msg: string; ms: number; kind: "info" | "error" }
+interface Item extends ToastOpts { id: number; msg: string; ms: number; kind: "info" | "error"; undone?: boolean }
 
 let current: Item | null = null;
 let nextId = 0;
 const subs = new Set<() => void>();
-const set = (v: Item | null) => { current = v; subs.forEach(s => s()); };
+const set = (v: Item | null) => {
+  const prev = current;
+  current = v;
+  if (prev && prev !== v && !prev.undone) prev.onExpire?.();
+  subs.forEach(s => s());
+};
 
 export const toast = {
   show(msg: string, opts: ToastOpts = {}) {
-    set({ ...opts, msg, id: ++nextId, kind: "info", ms: opts.undo ? UNDO_MS : 2600 });
+    set({ ...opts, msg, id: ++nextId, kind: "info", ms: opts.undo ? opts.undoMs ?? UNDO_MS : 2600 });
   },
   error(msg: string, opts: Omit<ToastOpts, "undo" | "undoLabel"> = {}) {
     set({ tone: "rose", icon: "alert", ...opts, msg, id: ++nextId, kind: "error", ms: 4200 });
@@ -117,7 +126,7 @@ export function ToastHost() {
         {shown.undo ? (
           <Pressable
             accessibilityRole="button"
-            onPress={() => { const u = shown.undo; toast.dismiss(); u?.(); }}
+            onPress={() => { const u = shown.undo; shown.undone = true; toast.dismiss(); u?.(); }}
             hitSlop={8}
             style={[styles.undo, { backgroundColor: c.pastel[tone].fill }]}
           >

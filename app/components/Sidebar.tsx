@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { WorkflowId } from "@/lib/org-types";
-import { NAV_GROUPS, NAV_LABELS, applyNavOrder } from "@/lib/nav-order";
+import { NAV_GROUPS, NAV_LABELS, NAV_WORKFLOW_MAP, applyNavOrder, isNavVisible } from "@/lib/nav-order";
 import { useOrgPath } from "../hooks/useOrgPath";
 import { orgFetch, requestJson } from "../lib/api";
 import { useChapter } from "../context/ChapterContext";
@@ -37,28 +37,9 @@ export const NAV_DISPLAY_NAMES: Record<string, string> = {
 };
 export const navDisplayName = (label: string) => NAV_DISPLAY_NAMES[label] ?? label;
 
-// Which workflow each nav surface belongs to. A label maps to `null` when it is
-// ALWAYS shown regardless of the org's enabled workflows:
-//   - Dashboard / Timeline: every org's home + planning surfaces (product rule).
-// All other labels are hidden when their workflow isn't in the org's
-// enabledWorkflows. Chapter is now the toggleable "meetings" workflow, so an org
-// that doesn't hold formal meetings can hide it. The onboarding page picker
-// imports this map so the toggles it shows are exactly the surfaces this filter
-// can hide — one source of truth.
-export const NAV_WORKFLOW_MAP: Record<string, WorkflowId | null> = {
-  Dashboard:   null,
-  Timeline:    null,
-  Chapter:     "meetings",
-  Tasks:       "tasks",
-  Brotherhood: "members",
-  Docs:        "docs",
-  Instagram:   "communications",
-  Treasury:    "finance",
-  Service:     "service",
-  Programming: "events",
-  Parties:     "parties",
-  Fundraisers: "fundraisers",
-};
+// NAV_WORKFLOW_MAP + isNavVisible live in lib/nav-order.ts (server-safe; GET /api/dashboard
+// gates its cards with them too). Re-exported here, where pages import them from.
+export { NAV_WORKFLOW_MAP, isNavVisible };
 
 // One-line description of each hideable surface, keyed by nav label. Shown next
 // to the toggle in both the post-creation page picker (/[slug]/onboarding) and
@@ -77,14 +58,6 @@ export const NAV_DESCRIPTIONS: Record<string, string> = {
   Docs:        "Pinned links and shared documents.",
   Fundraisers: "Bake sales and car washes: a shopping list, one wrap-up total, and what each one made.",
 };
-
-/** Returns true when a nav label should render for an org with these workflows.
- *  Always-on labels (map value null) are visible unconditionally. */
-export function isNavVisible(label: string, enabledWorkflows: readonly string[]): boolean {
-  const wf = NAV_WORKFLOW_MAP[label];
-  if (wf == null) return true;
-  return enabledWorkflows.includes(wf);
-}
 
 // ─── SvgIcon ──────────────────────────────────────────────────────────────────
 

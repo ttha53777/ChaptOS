@@ -20,7 +20,7 @@
 import type { BottomTabBarProps } from "expo-router/js-tabs";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
 import { localDay } from "~/data/home";
 import { useTasks } from "~/data/tasks";
 import { useEntryOf } from "~/entry/EntryContext";
@@ -47,7 +47,15 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
 
   const today = localDay();
   const overdue = me ? overdueMine(me, tasks.data, viewer, today) : 0;
+  // Join requests waiting (server-zeroed without MANAGE_BROTHERS), as the web sidebar badges it.
+  const joins = me?.org?.pendingJoinRequestCount ?? 0;
   const routes = state.routes.filter(r => r.name !== "members" || showsMembers(me));
+  // Which tab is inked, on the UI thread. A press sets it before navigating, so the tile
+  // pops on the tap itself instead of after the next tab's screen has rendered; the
+  // navigator's state then confirms it (or moves it, for programmatic navigation).
+  const focusedKey = state.routes[state.index]?.key ?? "";
+  const active = useSharedValue(focusedKey);
+  useEffect(() => { active.value = focusedKey; }, [focusedKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const labelOf = (name: string, fallback: string) =>
     name === "members" && me ? navLabel(me, "Brotherhood") : fallback;
 
@@ -57,12 +65,18 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
     const label = labelOf(route.name, title);
     const onPress = () => {
       const ev = emitter.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
-      if (!focused && !ev.defaultPrevented) navigateToTab(route.key);
+      if (!focused && !ev.defaultPrevented) {
+        active.value = route.key;
+        navigateToTab(route.key);
+      }
     };
-    const badge = route.name === "more" && overdue > 0 ? overdue : 0;
+    const badge = route.name === "more" ? overdue : route.name === "members" ? joins : 0;
+    const badgeLabel = !badge ? undefined
+      : route.name === "members" ? `${badge} join ${badge === 1 ? "request" : "requests"}`
+      : `${badge} overdue ${badge === 1 ? "task" : "tasks"}`;
     return (
-      <Tab key={route.key} label={label} icon={TAB_ICONS[route.name] ?? "star"} focused={focused} onPress={onPress}
-        badge={badge} badgeLabel={badge ? `${badge} overdue ${badge === 1 ? "task" : "tasks"}` : undefined}
+      <Tab key={route.key} tabKey={route.key} active={active} label={label} icon={TAB_ICONS[route.name] ?? "star"} focused={focused} onPress={onPress}
+        badge={badge} badgeLabel={badgeLabel}
         position={`${i + 1} of ${routes.length}`} />
     );
   });
@@ -84,7 +98,8 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
 
 /* ── a tab ────────────────────────────────────────────────────────────────────── */
 
-export function Tab({ label, icon, focused, badge, badgeLabel, onPress, position }: {
+export function Tab({ tabKey, active, label, icon, focused, badge, badgeLabel, onPress, position }: {
+  tabKey: string; active: SharedValue<string>;
   label: string; icon: IconName; focused: boolean; badge: number; badgeLabel?: string; onPress: () => void; position: string;
 }) {
   const { c } = useTheme();
@@ -93,16 +108,22 @@ export function Tab({ label, icon, focused, badge, badgeLabel, onPress, position
   const on = useSharedValue(focused ? 1 : 0);
   const press = useSharedValue(0);
 
-  useEffect(() => {
-    if (m.reduced) on.value = withTiming(focused ? 1 : 0, m.timing(180, "out"));
-    else on.value = focused ? withSpring(1, m.spring("pop")) : withTiming(0, m.timing(140, "out"));
-  }, [focused, m]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Configs built on the JS side (worklets can't call m.timing()); plain values only.
+  const reduced = m.reduced;
+  const cfg = useMemo(() => ({
+    fadeIn: m.timing(180, "out"), pop: m.spring("pop"), off: m.timing(140, "out"),
+  }), [m]);
+  useAnimatedReaction(() => active.value === tabKey, (isOn, was) => {
+    if (isOn === was) return;
+    if (reduced) on.value = withTiming(isOn ? 1 : 0, cfg.fadeIn);
+    else on.value = isOn ? withSpring(1, cfg.pop) : withTiming(0, cfg.off);
+  }, [tabKey, reduced, cfg]);
 
   const tile = useAnimatedStyle(() => ({
     opacity: Math.min(1, on.value),
     transform: [
       { translateX: press.value }, { translateY: press.value },
-      { scale: m.reduced ? 1 : 0.72 + 0.28 * on.value },
+      { scale: reduced ? 1 : 0.72 + 0.28 * on.value },
     ],
   }));
   const glyph = useAnimatedStyle(() => ({ transform: [{ translateX: press.value }, { translateY: press.value }] }));
@@ -150,13 +171,14 @@ export function CreateButton({ open, onPress }: { open: boolean; onPress: () => 
     turn.value = m.reduced ? withTiming(open ? 1 : 0, m.timing(160, "out")) : withSpring(open ? 1 : 0, m.spring("settle"));
   }, [open, m]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const reduced = m.reduced;
   const face = useAnimatedStyle(() => ({
-    transform: [{ translateX: m.reduced ? 0 : 1.5 * press.value }, { translateY: m.reduced ? 0 : 1.5 * press.value }],
+    transform: [{ translateX: reduced ? 0 : 1.5 * press.value }, { translateY: reduced ? 0 : 1.5 * press.value }],
   }));
-  const plus = useAnimatedStyle(() => (m.reduced
+  const plus = useAnimatedStyle(() => (reduced
     ? { opacity: 1 - turn.value }
     : { transform: [{ rotate: `${135 * turn.value}deg` }] }));
-  const cross = useAnimatedStyle(() => ({ opacity: m.reduced ? turn.value : 0 }));
+  const cross = useAnimatedStyle(() => ({ opacity: reduced ? turn.value : 0 }));
 
   return (
     <Pressable

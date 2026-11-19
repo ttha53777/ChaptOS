@@ -35,7 +35,7 @@ export function isAgendaField(key: string): key is AgendaField {
 
 /** Every {{key}} in the body, in first-seen order, known or not. */
 function fieldKeys(body: string): string[] {
-  return [...new Set([...body.matchAll(fieldRe())].map(m => m[1]))];
+  return [...new Set([...body.matchAll(fieldRe())].map(m => m[1]!))];
 }
 
 /** The known fields a body leaves blank — what "Fills in by itself" lists. */
@@ -60,18 +60,18 @@ const BULLET = /^([-*•])[ \t]+(.*)$/;
 /** A heading line's text and the length of its `#` marker, else null. */
 export function headingOf(line: string): { text: string; marker: number } | null {
   const m = HEADING.exec(line);
-  return m ? { text: m[2].trim(), marker: line.length - line.trimStart().length + m[1].length } : null;
+  return m ? { text: m[2]!.trim(), marker: line.length - line.trimStart().length + m[1]!.length } : null;
 }
 /** A checklist line: its box (`[ ]`, `- [x]`…), whether it's ticked, and its text. */
 export function checkOf(line: string): { box: string; done: boolean; text: string } | null {
   const m = CHECK.exec(line);
-  return m ? { box: m[1], done: m[2] !== " ", text: m[3] } : null;
+  return m ? { box: m[1]!, done: m[2] !== " ", text: m[3]! } : null;
 }
 /** A bullet line's marker and text. Checklists aren't bullets. */
 export function bulletOf(line: string): { marker: string; text: string } | null {
   if (checkOf(line)) return null;
   const m = BULLET.exec(line);
-  return m ? { marker: m[1], text: m[2] } : null;
+  return m ? { marker: m[1]!, text: m[2]! } : null;
 }
 
 /** The section headings, in order. */
@@ -111,14 +111,14 @@ const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct
 export function formatAgendaDate(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!m) return "";
-  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  const d = new Date(Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!));
   return `${DOW[d.getUTCDay()]}, ${MON[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }
 
 function clock(hhmm: string): { text: string; half: "AM" | "PM" } | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
   if (!m) return null;
-  const h = +m[1];
+  const h = +m[1]!;
   return { text: `${h % 12 || 12}:${m[2]}`, half: h < 12 ? "AM" : "PM" };
 }
 

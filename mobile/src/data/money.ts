@@ -151,3 +151,10 @@ export function putReimbursement(r: Reimbursement) {
     return list?.some(x => x.id === r.id) ? (list ?? []).map(x => (x.id === r.id ? r : x)) : [r, ...rest];
   });
 }
+
+/** An officer's call on a pending request (PATCH /api/reimbursements/[id]; MANAGE_TREASURY). Approving records the expense. */
+export async function reviewReimbursement(id: number, status: "approved" | "rejected"): Promise<Reimbursement> {
+  const r = await api<Reimbursement>(`/api/reimbursements/${id}`, { method: "PATCH", body: { status }, org: activeOrg.get().slug });
+  putReimbursement(r);
+  return r;
+}

@@ -5,6 +5,7 @@
  */
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
+import { DEV_WEB } from "./dev-web";
 import { signInWithGoogleInBrowser, redirectUrl, type SignInResult } from "./dev-google";
 import { supabase } from "./supabase";
 
@@ -19,8 +20,9 @@ function toState(session: Session | null): AuthState {
 
 /** The session as React state: loading until the keychain has been read. */
 export function useAuth(): AuthState {
-  const [state, setState] = useState<AuthState>({ status: "loading" });
+  const [state, setState] = useState<AuthState>(DEV_WEB ? { status: "signedIn", userId: "dev-web", email: null } : { status: "loading" });
   useEffect(() => {
+    if (DEV_WEB) return; // the preview's cookie is the session (./dev-web.ts)
     let live = true;
     supabase.auth.getSession().then(({ data }) => { if (live) setState(toState(data.session)); });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => setState(toState(session)));
@@ -40,12 +42,14 @@ export async function signOut(): Promise<void> {
 
 /** The current access token (refreshed by supabase-js when near expiry), or null. */
 export async function getAccessToken(): Promise<string | null> {
+  if (DEV_WEB) return null;
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
 }
 
 /** Force a refresh after the server said 401. Null when the refresh token is dead too. */
 export async function refreshAccessToken(): Promise<string | null> {
+  if (DEV_WEB) return null;
   const { data, error } = await supabase.auth.refreshSession();
   if (error) return null;
   return data.session?.access_token ?? null;

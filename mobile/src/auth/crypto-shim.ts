@@ -30,4 +30,6 @@ if (!target.subtle?.digest) {
   target.subtle = { ...(target.subtle ?? {}), digest };
 }
 
-g.crypto = target;
+// A browser's `crypto` is a getter-only global (assigning it throws); its methods were
+// patched in place above if they were missing, which they aren't on the web.
+if (!g.crypto) g.crypto = target;

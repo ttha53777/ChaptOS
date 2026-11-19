@@ -9,13 +9,20 @@
  *   yours       on your own card: Change photo (take / pick / remove, the print develops
  *               while it uploads) and Your name here (this chapter's name for you)
  *
- * Read-only for everyone else: officers edit people on the web.
+ *   officers    MANAGE_BROTHERS: GPA and service hours, one value at a time (the web card's
+ *               rule), PATCH /api/brothers/[id], with Undo. Roles, dues and excuses stay
+ *               on the web
+ *   attendance  on your own card the Attendance tile opens Yours > Attendance
+ *
+ * Peers see the web's note: "Standing, GPA and dues are only visible to officers and to X."
  */
 import type { Brother, MeResponse } from "@/lib/api-types";
 import { useEffect, useState } from "react";
-import { Image, Linking, StyleSheet, TextInput, View } from "react-native";
+import { Image, Linking, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { errorMessage } from "~/api/errors";
-import { patchMe, refreshRoster, renameMe, useMemberProfile } from "~/data/members";
+import { patchMe, refreshRoster, renameMe, updateMember, useMemberProfile } from "~/data/members";
+import { router } from "expo-router";
+import { Field } from "~/ui/Field";
 import { Icon } from "~/icons/Icon";
 import { DevelopingPrint } from "~/moments/Develop";
 import { haptics } from "~/motion/haptics";
@@ -49,7 +56,9 @@ function Body({ member: b, me, roster }: { member: Brother; me: MeResponse; rost
   const photo = useMyPhoto(me.id);
   const [pickOpen, setPickOpen] = useState(false);
   const [nameOpen, setNameOpen] = useState(false);
+  const [editing, setEditing] = useState<EditKey | null>(null);
   const org = me.org;
+  const officer = !self && (me.isAdmin || (me.permissions & 1) !== 0);
   const full = seesStanding(me, b.id) && org != null;
   const tracked = trackedOf(org?.disabledFeatures);
   const measured = measuredOf(tracked, roster);
@@ -111,9 +120,19 @@ function Body({ member: b, me, roster }: { member: Brother; me: MeResponse; rost
             <T v="body" color={LEVEL_TONE[verdict.level] ? c.pastel[LEVEL_TONE[verdict.level]!].ink : c.ink2} style={{ fontStyle: "italic", fontWeight: "700" }}>{verdict.em}</T>
             {verdict.tail}
           </T>
-          {stats.length ? <View style={styles.stats}>{stats.map(s => <StatTile key={s.key} s={s} />)}</View> : null}
+          {stats.length ? (
+            <View style={styles.stats}>
+              {stats.map(s => (
+                <StatTile key={s.key} s={s}
+                  onPress={self && s.key === "attendance" ? () => router.push("/more/attendance") : officer && (s.key === "gpa" || s.key === "serviceHours") ? () => setEditing(s.key as EditKey) : undefined}
+                  action={self && s.key === "attendance" ? "Your attendance →" : officer && (s.key === "gpa" || s.key === "serviceHours") ? "Edit" : undefined} />
+              ))}
+            </View>
+          ) : null}
         </View>
-      ) : null}
+      ) : (
+        <T v="meta" color={c.ink3}>{`Standing, GPA and ${vocab(me, "Dues").toLowerCase()} are only visible to officers and to ${b.name.split(" ")[0]}.`}</T>
+      )}
 
       {/* about */}
       <View style={{ gap: 10 }}>
@@ -141,6 +160,8 @@ function Body({ member: b, me, roster }: { member: Brother; me: MeResponse; rost
         </View>
       </View>
 
+      {officer ? <EditSheet member={b} field={editing} serviceWord={vocab(me, "Service")} onClose={() => setEditing(null)} /> : null}
+
       {self ? (
         <>
           <PhotoSheet open={pickOpen} hasCustom={me.hasCustomAvatar} onClose={() => setPickOpen(false)}
@@ -153,16 +174,62 @@ function Body({ member: b, me, roster }: { member: Brother; me: MeResponse; rost
   );
 }
 
-function StatTile({ s }: { s: Stat }) {
+function StatTile({ s, onPress, action }: { s: Stat; onPress?: () => void; action?: string }) {
   const { c } = useTheme();
   const tone = LEVEL_TONE[s.level];
   return (
-    <View style={[styles.stat, { borderColor: tone ? c.pastel[tone].border : c.line, backgroundColor: tone ? c.pastel[tone].soft : c.card }]}
-      accessible accessibilityLabel={`${s.label}: ${s.value}, ${s.caption}`}>
-      <T v="label" color={c.ink3} style={{ fontSize: 9.5 }}>{s.label}</T>
+    <Pressable onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={`${s.label}: ${s.value}, ${s.caption}${action ? `. ${action.replace(" →", "")}` : ""}`}
+      style={({ pressed }) => [styles.stat, { borderColor: tone ? c.pastel[tone].border : c.line, backgroundColor: tone ? c.pastel[tone].soft : c.card }, pressed && { opacity: 0.8 }]}>
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <T v="label" color={c.ink3} style={{ fontSize: 9.5, flex: 1 }}>{s.label}</T>
+        {action === "Edit" ? <Icon name="pencil" size={12} color={c.ink3} /> : null}
+      </View>
       <T v="title" color={tone ? c.pastel[tone].ink : c.ink3} style={{ fontSize: 22 }}>{s.value}</T>
       <T v="meta" color={c.ink3}>{s.caption}</T>
-    </View>
+      {action && action !== "Edit" ? <T v="meta" color={c.ink} style={{ fontWeight: "600", marginTop: 2 }}>{action}</T> : null}
+    </Pressable>
+  );
+}
+
+/* ── officer edits: one value at a time ───────────────────────────────────────── */
+
+type EditKey = "gpa" | "serviceHours";
+
+function EditSheet({ member: b, field, serviceWord, onClose }: { member: Brother; field: EditKey | null; serviceWord: string; onClose: () => void }) {
+  const [draft, setDraft] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (field) { setDraft(field === "gpa" ? b.gpa.toFixed(2) : String(b.serviceHours)); setErr(null); setBusy(false); } }, [field, b.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const label = field === "gpa" ? "GPA" : `${serviceWord} hours`;
+  const save = async () => {
+    if (!field) return;
+    const n = Number(draft.trim());
+    if (!draft.trim() || !Number.isFinite(n) || n < 0) { setErr(field === "gpa" ? "Enter a GPA like 3.40." : "Enter hours like 12 or 7.5."); return; }
+    if (field === "gpa" && n > 5) { setErr("GPA tops out at 5.00."); return; }
+    const before = b[field];
+    if (n === before) { onClose(); return; }
+    setBusy(true); setErr(null);
+    try {
+      await updateMember(b.id, { [field]: n });
+      haptics.success();
+      void refreshRoster();
+      onClose();
+      toast.show(`${label} saved`, {
+        detail: `${b.name}: ${field === "gpa" ? n.toFixed(2) : `${n}h`}`,
+        undo: () => { void updateMember(b.id, { [field]: before }).then(() => refreshRoster(), e => toast.error("Couldn't undo", { detail: errorMessage(e) })); },
+      });
+    } catch (e) {
+      haptics.error();
+      setErr(errorMessage(e, "Couldn't save. Your edit is still here — try again."));
+    } finally { setBusy(false); }
+  };
+  return (
+    <Sheet open={field != null} onClose={() => (busy ? undefined : onClose())} size="fit" title={label} kicker={b.name} tone="lilac" icon="pencil"
+      footer={<Button label={busy ? "Saving…" : "Save"} icon="check" block disabled={busy} onPress={save} style={{ flex: 1 }} />}>
+      <Field label={label} value={draft} onChangeText={t => { setDraft(t); if (err) setErr(null); }} autoFocus
+        keyboardType="decimal-pad" inputMode="decimal" returnKeyType="done" onSubmitEditing={save} error={err} />
+    </Sheet>
   );
 }
 

@@ -15,6 +15,7 @@ import { SectionError } from "./ledger/SectionError";
 import { useToast } from "./Toast";
 import type { JoinRequestRow } from "./JoinRequestsPanel";
 import "./members-card.css";
+import { BAND_OF, reasonFor, ruleLine, standingCounts, type Band } from "@/lib/dashboard/standing";
 
 /**
  * The dashboard's Members card (_design/Dashboard Universal Paper Mock.html).
@@ -30,8 +31,10 @@ import "./members-card.css";
  * on /brothers, which the header links to.
  */
 
-type Band = "good" | "watch" | "risk";
-const BAND_OF: Record<BrotherStatus, Band> = { "Good": "good", "Watch": "watch", "At Risk": "risk" };
+// standingCounts lives in lib/dashboard/standing.ts now (GET /api/dashboard uses it too).
+export { standingCounts };
+
+const ALL_TRACKED_KEYS = Object.keys(ALL_TRACKED) as BuiltinMetricId[];
 const BANDS: { k: Band; label: string; tone: "mint" | "butter" | "peach" }[] = [
   { k: "good",  label: "Good",    tone: "mint" },
   { k: "watch", label: "Watch",   tone: "butter" },
@@ -46,17 +49,6 @@ const MAX_REQUESTS = 3;
 /** Empty seats beside the founder on day one. */
 const DAY_ONE_SEATS = 7;
 
-const ALL_TRACKED_KEYS = Object.keys(ALL_TRACKED) as BuiltinMetricId[];
-
-/** How many members sit in each standing band, or null while no tracked metric
- *  can decide a standing yet (the card then shows no bands either). */
-export function standingCounts(brothers: Brother[], thresholds: Thresholds, standing: TrackedMetrics): Record<Band, number> | null {
-  if (!ALL_TRACKED_KEYS.some(k => standing[k])) return null;
-  const c: Record<Band, number> = { good: 0, watch: 0, risk: 0 };
-  for (const b of brothers) c[BAND_OF[getBrotherStatus(b, thresholds, standing)]]++;
-  return c;
-}
-
 const TONES = ["sky", "lilac", "mint", "butter", "peach", "rose"] as const;
 /** A stable pastel per name, as the mock's toneOf. */
 function toneOf(name: string): (typeof TONES)[number] {
@@ -67,37 +59,6 @@ function toneOf(name: string): (typeof TONES)[number] {
 
 function initials(name: string): string {
   return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]!.toUpperCase()).join("");
-}
-
-/**
- * Why this member sits in their band, in the same order getBrotherStatus
- * checks — so the reason shown is the one that actually put them there.
- */
-function reasonFor(b: Brother, band: Band, t: Thresholds, m: TrackedMetrics, serviceWord: string): string {
-  const att = m.attendance && !isAttendanceExempt(b.attendance);
-  if (band === "risk") {
-    if (att && b.attendance < t.attendanceAtRisk) return `${b.attendance}% attendance`;
-    if (m.gpa && b.gpa < t.gpaAtRisk) return `GPA ${b.gpa.toFixed(2)}`;
-  }
-  if (band === "watch") {
-    if (att && b.attendance < t.attendanceWatch) return `${b.attendance}% attendance`;
-    if (m.gpa && b.gpa < t.gpaWatch) return `GPA ${b.gpa.toFixed(2)}`;
-    if (m.duesOwed && b.duesOwed > 0) return `owes ${fmt$(b.duesOwed)}`;
-    if (m.serviceHours && b.serviceHours < t.serviceHoursGoal) return `${b.serviceHours}h of ${serviceWord.toLowerCase()}`;
-  }
-  return "on track";
-}
-
-/** "under 80% attendance, dues owed or GPA under 3.0" — only the measures this org records. */
-function ruleLine(t: Thresholds, m: TrackedMetrics, serviceWord: string, duesWord: string): string {
-  const parts = [
-    m.attendance && `under ${t.attendanceWatch}% attendance`,
-    m.duesOwed && `${duesWord.toLowerCase()} owed`,
-    m.gpa && `GPA under ${t.gpaWatch.toFixed(1)}`,
-    m.serviceHours && `${serviceWord.toLowerCase()} under ${t.serviceHoursGoal}h`,
-  ].filter(Boolean) as string[];
-  if (parts.length < 2) return parts.join("");
-  return `${parts.slice(0, -1).join(", ")} or ${parts[parts.length - 1]}`;
 }
 
 function sameMonth(iso: string | undefined, now: Date): boolean {

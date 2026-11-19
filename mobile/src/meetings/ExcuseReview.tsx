@@ -44,10 +44,47 @@ export function ExcuseReview({ open, eventId, onClose }: { open: boolean; eventI
           </View>
         ) : (
           <View style={{ gap: 12 }}>
+            {list.length > 1 ? <Bulk list={list} /> : null}
             {list.map(x => <Slip key={x.id} x={x} />)}
           </View>
         )}
     </Sheet>
+  );
+}
+
+/**
+ * "Reviewed each one? Approve all N" (the web's approveAll): every one PATCHed at once;
+ * the ones that went through leave together, and a partial failure re-reads the queue.
+ * One success haptic on the result (or error when any failed).
+ */
+function Bulk({ list }: { list: ExcuseListItem[] }) {
+  const { c } = useTheme();
+  const [busy, setBusy] = useState(false);
+  const go = async () => {
+    if (busy) return;
+    setBusy(true);
+    const targets = [...list];
+    const results = await Promise.allSettled(targets.map(t => decideExcuse(t.id, "approve").then(() => t)));
+    const ok = results.flatMap(r => (r.status === "fulfilled" ? [r.value] : []));
+    const okIds = new Set(ok.map(t => t.id));
+    setPending(l => l.filter(y => !okIds.has(y.id)));
+    for (const id of new Set(ok.map(t => t.calendarEventId))) void refreshAttendance(id);
+    const failed = targets.length - ok.length;
+    if (failed > 0) {
+      void refreshPending();
+      haptics.error();
+      toast.error(`${failed} couldn't be approved`, { detail: "They're still waiting." });
+    } else {
+      haptics.success();
+      toast.show(`${ok.length} excuses approved`);
+    }
+    setBusy(false);
+  };
+  return (
+    <View style={[styles.bulk, { borderColor: c.line2 }]}>
+      <T v="meta" color={c.ink3} style={{ flex: 1 }}>Reviewed each one?</T>
+      <Button label={busy ? "Approving…" : `Approve all ${list.length}`} size="sm" tone="mint" icon="check" onPress={() => void go()} disabled={busy} />
+    </View>
   );
 }
 
@@ -129,6 +166,7 @@ function Slip({ x }: { x: ExcuseListItem }) {
 }
 
 const styles = StyleSheet.create({
+  bulk: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5, borderStyle: "dashed" },
   slip: { gap: 6, paddingVertical: 13, paddingRight: 14, paddingLeft: 30, borderWidth: 1.5, borderTopLeftRadius: 6, borderTopRightRadius: 14, borderBottomRightRadius: 8, borderBottomLeftRadius: 12 },
   margin: { position: "absolute", left: 20, top: 0, bottom: 0, width: 1.5 },
   top: { flexDirection: "row", alignItems: "center", gap: 8 },

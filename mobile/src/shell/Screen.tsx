@@ -34,8 +34,11 @@ import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { T } from "~/ui/T";
 import { useChrome } from "./chrome";
 import { OrgStamp } from "./OrgStamp";
+import { WebToolbar } from "~/web/Toolbar";
 
 export const BAR_H = 46;
+/** The web's phone toolbar (`header.dash-toolbar`, h-14). */
+export const TOOLBAR_H = 56;
 const PULL = 72; // pt of overscroll that completes the pencil mark (≈ where iOS triggers)
 
 export interface ScreenProps {
@@ -69,13 +72,27 @@ export interface ScreenProps {
   holdPosition?: boolean;
   /** Drawn over the scroll, outside it (floating controls). */
   overlay?: ReactNode;
+  /** The web's phone toolbar instead of the condensing title: the org's tile (opens the
+   *  chapter switcher), a small caps kicker over a display title, and `right`. The page
+   *  draws its own heading in the content, as the web page does. */
+  toolbar?: { kicker?: string; title: string };
 }
 
-export function Screen({ title, large, subtitle, back, onBack, org, right, onRefresh, bare, footer, children, statusBar, sticky, scrollY, scrollRef, holdPosition, overlay }: ScreenProps) {
+/**
+ * The page's status bar, dropped while a sheet has the canvas scaled back (the root then
+ * holds it light). Its own component so a sheet opening re-renders this, not the page:
+ * every mounted page (all four tabs and their stacks) reads it.
+ */
+function ScreenStatusBar({ style }: { style: "light" | "dark" }) {
+  const { stacked } = useChrome();
+  return stacked ? null : <StatusBar style={style} />;
+}
+
+export function Screen({ title, large: largeProp, subtitle, back, onBack, org, right, onRefresh, bare, footer, children, statusBar, sticky, scrollY, scrollRef, holdPosition, overlay, toolbar }: ScreenProps) {
+  const large = largeProp && !toolbar;
   const { c, dark } = useTheme();
   const m = useMotion();
   const insets = useSafeAreaInsets();
-  const { stacked } = useChrome();
   const y = useSharedValue(0);
   const ownRef = useRef<ScrollView>(null);
   const ref = (scrollRef ?? ownRef) as RefObject<unknown>;
@@ -121,7 +138,7 @@ export function Screen({ title, large, subtitle, back, onBack, org, right, onRef
   const ios = Platform.OS === "ios";
   const goBack = onBack ?? (() => (router.canGoBack() ? router.back() : undefined));
 
-  const top = insets.top + BAR_H;
+  const top = insets.top + (toolbar ? TOOLBAR_H : BAR_H);
   const stuck = !!sticky?.length;
   // Children indices → content indices: the hero, when there is one, is child 0.
   const stickyHeaderIndices = stuck ? sticky!.map(i => i + (large ? 1 : 0)) : undefined;
@@ -129,8 +146,8 @@ export function Screen({ title, large, subtitle, back, onBack, org, right, onRef
     ref: ref as never,
     onScroll,
     scrollEventThrottle: 16,
-    contentContainerStyle: [styles.body, { paddingTop: stuck ? (large ? 4 : 8) : top + (large ? 4 : 8) }],
-    scrollIndicatorInsets: { top: stuck ? 0 : BAR_H },
+    contentContainerStyle: [styles.body, toolbar && styles.webBody, { paddingTop: stuck ? (large ? 4 : 8) : top + (toolbar ? 16 : large ? 4 : 8) }],
+    scrollIndicatorInsets: { top: stuck ? 0 : top - insets.top },
     keyboardShouldPersistTaps: "handled" as const,
     stickyHeaderIndices,
     maintainVisibleContentPosition: holdPosition ? { minIndexForVisible: 0 } : undefined,
@@ -149,7 +166,7 @@ export function Screen({ title, large, subtitle, back, onBack, org, right, onRef
 
   return (
     <View style={[styles.page, { backgroundColor: c.paper }]}>
-      {!stacked && <StatusBar style={statusBar ?? (dark ? "light" : "dark")} />}
+      <ScreenStatusBar style={statusBar ?? (dark ? "light" : "dark")} />
       {refresh && ios ? <PencilMark y={y} top={top} refreshing={refreshing} /> : null}
 
       <Animated.View style={[{ flex: 1 }, contentFade]}>
@@ -169,6 +186,12 @@ export function Screen({ title, large, subtitle, back, onBack, org, right, onRef
       </Animated.View>
 
       {/* the bar, over the scroll */}
+      {toolbar ? (
+        <View style={[styles.bar, styles.toolbar, { paddingTop: insets.top, height: top, backgroundColor: c.paper, borderBottomColor: c.line }]}>
+          <WebToolbar kicker={toolbar.kicker} title={toolbar.title} back={back} onBack={goBack} />
+          {right ? <View style={styles.tbRight}>{right}</View> : null}
+        </View>
+      ) : (
       <View style={[styles.bar, { paddingTop: insets.top, height: top, backgroundColor: c.paper }]}>
         <Animated.View style={[styles.rule, { backgroundColor: c.line }, rule]} />
         <View style={styles.barSide}>
@@ -187,6 +210,7 @@ export function Screen({ title, large, subtitle, back, onBack, org, right, onRef
           {org ? <OrgStamp /> : null}
         </View>
       </View>
+      )}
 
       {overlay}
       {footer ? <View style={[styles.footer, { borderTopColor: c.line, backgroundColor: c.paper }]}>{footer}</View> : null}
@@ -250,6 +274,10 @@ const styles = StyleSheet.create({
   barRight: { justifyContent: "flex-end", gap: 8 },
   barTitle: { maxWidth: "56%", alignItems: "center" },
   back: { flexDirection: "row", alignItems: "center", gap: 2, paddingVertical: 6, paddingRight: 4, maxWidth: "100%" },
+  // web .dash { padding: 16px }
+  webBody: { paddingHorizontal: 16, gap: 14 },
+  toolbar: { borderBottomWidth: 1.5, paddingHorizontal: 16, gap: 12 },
+  tbRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   footer: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 12, borderTopWidth: 1.5 },
   pencil: { position: "absolute", left: 0, right: 0, alignItems: "center", zIndex: 0 },
   pencilTip: { position: "absolute", left: "50%", marginLeft: -MARK_W / 2, top: -6 },

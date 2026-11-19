@@ -3,14 +3,17 @@
  * sheet. Press = face dips to .985 (transform), no haptic (navigation).
  */
 import { Pressable, StyleSheet, View } from "react-native";
+import type { ReactNode } from "react";
 import { Icon, type IconName } from "~/icons/Icon";
 import { Tile } from "~/paper/bits";
 import type { Tone } from "~/theme/palette";
 import { useTheme } from "~/theme/PaperProvider";
 import { T } from "./T";
 
-export function NavRow({ icon, tone = "sky", title, meta, onPress, danger, last }: {
-  icon: IconName; tone?: Tone; title: string; meta?: string; onPress: () => void; danger?: boolean; last?: boolean;
+export function NavRow({ icon, tone = "sky", title, meta, onPress, danger, last, leading }: {
+  icon?: IconName; tone?: Tone; title: string; meta?: string; onPress: () => void; danger?: boolean; last?: boolean;
+  /** Replaces the tile (an avatar). */
+  leading?: ReactNode;
 }) {
   const { c } = useTheme();
   return (
@@ -20,7 +23,7 @@ export function NavRow({ icon, tone = "sky", title, meta, onPress, danger, last 
       accessibilityLabel={meta ? `${title}. ${meta}` : title}
       style={({ pressed }) => [styles.row, !last && { borderBottomWidth: 1, borderBottomColor: c.line }, pressed && { backgroundColor: c.paper2 }]}
     >
-      <Tile icon={icon} tone={danger ? "rose" : tone} size={34} />
+      {leading ?? (icon ? <Tile icon={icon} tone={danger ? "rose" : tone} size={34} /> : null)}
       <View style={{ flex: 1, minWidth: 0 }}>
         <T v="callout" color={danger ? c.danger : c.ink} numberOfLines={1}>{title}</T>
         {meta ? <T v="meta" color={c.ink3} numberOfLines={1}>{meta}</T> : null}

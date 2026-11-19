@@ -47,7 +47,7 @@ export function OrgStamp() {
 
 const SIZE = 34;
 
-export function StampFace({ org, size = SIZE }: { org: Org; size?: number }) {
+export function StampFace({ org, size = SIZE, tilt = -4 }: { org: Org; size?: number; tilt?: number }) {
   const { c } = useTheme();
   const m = useMotion();
   const [shown, setShown] = useState(org);
@@ -73,7 +73,7 @@ export function StampFace({ org, size = SIZE }: { org: Org; size?: number }) {
 
   const style = useAnimatedStyle(() => ({
     opacity: op.value,
-    transform: [{ perspective: 400 }, { rotateY: `${flip.value * 90}deg` }, { rotate: "-4deg" }],
+    transform: [{ perspective: 400 }, { rotateY: `${flip.value * 90}deg` }, { rotate: `${tilt}deg` }],
   }));
 
   return (

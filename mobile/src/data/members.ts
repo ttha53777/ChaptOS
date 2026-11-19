@@ -10,8 +10,10 @@
  * The photo is cropped square by the picker and shrunk here to 512px JPEG so it's always
  * far under the 2 MB limit, whatever the camera shot.
  */
-import type { AvatarResponse, Brother, MeResponse, MemberProfile, MemberUpdated } from "@/lib/api-types";
+import type { AvatarResponse, Brother, DuesBoard, JoinRequestApproved, JoinRequestPage, MeResponse, MemberProfile, MemberUpdated, Transaction } from "@/lib/api-types";
 import type { updateBrotherInput } from "@/lib/validation/brother";
+import type { approveJoinRequestInput } from "@/lib/validation/join-request";
+import type { createTransactionInput } from "@/lib/validation/transaction";
 import { useQuery } from "@tanstack/react-query";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import type { z } from "zod";
@@ -85,3 +87,58 @@ export function patchMe(meId: number, patch: { name?: string; avatarUrl?: string
 
 export const refreshRoster = () => queryClient.invalidateQueries({ queryKey: taskKeys.roster(slugNow()) });
 export const refreshMe = () => queryClient.invalidateQueries({ queryKey: keys.me(slugNow()) });
+
+/* ── Members page (Phase 4): officer edits, dues lateness, join requests, payments ── */
+
+/** An officer's edit (MANAGE_BROTHERS) or your own: one field at a time, as the web card saves. */
+export function updateMember(id: number, patch: Pick<UpdateBody, "name" | "gpa" | "serviceHours">): Promise<MemberUpdated> {
+  const body: UpdateBody = patch;
+  return api<MemberUpdated>(`/api/brothers/${id}`, { method: "PATCH", body });
+}
+
+/** GET /api/dues: each member's standing, for "11d late" on the roster. Readable by everyone. */
+export function useDuesBoard(enabled: boolean) {
+  const { slug } = useActiveOrg();
+  return useQuery({
+    queryKey: ["dues-board", slug] as const,
+    queryFn: () => api<DuesBoard>("/api/dues", { org: slug }),
+    enabled,
+  });
+}
+export const refreshDuesBoard = () => queryClient.invalidateQueries({ queryKey: ["dues-board", slugNow()] });
+
+/** GET /api/join-requests?page=1 (MANAGE_BROTHERS): the first page of the queue. */
+export function useJoinRequests(enabled: boolean) {
+  const { slug } = useActiveOrg();
+  return useQuery({
+    queryKey: ["join-requests", slug] as const,
+    queryFn: () => api<JoinRequestPage>("/api/join-requests", { org: slug, query: { page: "1" } }),
+    enabled,
+  });
+}
+
+/** After a decision: the queue, the roster (approve adds a row) and /me (the tab badge). */
+export function refreshJoinRequests(approved: boolean) {
+  const slug = slugNow();
+  void queryClient.invalidateQueries({ queryKey: ["join-requests", slug] });
+  void refreshMe();
+  if (approved) void refreshRoster();
+}
+
+export function approveJoinRequest(id: number, roleId: number | null): Promise<JoinRequestApproved> {
+  const body: z.input<typeof approveJoinRequestInput> = { roleId };
+  return api<JoinRequestApproved>(`/api/join-requests/${id}/approve`, { method: "POST", body });
+}
+
+export function rejectJoinRequest(id: number): Promise<void> {
+  return api<void>(`/api/join-requests/${id}/reject`, { method: "POST" });
+}
+
+/** A dues payment (MANAGE_TREASURY): an income line in "Dues" carrying brotherId, the one
+ *  transaction that also brings down what they owe (createTransaction). */
+export function recordDuesPayment(b: Pick<Brother, "id" | "name">, amount: number, date: string, paymentMethod: string | null): Promise<Transaction> {
+  const body: z.input<typeof createTransactionInput> = {
+    type: "income", category: "Dues", amount, date, description: `Dues payment — ${b.name}`, paymentMethod, brotherId: b.id,
+  };
+  return api<Transaction>("/api/transactions", { method: "POST", body });
+}

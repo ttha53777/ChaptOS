@@ -1,14 +1,23 @@
 """mobile/ import boundary, called by scripts/lint-module-boundaries.sh.
 
 Prints one line per violation (nothing when clean). The native app may take from
-the rest of the repo only `import type` from lib/api-types and the Zod request
-schemas in lib/validation; relative paths that climb out of mobile/ count too.
+the rest of the repo only `import type` from lib/api-types, the Zod request
+schemas in lib/validation, and the PURE shared rules in SHARED (the dashboard's
+derivations, so the app and the web compute standing, health, the plate, the
+week and the headline numbers with the same code). A SHARED module must stay
+free of Node, Prisma, Temporal and React, and so must everything it imports.
+Relative paths that climb out of mobile/ count too.
 A statement whose lines contain "lint-modules:ignore" is exempt.
 """
 import os
 import re
 
 ROOT = os.path.abspath("mobile")
+SHARED = (
+    "@/lib/dashboard/", "@/lib/dashboard-layout", "@/lib/nav-order", "@/lib/tracked-metrics",
+    "@/lib/thresholds", "@/lib/money", "@/lib/dates", "@/lib/tasks/urgency", "@/lib/workflow-features",
+    "@/lib/event-hue", "@/lib/timeline/",
+)
 SKIP_DIRS = {"node_modules", ".expo", "dist", "ios", "android"}
 STMT = re.compile(
     r'(?ms)^\s*(import|export)\b([^;]*?)\bfrom\s*["\']([^"\']+)["\']'
@@ -44,5 +53,5 @@ for d, dirs, files in os.walk(ROOT):
             if spec == "@/lib/api-types" or spec.startswith("@/lib/api-types/"):
                 if not type_only:
                     print(f"{rel}:{first}: lib/api-types must be `import type`: {spec}")
-            elif not spec.startswith("@/lib/validation/"):
-                print(f"{rel}:{first}: only lib/api-types (types) and lib/validation are allowed: {spec}")
+            elif not spec.startswith("@/lib/validation/") and not spec.startswith(SHARED):
+                print(f"{rel}:{first}: only lib/api-types (types), lib/validation and the shared pure rules are allowed: {spec}")

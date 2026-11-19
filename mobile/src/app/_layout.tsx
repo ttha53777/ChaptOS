@@ -34,6 +34,13 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
  * the index route, which forwards to wherever the person now belongs. The
  * update gate sits above all of it: once tripped, nothing else renders.
  */
+/** Light over the black behind a scaled-back canvas. Kept out of Shell so a sheet opening
+ *  doesn't re-render the navigator tree in the frames its animation runs. */
+function RootStatusBar({ dark }: { dark: boolean }) {
+  const { stacked } = useChrome();
+  return <StatusBar style={stacked || dark ? "light" : "dark"} />;
+}
+
 function Shell() {
   const { c, dark } = useTheme();
   useEffect(() => { SystemUI.setBackgroundColorAsync(c.paper).catch(() => {}); }, [c.paper]);
@@ -46,7 +53,6 @@ function Shell() {
   }, [mobileConfig.data?.minVersion]);
 
   const entry = useEntry();
-  const { stacked } = useChrome();
 
   // Hold the splash until there's something real to show: /me answered, or the
   // persisted copy was restored (useEntry resolves from either). Capped so a hung
@@ -80,7 +86,7 @@ function Shell() {
   return (
     <>
       {/* light over the black behind a scaled-back canvas; Screen sets it otherwise */}
-      <StatusBar style={stacked || dark ? "light" : "dark"} />
+      <RootStatusBar dark={dark} />
       {gate ? <UpdateScreen minVersion={gate.minVersion} /> : (
         <EntryContext.Provider value={entry}>
           <View style={{ flex: 1 }}>

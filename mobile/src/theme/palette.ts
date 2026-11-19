@@ -81,7 +81,7 @@ export const day: Palette = {
   card: "#FFFFFF", card2: "#FBF5EA",
   ink: "#26211B", ink2: "#544A3F", ink3: "#8A7F71", faint: "#998D7C",
   line: "#EBE1CF", line2: "#DCD0B9", lineSoft: "#F4ECDD",
-  skel: "rgba(38,33,27,0.07)", scrim: "rgba(38,33,27,0.3)",
+  skel: "rgba(38,33,27,0.07)", scrim: "rgba(38,33,27,0.28)",
   pastel: dayPastel,
   note: { ink: "#26211B", fill: mapTones(t => dayPastel[t].fill) },
   ok: "#1B815B", okBg: "#E6F8EF", warn: "#9C6B08", warnBg: "#FFF6DC", risk: "#C9542D", riskBg: "#FFEDE5", danger: "#C9542D",

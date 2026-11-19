@@ -4,7 +4,7 @@ import { SectionError } from "./SectionError";
 import { PaperIcon, PaperTile, type PaperIconName } from "../../paper/PaperIcon";
 import { formatEventTime, startInstant } from "@/lib/event-time";
 import { paperCatVars } from "@/lib/event-hue";
-import { agendaPreview, countdown, factsOf, lastPast, untilLabel, upcoming, type Fact } from "@/lib/up-next";
+import { agendaPreview, countdown, factsOf, lastPast, untilLabel, upcoming, whenLabel as when, type Fact } from "@/lib/up-next";
 import { useNow } from "../../../hooks/useNow";
 import { launchTicket } from "../ticket-flight";
 import "../core-cards.css";
@@ -17,15 +17,6 @@ const FALLBACK_CAT_COLOR = "#8a8f98";
 /** How many of the following events ride under the ticket. */
 const AFTER = 3;
 
-/** "Today" / "Tomorrow" / "in 3 days" / "Oct 30", counted in calendar days. */
-function when(date: string, today: string): string {
-  const days = Math.round((utc(date).getTime() - utc(today).getTime()) / 86_400_000);
-  if (days <= 0) return "Today";
-  if (days === 1) return "Tomorrow";
-  if (days < 7) return `in ${days} days`;
-  const d = utc(date);
-  return `${title(MON[d.getUTCMonth()])} ${d.getUTCDate()}`;
-}
 
 const FACT_ICON: Record<Fact["kind"], PaperIconName> = {
   dress: "spark", theme: "star", guests: "people", capacity: "door", collabs: "hand", supplies: "bag", directions: "key",

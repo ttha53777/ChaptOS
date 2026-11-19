@@ -78,14 +78,14 @@ export type TypeName = keyof typeof TYPE;
 export const TYPE_SIZES = { System: null, XXL: 1.235, AX3: 2.353 } as const;
 export type TypeSize = keyof typeof TYPE_SIZES;
 
-export function resolveType(name: TypeName, fontScale: number): TextStyle {
+export function resolveType(name: TypeName, fontScale: number, px?: number, ls?: number, lh?: number): TextStyle {
   const s: TypeStyle = TYPE[name];
-  const size = s.size * Math.min(Math.max(fontScale, 0.85), s.cap);
+  const size = (px ?? s.size) * Math.min(Math.max(fontScale, 0.85), s.cap);
   return {
     fontFamily: s.face,
     fontSize: size,
-    lineHeight: Math.round(size * s.lh),
-    letterSpacing: s.ls * size,
+    lineHeight: Math.round(size * (lh ?? s.lh)),
+    letterSpacing: (ls ?? s.ls) * size,
     ...(s.upper ? { textTransform: "uppercase" as const } : null),
     ...(s.tabular ? { fontVariant: ["tabular-nums" as const] } : null),
   };

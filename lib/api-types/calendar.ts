@@ -195,6 +195,11 @@ export interface CalendarFeedPreviewEntry {
   timeUnconfirmed: boolean;
 }
 
+/** GET /api/calendar/subscription?summary=1 — the dashboard invite's "is the feed on". Never the URL. */
+export interface CalendarFeedLive {
+  live: boolean;
+}
+
 /**
  * GET /api/calendar/subscription?view=member — the "Add to Calendar" sheet.
  * Admins get extra audit fields without `view=member`; the app always sends it.

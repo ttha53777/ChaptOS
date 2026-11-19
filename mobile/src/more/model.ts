@@ -1,6 +1,6 @@
 /**
- * Pure More rules: the web's sidebar as the phone draws it, and what each card's live
- * line and badge say.
+ * Pure More rules: the web sidebar's pages as the phone's page grid (no sidebar in the
+ * app), the Yours pages, and each tile's badge.
  *
  * Pages (app/components/Sidebar.tsx + lib/nav-order.ts, ported: runtime code can't be
  * imported into the app): the web's groups in their order, each sorted by the org's
@@ -34,7 +34,6 @@ export const seesTreasury = (me: MeResponse) =>
   me.isAdmin || (me.permissions & TREASURY_BIT) !== 0 || me.memberships.some(x => x.organizationId === me.orgId && x.isOrgAdmin);
 
 export interface Page { id: PageId; title: string; icon: IconName; tone: Tone }
-export interface Group { label: string; pages: Page[] }
 
 /* ── the web sidebar ──────────────────────────────────────────────────────────── */
 
@@ -106,16 +105,31 @@ export const navVisible = (label: string, workflows: readonly string[]) => {
   return wf == null || workflows.includes(wf);
 };
 
-/** More's Pages: the web sidebar's groups, minus the tab bar, minus what isn't built yet. */
-export function sidebarFor(me: MeResponse): Group[] {
+/** More's page grid (the app has no sidebar): the sidebar's pages as ONE list, the groups'
+ *  order flattened, each group sorted by the org's `navOrder`, minus what the tab bar
+ *  carries and what isn't built on the phone yet. */
+export function pagesFor(me: MeResponse): Page[] {
   const wf = me.org?.enabledWorkflows ?? [];
   const order = me.org?.navOrder ?? [];
-  return NAV_GROUPS.map(g => ({
-    label: g.label,
-    pages: applyNavOrder(g.items, order)
-      .filter(l => !ON_TAB_BAR.has(l) && navVisible(l, wf) && NATIVE[l])
-      .map(l => ({ ...NATIVE[l]!, title: navLabel(me, l) })),
-  })).filter(g => g.pages.length);
+  return NAV_GROUPS.flatMap(g => applyNavOrder(g.items, order))
+    .filter(l => !ON_TAB_BAR.has(l) && navVisible(l, wf) && NATIVE[l])
+    .map(l => ({ ...NATIVE[l]!, title: navLabel(me, l) }));
+}
+
+/** The web sidebar's "Needs you" dots and the phone bar's More badge, as tile badges:
+ *  my overdue tasks (rose), wrap-ups due (Programming), fundraisers to count up, and
+ *  reimbursements waiting (Treasury). Each count is already gated by the server on /me. */
+export function pageBadges(me: MeResponse, overdueTasks: number, today: string): Partial<Record<PageId, number>> {
+  const o = me.org;
+  if (!o) return {};
+  // lib/programming.ts needsWrapUp
+  const wraps = o.wrapUpsDue.filter(w => w.stage === "confirmed" && (w.schedule?.kind === "allDay" ? w.schedule.end <= today : w.dueDate != null && w.dueDate < today)).length;
+  return {
+    tasks: overdueTasks,
+    programming: wraps,
+    fundraisers: o.fundraisersToWrap.filter(f => f.date <= today).length,
+    treasury: o.pendingReimbursementCount,
+  };
 }
 
 /** More's Yours: my own records. */

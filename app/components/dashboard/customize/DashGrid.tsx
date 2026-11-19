@@ -1,5 +1,6 @@
 "use client";
 
+import { phoneDash } from "@/lib/dashboard/phone";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   canSitOnTop,
@@ -39,11 +40,9 @@ export interface GridCard extends WidgetMeta {
   tallSheet?: boolean;
 }
 
-// On a phone the grid is one stack, and the org's two-column order would put
-// whatever leads the rail second. What's happening now leads instead: up next,
-// what's on your plate, the week. Everything else keeps the org's order, and
-// the folded tiles close the page, two to a row.
-const PHONE_LEAD: DashCardId[] = ["announcement", "next", "needs", "week"];
+// On a phone the grid is one stack, ordered by lib/dashboard/phone.ts (shared with
+// the native app): what's happening now leads (up next, your plate, the week), the
+// rest keeps the org's order, and the folded tiles close the page, two to a row.
 
 /** A fixed-place widget (the health dial) this org can have. */
 export interface GridBand extends WidgetMeta {
@@ -496,13 +495,17 @@ export function DashGrid({
     if (main[i]) order.push(main[i]);
     if (rail[i]) order.push(rail[i]);
   }
-  const phoneOrder = (k: DashCardId) => {
-    const lead = PHONE_LEAD.indexOf(k);
-    return lead > -1 ? lead : (cards[k]?.glance ? 200 : 100) + order.indexOf(k);
-  };
+  // The columns above are already filtered and hold any drag in flight, so hand
+  // phoneDash those (hidden: [] since `shown` dropped them) and every id as available.
+  const phone = phoneDash(
+    { ...layout, top, main, rail, hidden: [] },
+    new Set<DashCardId>([...top, ...main, ...rail]),
+    new Set<DashCardId>(order.filter(k => cards[k]?.glance)),
+  );
+  const phoneSeq = [...phone.cards, ...phone.tiles];
+  const phoneOrder = (k: DashCardId) => phoneSeq.indexOf(k);
   // An odd tile out takes the whole last row rather than leaving a hole.
-  const tiles = order.filter(k => cards[k]?.glance).sort((a, z) => phoneOrder(a) - phoneOrder(z));
-  const loneTile = tiles.length % 2 === 1 ? tiles[tiles.length - 1] : null;
+  const loneTile = phone.loneTile;
   // Keep the card in the sheet while it slides away.
   const lastSheet = useRef<DashCardId | null>(null);
   if (sheet) lastSheet.current = sheet;

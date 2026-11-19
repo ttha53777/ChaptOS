@@ -24,8 +24,8 @@
  *
  * Every tile on the web's phone bar now has its phone form.
  *
- * The tiles (`.mcr-it`) rise 14pt and fade in one after another, 40ms apart (the mock's
- * `.qa-i`); a press presses the tile in and inks its border. The chosen form stacks over
+ * The tiles and hero are ~/web/TileGrid (`.mcr-it` / `.mcr-hero`): they rise 14pt and fade
+ * in one after another, 40ms apart; a press presses the tile in and inks its border. The chosen form stacks over
  * Create, and Create folds away with it once the thing is sent; backing out of the form
  * lands back on Create.
  *
@@ -64,6 +64,7 @@ import { ExcuseSheet, fileExcuse } from "~/timeline/Attendance";
 import { daysFrom, monthDay, relDay, weekdayShort } from "~/today/time";
 import { T } from "~/ui/T";
 import { Sheet } from "./sheets";
+import { GridHero, GridTile, TileGrid } from "~/web/TileGrid";
 import { SkeletonList } from "./states";
 import { toast } from "./toast";
 
@@ -114,14 +115,12 @@ export function CreateSheet({ open, onClose }: { open: boolean; onClose: () => v
   return (
     <>
       <Sheet open={open} onClose={onClose} title="Create" icon="plus" tone="lilac" accessibilityLabel="Create">
-        {officerA ? <CheckInHero open={open} onPress={() => setForm("checkin")} /> : null}
-        <View style={styles.grid}>
+        {officerA ? <GridHero title="Open check-in" line="Members check themselves in from their phones" icon="check" shown={open} onPress={() => setForm("checkin")} /> : null}
+        <TileGrid count={keys.length}>
           {keys.map((k, i) => (
-            <CreateTile key={k} k={k} i={i} open={open} onPress={() => setForm(k)} />
+            <GridTile key={k} label={FACE[k].label} icon={FACE[k].icon} tone={FACE[k].tone} i={i} shown={open} onPress={() => setForm(k)} />
           ))}
-          {/* keep a short last row left-aligned in the three-up grid */}
-          {Array.from({ length: (3 - (keys.length % 3)) % 3 }, (_, i) => <View key={`f${i}`} style={styles.filler} />)}
-        </View>
+        </TileGrid>
       </Sheet>
 
       {me && finance ? (
@@ -145,72 +144,6 @@ export function CreateSheet({ open, onClose }: { open: boolean; onClose: () => v
 }
 
 /* ── a tile ───────────────────────────────────────────────────────────────────── */
-
-function CreateTile({ k, i, open, onPress }: { k: Key; i: number; open: boolean; onPress: () => void }) {
-  const { c } = useTheme();
-  const m = useMotion();
-  const f = FACE[k];
-  const shown = useSharedValue(0);
-  const press = useSharedValue(0);
-  const [down, setDown] = useState(false);
-
-  useEffect(() => {
-    if (!open) { shown.value = 0; return; }
-    shown.value = m.reduced
-      ? withTiming(1, m.timing(180, "out"))
-      : withDelay(m.t(90 + i * 40), withSpring(1, m.spring("settle")));
-  }, [open, m]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const style = useAnimatedStyle(() => ({
-    opacity: Math.min(1, shown.value * 1.4),
-    transform: [
-      { translateY: m.reduced ? 0 : 14 * (1 - shown.value) },
-      { scale: 1 - 0.04 * press.value },
-    ],
-  }));
-
-  return (
-    <Animated.View style={[styles.cell, style]}>
-      <Pressable
-        onPress={onPress}
-        onPressIn={() => { setDown(true); press.value = withTiming(1, m.timing(80, "out")); }}
-        onPressOut={() => { setDown(false); press.value = withTiming(0, m.timing(m.reduced ? 90 : 240, "spring")); }}
-        accessibilityRole="button"
-        accessibilityLabel={f.label}
-        style={[styles.tile, { borderColor: down ? c.ink : c.line, backgroundColor: down ? c.card : c.paper }]}
-      >
-        <Tile icon={f.icon} tone={f.tone} size={40} rotate={-5} />
-        <T v="callout" numberOfLines={1} style={styles.tileLabel}>{f.label}</T>
-      </Pressable>
-    </Animated.View>
-  );
-}
-
-/** The web's `.mcr-hero`: an inked ticket over the grid, arriving just before the tiles. */
-function CheckInHero({ open, onPress }: { open: boolean; onPress: () => void }) {
-  const { c } = useTheme();
-  const m = useMotion();
-  const shown = useSharedValue(0);
-  useEffect(() => {
-    if (!open) { shown.value = 0; return; }
-    shown.value = m.reduced ? withTiming(1, m.timing(180, "out")) : withDelay(m.t(50), withSpring(1, m.spring("settle")));
-  }, [open, m]); // eslint-disable-line react-hooks/exhaustive-deps
-  const style = useAnimatedStyle(() => ({ opacity: Math.min(1, shown.value * 1.4), transform: [{ translateY: m.reduced ? 0 : 12 * (1 - shown.value) }] }));
-  return (
-    <Animated.View style={[{ marginBottom: 12 }, style]}>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel="Open check-in. Members check themselves in from their phones"
-        style={({ pressed }) => [styles.hero, { backgroundColor: c.ink, borderColor: c.ink, boxShadow: `${pressed ? 1 : 3}px ${pressed ? 1 : 3}px 0 ${c.note.fill.mint}` },
-          pressed && { transform: [{ translateX: 2 }, { translateY: 2 }] }]}>
-        <View style={[styles.heroIc, { backgroundColor: c.note.fill.mint }]}><Icon name="check" size={18} color={c.note.ink} /></View>
-        <View style={{ flex: 1, gap: 1 }}>
-          <T v="subhead" color={c.paper}>Open check-in</T>
-          <T v="meta" color={alpha(c.paper, 0.7)}>Members check themselves in from their phones</T>
-        </View>
-        <Icon name="arrow-r" size={16} color={alpha(c.paper, 0.75)} />
-      </Pressable>
-    </Animated.View>
-  );
-}
 
 /* ── Log excuse: which meeting, then the pad ──────────────────────────────────── */
 
@@ -383,16 +316,9 @@ function Quiet({ icon, line, tone = "butter" }: { icon: IconName; line: string; 
 }
 
 const styles = StyleSheet.create({
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 9 },
-  cell: { flexBasis: "30%", flexGrow: 1 },
-  filler: { flexBasis: "30%", flexGrow: 1 },
-  tile: { alignItems: "center", gap: 9, paddingTop: 16, paddingBottom: 13, paddingHorizontal: 6, borderRadius: 16, borderWidth: 1.5 },
-  tileLabel: { fontSize: 13, textAlign: "center" },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingRight: 14, borderWidth: 1.5, borderRadius: 14, overflow: "hidden", minHeight: 58 },
   stub: { width: 54, alignSelf: "stretch", alignItems: "center", justifyContent: "center", gap: 1 },
   perf: { alignSelf: "stretch", borderLeftWidth: 1.5, borderStyle: "dashed", marginVertical: 6, marginLeft: -12 },
-  hero: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 13, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1.5 },
-  heroIc: { width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center", transform: [{ rotate: "-5deg" }] },
   forRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" },
   forChip: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, minHeight: 34 },
   find: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 12, minHeight: 44 },

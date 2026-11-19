@@ -1,0 +1,28 @@
+{
+  "capturedAt": "2026-11-19T15:42:27.908Z",
+  "who": {
+    "busy": {
+      "org": {
+        "id": 1,
+        "slug": "ok-today"
+      },
+      "admin": 2,
+      "member": 12
+    },
+    "dayone": {
+      "org": {
+        "id": 2,
+        "slug": "dl-today"
+      },
+      "admin": 14,
+      "member": 16
+    }
+  },
+  "index": {
+    "members": [
+      "busy-member-day-full.png",
+      "busy-member-day-fold.png"
+    ]
+  },
+  "problems": []
+}

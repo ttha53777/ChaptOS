@@ -2,6 +2,7 @@ import "./crypto-shim";
 import { createClient, processLock, type SupabaseClient } from "@supabase/supabase-js";
 import { AppState } from "react-native";
 import { config } from "~/config";
+import { DEV_WEB } from "./dev-web";
 import { secureStorage } from "./secure-storage";
 
 /**
@@ -14,10 +15,11 @@ export const supabase: SupabaseClient = createClient(
   config.supabaseAnonKey || "not-configured",
   {
     auth: {
-      storage: secureStorage,
+      // The web preview has no keychain and no Supabase session (./dev-web.ts).
+      storage: DEV_WEB ? undefined : secureStorage,
       flowType: "pkce",
-      persistSession: true,
-      autoRefreshToken: true,
+      persistSession: !DEV_WEB,
+      autoRefreshToken: !DEV_WEB,
       detectSessionInUrl: false,
       lock: processLock,
     },
@@ -26,7 +28,7 @@ export const supabase: SupabaseClient = createClient(
 
 // Supabase's refresh timer only runs while the app is active; React Native
 // suspends timers in the background, so start/stop it with the app state.
-AppState.addEventListener("change", state => {
+if (!DEV_WEB) AppState.addEventListener("change", state => {
   if (state === "active") supabase.auth.startAutoRefresh();
   else supabase.auth.stopAutoRefresh();
 });

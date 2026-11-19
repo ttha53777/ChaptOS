@@ -10,6 +10,7 @@
  *   tick an action item from the minutes           PATCH /api/calendar/[id]/action-items
  */
 import type {
+  CalendarFeedLive,
   CalEventType, CalendarEvent, CalendarSubscriptionView, EventAttendance, EventDetail, EventDetailsUpdated,
   MeetingSummary, MeetingSummaryBody, MyAttendance, MyExcuseItem,
 } from "@/lib/api-types";
@@ -30,6 +31,7 @@ export const calKeys = {
   attendance: (slug: string | null, id: number) => ["eventAttendance", slug, id] as const,
   summary: (slug: string | null, id: number) => ["meetingSummary", slug, id] as const,
   feed: (slug: string | null) => ["calendarFeed", slug] as const,
+  feedLive: (slug: string | null) => ["calendarFeed", slug, "live"] as const,
 };
 
 export function useCalendar() {
@@ -78,6 +80,16 @@ export function useCalendarFeed(enabled: boolean) {
     enabled,
     // The URL is a secret: keep it out of the persisted cache's long tail.
     gcTime: 5 * 60_000,
+  });
+}
+
+/** The dashboard invite's question: is the feed on? (?summary=1 never carries the URL.) */
+export function useCalendarFeedLive(enabled: boolean) {
+  const { slug } = useActiveOrg();
+  return useQuery({
+    queryKey: calKeys.feedLive(slug),
+    queryFn: async () => (await api<CalendarFeedLive>("/api/calendar/subscription", { org: slug, query: { summary: "1" } })).live,
+    enabled,
   });
 }
 

@@ -34,6 +34,7 @@ import { anyMeasured } from "@/lib/tracked-metrics";
 import { PaperIcon, PaperTile, type PaperIconName } from "../../../components/paper/PaperIcon";
 import { InviteLinkSheet, InviteLinkChip, useActiveInvites } from "../../../components/members/InviteLinkSheet";
 import { todayStr } from "../../../lib/dates";
+import { filterRoster, rosterCsv, rosterKpis, rosterSummary, standingHint, statusCounts as statusCountsOf } from "@/lib/dashboard/roster";
 import "../../../components/dashboard/dashboard-ledger.css";
 import "../../../components/dashboard/brotherhood-ledger.css";
 
@@ -271,29 +272,13 @@ export default function BrothersPage() {
   }
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
-  const kpis = useMemo(() => {
-    if (!brotherList.length) return null;
-    const attRisk  = brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, measured) === "At Risk").length;
-    const watching = brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, measured) === "Watch").length;
-    const duesTotal = brotherList.reduce((s, b) => s + b.duesOwed, 0);
-    const svcMet   = brotherList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length;
-    return { avgAtt: avg(brotherList.map(b => b.attendance)), avgGpa: avg(brotherList.map(b => b.gpa)), attRisk, watching, duesTotal, svcMet, total: brotherList.length };
-  }, [brotherList, THRESHOLDS, measured]);
+  const kpis = useMemo(() => rosterKpis(brotherList, THRESHOLDS, tracked, measured), [brotherList, THRESHOLDS, tracked, measured]);
 
-  const statusCounts = useMemo(() => {
-    const counts = { All: brotherList.length, Good: 0, Watch: 0, "At Risk": 0 };
-    brotherList.forEach(b => { counts[getBrotherStatus(b, THRESHOLDS, measured)]++; });
-    return counts;
-  }, [brotherList, THRESHOLDS, measured]);
+  const statusCounts = useMemo(() => statusCountsOf(brotherList, THRESHOLDS, measured), [brotherList, THRESHOLDS, measured]);
 
   // ── Filtered + sorted list ────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    let result = brotherList.filter(b => {
-      const q = search.toLowerCase();
-      const matchQ = !q || b.name.toLowerCase().includes(q) || roleTitle(b).toLowerCase().includes(q);
-      const matchS = statusFilter === "All" || getBrotherStatus(b, THRESHOLDS, measured) === statusFilter;
-      return matchQ && matchS;
-    });
+    let result = filterRoster(brotherList, search, statusFilter, THRESHOLDS, measured);
     if (sortKey) {
       result = [...result].sort((a, b) => {
         if (sortKey === "name") return sortDir === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
@@ -367,19 +352,7 @@ export default function BrothersPage() {
 
   // ── CSV export ────────────────────────────────────────────────────────────
   function handleExport() {
-    const rows = [
-      ["Name", "Role", "Attendance %", "GPA", "Service Hours", "Dues Owed", "Status"],
-      ...filtered.map(b => [
-        b.name,
-        roleTitle(b),
-        String(b.attendance),
-        b.gpa.toFixed(2),
-        String(b.serviceHours),
-        b.duesOwed.toFixed(2),
-        getBrotherStatus(b, THRESHOLDS, measured),
-      ]),
-    ];
-    const csv = rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csv = rosterCsv(filtered, THRESHOLDS, measured);
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -405,11 +378,11 @@ export default function BrothersPage() {
   const colCount = 2 + [tracked.attendance, tracked.gpa, tracked.serviceHours, tracked.duesOwed].filter(Boolean).length + customFieldDefs.length;
 
   // Live "needs attention" sentence for the editorial header.
-  const duesOwingCount = tracked.duesOwed ? brotherList.filter(b => b.duesOwed > 0).length : 0;
+  const duesOwingCount = kpis?.duesOwing ?? 0;
   // Days late per member, from Treasury → Dues — the balance alone can't say since when.
   const duesLate = (id: number) => { const st = duesStandings?.get(id); return st?.standing === "overdue" ? st.lateDays : 0; };
   const duesOverdueCount = tracked.duesOwed && duesStandings ? brotherList.filter(b => b.duesOwed > 0 && duesLate(b.id) > 0).length : 0;
-  const belowAttend    = measured.attendance ? brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length : 0;
+  const belowAttend    = kpis?.belowAttend ?? 0;
 
   // Day one: the founder is pinned to the roster at creation, so "nobody yet" is
   // a one-row roster, not an empty one. Standing for one person says nothing;
@@ -552,14 +525,7 @@ export default function BrothersPage() {
                 )}
                 {kpis && !dayOne && (
                   <p className="summary">
-                    {kpis.total} {v("Member", true).toLowerCase()} active.{" "}
-                    {nothingMeasured ? <>Nothing&rsquo;s been recorded yet, so nobody has a standing</>
-                      : <><b>{statusCounts["At Risk"]} at risk</b> and <b>{statusCounts.Watch} on watch</b></>}
-                    {(duesOwingCount > 0 || belowAttend > 0) && <>
-                      {" "}— {duesOwingCount > 0 && <>{duesOwingCount} owe {fmt$(kpis.duesTotal)} in {v("Dues").toLowerCase()}</>}
-                      {duesOwingCount > 0 && belowAttend > 0 && " and "}
-                      {belowAttend > 0 && <>{belowAttend} sit below the {THRESHOLDS.attendanceWatch}% attendance line</>}
-                    </>}.
+                    {rosterSummary(kpis, statusCounts, nothingMeasured, THRESHOLDS, { members: v("Member", true), dues: v("Dues") }).map((r, i) => r.bold ? <b key={i}>{r.text}</b> : <React.Fragment key={i}>{r.text}</React.Fragment>)}
                   </p>
                 )}
               </div>
@@ -657,14 +623,7 @@ export default function BrothersPage() {
                     <span className="hint">Starts once the first record is in. Until then nobody is judged on a 0.</span>
                   ) : <>
                   <span className="hint">
-                    Click a band or a face &mdash;{" "}
-                    {[
-                      tracked.attendance && `attendance under ${THRESHOLDS.attendanceWatch}%`,
-                      tracked.gpa && `GPA under ${THRESHOLDS.gpaWatch.toFixed(2)}`,
-                      tracked.duesOwed && `${v("Dues").toLowerCase()} owed`,
-                      tracked.serviceHours && `${v("Service").toLowerCase()} under ${THRESHOLDS.serviceHoursGoal}h`,
-                    ].filter(Boolean).join(", ").replace(/, ([^,]*)$/, " or $1")}{" "}
-                    puts someone on watch.
+                    {standingHint(THRESHOLDS, tracked, { dues: v("Dues"), service: v("Service") })}
                   </span>
                   </>}
                 </div>

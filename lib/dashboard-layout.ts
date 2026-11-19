@@ -165,12 +165,12 @@ export function nudgeCard(l: DashboardLayout, w: DashCardId, dir: "up" | "down" 
     // Land beside the card at the same visual height, counting only visible ones.
     const vIdx = l[c].slice(0, i).filter(visible).length;
     let at = b.length;
-    for (let j = 0, n = 0; j < b.length; j++) if (visible(b[j]) && n++ === vIdx) { at = j; break; }
+    for (let j = 0, n = 0; j < b.length; j++) if (visible(b[j]!) && n++ === vIdx) { at = j; break; }
     b.splice(at, 0, w);
     return { ...l, [c]: a, [o]: b };
   }
   let j = i;
-  do { j += dir === "up" ? -1 : 1; } while (j >= 0 && j < a.length && !visible(a[j]));
+  do { j += dir === "up" ? -1 : 1; } while (j >= 0 && j < a.length && !visible(a[j]!));
   // Up past the first card of a column: back to the top spot, if it may go there.
   if (j < 0 && dir === "up" && canSitOnTop(w)) return placeCard(l, w, "top", 0, visible);
   if (j < 0 || j >= a.length) return l;
@@ -216,7 +216,7 @@ export function setNumberSlot(numbers: DashStatId[], i: number, stat: DashStatId
     if (j > -1 || next.length >= MAX_DASH_NUMBERS) return next;
     return [...next, stat];
   }
-  if (j > -1) next[j] = next[i];
+  if (j > -1) next[j] = next[i]!;
   next[i] = stat;
   return next;
 }

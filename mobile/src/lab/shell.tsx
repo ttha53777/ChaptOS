@@ -175,10 +175,11 @@ const LAB_TABS = [
 export function TabBarLab() {
   const { c } = useTheme();
   const [on, setOn] = useState<string>("today");
+  const active = useSharedValue("today");
   const [open, setOpen] = useState(false);
   const [badge, setBadge] = useState(2);
   const tab = (t: (typeof LAB_TABS)[number], i: number) => (
-    <Tab key={t.key} label={t.label} icon={t.icon} focused={on === t.key} onPress={() => setOn(t.key)}
+    <Tab key={t.key} tabKey={t.key} active={active} label={t.label} icon={t.icon} focused={on === t.key} onPress={() => { active.value = t.key; setOn(t.key); }}
       badge={t.key === "more" ? badge : 0} position={`${i + 1} of 4`} />
   );
   return (

@@ -21,10 +21,10 @@
  * /api/orgs/leave, /api/attendance/[eventId], /api/calendar/[id]/details), and the chat stream's send() is typed against ChatStreamEvents.
  */
 import type {
-  ActivityEntry, Brother, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
+  ActivityEntry, Brother, DashboardResponse, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
   MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, TaskDetail, Transaction, TransactionCategory,
-  ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView,
-  HomeResponse, MemberUpdated, MobileConfig,
+  ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView, CalendarFeedLive,
+  HomeResponse, MemberUpdated, MobileConfig, JoinRequestPage, JoinRequestApproved,
   AttendanceSummaryRow, ExcuseListItem, ExcuseDecided, EventDeletePreview, AgendaTemplate, MeetingSummarized,
   ProgrammingEvent, ProgrammingDoc, RoleChip, Party, PartyRollRow, InstagramPost,
   ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
@@ -36,6 +36,7 @@ import type { yesnoFromJudged, statusFromTasks } from "@/lib/ai-shapes-judge";
 import type { rankedFromMembers, rankedFromEvents, tableFromMembers, rollFromPeople } from "@/lib/ai-shapes-people";
 import type { listAttachments, uploadAttachment, getAttachmentUnit } from "@/lib/services/chat-attachment-service";
 import type { listVisibleBrothers, getMemberProfile } from "@/lib/services/brother-service";
+import type { approveJoinRequest, listPendingRequestPage } from "@/lib/services/join-request-service";
 import type { publicBrother } from "@/lib/brother-avatar";
 import type { createTask, getTaskDetail, listTasks, updateTask } from "@/lib/services/task-service";
 import type { listPolls, castVote } from "@/lib/services/poll-service";
@@ -48,7 +49,7 @@ import type { listMyExcuses, listExcuses, decideExcuse } from "@/lib/services/ex
 import type { listRecentActivity } from "@/lib/services/activity-service";
 import type { listOwnJoinRequests } from "@/lib/auth/own-join-status";
 import type { createTransaction, listTransactions, updateTransaction } from "@/lib/services/transaction-service";
-import type { createReimbursement, listReimbursements } from "@/lib/services/reimbursement-service";
+import type { createReimbursement, listReimbursements, updateReimbursement } from "@/lib/services/reimbursement-service";
 import type { listTransactionCategories } from "@/lib/services/transaction-category-service";
 import type { listServiceEvents } from "@/lib/services/service-event-service";
 import type { listParticipationForOrg, listParticipationForEvent, logMyParticipation, removeMyParticipation } from "@/lib/services/service-participation-service";
@@ -60,8 +61,9 @@ import type { listInstagramTasks, createInstagramTask, updateInstagramTask } fro
 import type { listParties, createParty, updateParty, wrapUpParty, summarizePartyAttendance } from "@/lib/services/party-service";
 import type { listFolders } from "@/lib/services/doc-folder-service";
 import type { getMeetingSummary, setActionItemDone } from "@/lib/services/meeting-summary-service";
-import type { getCalendarSubscription } from "@/lib/services/calendar-subscription-service";
+import type { calendarFeedLive, getCalendarSubscription } from "@/lib/services/calendar-subscription-service";
 import type { getHome } from "@/lib/services/home-service";
+import type { getDashboard } from "@/lib/services/dashboard-service";
 import type { updateBrother } from "@/lib/services/brother-service";
 import type { mobileConfig } from "@/lib/mobile-config";
 import type { getDuesBoard, getMemberDuesBook, issueDuesCharge, previewDuesCharge, voidDuesWaiver, waiveDues } from "@/lib/services/dues-charge-service";
@@ -134,6 +136,7 @@ export const transactionCreated: Widen<Transaction> = served<Served<typeof creat
 export const transactionUpdated: Widen<Transaction> = served<Served<typeof updateTransaction>>();
 export const reimbursements: Widen<Reimbursement[]> = served<Served<typeof listReimbursements>>();
 export const reimbursementCreated: Widen<Reimbursement> = served<Served<typeof createReimbursement>>();
+export const reimbursementUpdated: Widen<Reimbursement> = served<Served<typeof updateReimbursement>>();
 export const categories: Widen<TransactionCategory[]> = served<Served<typeof listTransactionCategories>>();
 
 export const duesBoard: Widen<DuesBoard> = served<Served<typeof getDuesBoard>>();
@@ -175,8 +178,13 @@ export const meetingSummary: Widen<MeetingSummary> = served<Served<typeof getMee
 export const actionItemToggled: Widen<MeetingSummaryBody> = served<Served<typeof setActionItemDone>>();
 // ?view=member answers the base shape; the admin view only adds fields to it.
 export const calendarSubscription: Widen<CalendarSubscriptionView> = served<Served<typeof getCalendarSubscription>>();
+// The roster's join-requests band (Phase 4): the page the app pages through, and an approval.
+export const joinRequestPage: Widen<JoinRequestPage> = served<Served<typeof listPendingRequestPage>>();
+export const joinRequestApproved: Widen<JoinRequestApproved> = served<Served<typeof approveJoinRequest>>();
+export const calendarFeedSummary: Widen<CalendarFeedLive> = served<Served<typeof calendarFeedLive>>();
 
 export const home: Widen<HomeResponse> = served<Served<typeof getHome>>();
+export const dashboard: Widen<DashboardResponse> = served<Served<typeof getDashboard>>();
 export const memberUpdated: Widen<MemberUpdated> = served<Served<typeof updateBrother>>();
 export const mobileConfigBody: MobileConfig = served<ReturnType<typeof mobileConfig>>();
 

@@ -37,15 +37,19 @@
  *   DELETE /api/auth/account                   { ok: true }            (body { confirm: "DELETE" }; 409 → details: AccountDeletionPreview)
  *   GET    /api/brothers                       Brother[]
  *   GET    /api/brothers/[id]/profile          MemberProfile
- *   PATCH  /api/brothers/[id]                  MemberUpdated           (own row: body updateBrotherInput, the app sends { name })
+ *   GET    /api/join-requests                  JoinRequestPage         (MANAGE_BROTHERS; ?page=1, query joinRequestPageInput)
+ *   POST   /api/join-requests/[id]/approve     JoinRequestApproved     (MANAGE_BROTHERS; body approveJoinRequestInput; 402 out of seats, 409 JOIN_REQUEST_DECIDED)
+ *   POST   /api/join-requests/[id]/reject      204                     (MANAGE_BROTHERS; 409 JOIN_REQUEST_DECIDED)
+ *   PATCH  /api/brothers/[id]                  MemberUpdated           (own row or MANAGE_BROTHERS: body updateBrotherInput; the app sends { name } | { gpa } | { serviceHours })
  *   POST   /api/orgs/leave                     LeaveOrgResponse        (body leaveOrgInput; last admin → 409)
  *   GET    /api/home                           HomeResponse            (?today=YYYY-MM-DD)
+ *   GET    /api/dashboard                      DashboardResponse       (?today=YYYY-MM-DD)
  *   GET    /api/calendar                       CalendarEvent[]
  *   GET    /api/calendar/event-types           CalEventType[]
  *   PATCH  /api/calendar/[id]/details          EventDetailsUpdated     (body detailActionInput: claim or unclaim a "who's bringing what" item)
  *   GET    /api/calendar/[id]/summary          MeetingSummary          (published summary + action items; never the minutes)
  *   PATCH  /api/calendar/[id]/action-items     MeetingSummaryBody      (body toggleActionItemInput; the item's owner, or MANAGE_EVENTS)
- *   GET    /api/calendar/subscription          CalendarSubscriptionView (send ?view=member)
+ *   GET    /api/calendar/subscription          CalendarSubscriptionView (send ?view=member; ?summary=1 answers CalendarFeedLive)
  *   POST   /api/calendar                       (201; MANAGE_EVENTS; body createCalendarInput, + repeat; the app re-reads GET /api/calendar)
  *   PATCH  /api/calendar/[id]                  (MANAGE_EVENTS; body updateCalendarInput; the app re-reads GET /api/calendar)
  *   DELETE /api/calendar/[id]                  204                     (MANAGE_EVENTS)
@@ -114,6 +118,7 @@
  *   GET    /api/treasury/categories            TransactionCategory[]   (every member; hidden ones included)
  *   GET    /api/reimbursements                 Reimbursement[]
  *   POST   /api/reimbursements                 Reimbursement           (201; body createReimbursementInput; your own, or anyone's with treasury)
+ *   PATCH  /api/reimbursements/[id]            Reimbursement           (MANAGE_TREASURY; body updateReimbursementInput, the app sends { status: "approved" | "rejected" })
  *   POST   /api/reimbursements/[id]/receipt    Reimbursement           (multipart `file`; requester while pending, or treasury)
  *   GET    /api/reimbursements/[id]/receipt    302 → 60s signed URL    (Accept: application/json → { url }; requester or treasury)
  *   GET    /api/dues                           DuesBoard               (?semester=<label>)
@@ -142,3 +147,4 @@ export type * from "./fundraisers";
 export type * from "./service";
 export type * from "./docs";
 export type * from "./home";
+export type * from "./dashboard";

@@ -23,7 +23,7 @@ import { useNow } from "./live";
 import { clockLabel, countdown, dayStart, daysFrom, relDay, startOf } from "./time";
 
 /** The agenda lines a member would recognise: numbering and bullets stripped, blanks dropped. */
-function agendaLines(e: CalendarEvent): string[] {
+export function agendaLines(e: CalendarEvent): string[] {
   const src = e.notesSeed ?? "";
   return src.split("\n").map(l => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").replace(/^#+\s*/, "").trim()).filter(Boolean);
 }

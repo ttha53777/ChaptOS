@@ -1,3 +1,4 @@
+import type { WorkflowId } from "@/lib/org-types";
 /**
  * Sidebar nav ordering.
  *
@@ -93,4 +94,35 @@ export function normalizeNavOrder(
     }
   }
   return out;
+}
+
+// Which workflow each nav surface belongs to. A label maps to `null` when it is
+// ALWAYS shown regardless of the org's enabled workflows:
+//   - Dashboard / Timeline: every org's home + planning surfaces (product rule).
+// All other labels are hidden when their workflow isn't in the org's
+// enabledWorkflows. Chapter is now the toggleable "meetings" workflow, so an org
+// that doesn't hold formal meetings can hide it. The onboarding page picker
+// imports this map so the toggles it shows are exactly the surfaces this filter
+// can hide — one source of truth.
+export const NAV_WORKFLOW_MAP: Record<string, WorkflowId | null> = {
+  Dashboard:   null,
+  Timeline:    null,
+  Chapter:     "meetings",
+  Tasks:       "tasks",
+  Brotherhood: "members",
+  Docs:        "docs",
+  Instagram:   "communications",
+  Treasury:    "finance",
+  Service:     "service",
+  Programming: "events",
+  Parties:     "parties",
+  Fundraisers: "fundraisers",
+};
+
+/** Returns true when a nav label should render for an org with these workflows.
+ *  Always-on labels (map value null) are visible unconditionally. */
+export function isNavVisible(label: string, enabledWorkflows: readonly string[]): boolean {
+  const wf = NAV_WORKFLOW_MAP[label];
+  if (wf == null) return true;
+  return enabledWorkflows.includes(wf);
 }

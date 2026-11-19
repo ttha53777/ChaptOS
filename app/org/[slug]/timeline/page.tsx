@@ -36,6 +36,7 @@ import "../../../components/dashboard/timeline-ledger.css";
 import { hasMinutes } from "@/lib/agenda-template";
 import { paperCatVars } from "@/lib/event-hue";
 import { TimelineDayOne } from "./DayOne";
+import { DEADLINE_ID_BASE, IG_ID_BASE, LAYERS, buildTimeline as buildSections, filterByLayer, layerCounts as layerCountsOf, overdueInPast, relWhen as relWhenOn, timelineDigest, timelineRows, type MonthGroup, type TimelineSections } from "@/lib/timeline/rows";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -52,8 +53,6 @@ const TODAY = { year: _now.getFullYear(), month: _now.getMonth(), day: _now.getD
 // offset ids so they don't collide with real CalendarEvent ids. Subtract the base
 // to get back to the source Deadline.id (used to mark a deadline complete from the
 // rail). Instagram posts use 30000 and render as deadline rows.
-const DEADLINE_ID_BASE = 10000;
-const IG_ID_BASE = 30000;
 /** The source Deadline.id behind a timeline event, or null if it isn't a live deadline row. */
 function deadlineIdOf(event: CalendarEvent): number | null {
   if (event.category !== "deadline") return null;
@@ -118,15 +117,6 @@ function paperBurst(from: HTMLElement) {
     setTimeout(() => b.remove(), 950);
   }
 }
-
-// Filter layers — mono segmented control. `mandatory` reads as "Required".
-const LAYERS: { id: CalLayer; label: string }[] = [
-  { id: "all",       label: "All" },
-  { id: "mandatory", label: "Required" },
-  { id: "deadlines", label: "Deadlines" },
-  { id: "parties",   label: "Parties" },
-  { id: "service",   label: "Service" },
-];
 
 // Event types (labels + colors) are per-org now, fetched from
 // /api/calendar/event-types and shared to the sub-components via this context so
@@ -248,95 +238,17 @@ function MeetingNotes({ event }: { event: CalendarEvent }) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function filterByLayer(events: CalendarEvent[], layer: CalLayer): CalendarEvent[] {
-  switch (layer) {
-    case "all":       return events;
-    case "mandatory": return events.filter(e => e.mandatory);
-    case "deadlines": return events.filter(e => e.category === "deadline");
-    case "parties":   return events.filter(e => e.category === "party");
-    case "service":   return events.filter(e => e.category === "service");
-  }
-}
-
 function fmtDow(dateStr: string) {
   const d = new Date(dateStr + "T12:00:00");
   return DAY_NAMES[d.getDay()].toUpperCase();
 }
 
 /** Human relative day: Today / Tomorrow / Yesterday / In N days / N days ago. */
-function relWhen(dateStr: string): string {
-  const diff = daysFromToday(dateStr);
-  if (diff === 0)  return "Today";
-  if (diff === 1)  return "Tomorrow";
-  if (diff === -1) return "Yesterday";
-  if (diff > 0)    return `In ${diff} days`;
-  return `${-diff} days ago`;
-}
+const relWhen = (dateStr: string) => relWhenOn(dateStr, toDateStr(TODAY.year, TODAY.month, TODAY.day));
 
-// ─── Grouping ─────────────────────────────────────────────────────────────────
-
-interface MonthGroup {
-  id: string;
-  monthLabel: string;
-  year: number;
-  isCurrentMonth: boolean;
-  events: CalendarEvent[];
-}
-
-/** Buckets already-sorted events into months, oldest first. `fileDate` picks the
- *  date an event files under (defaults to its own). */
-function groupByMonth(sorted: CalendarEvent[], fileDate: (e: CalendarEvent) => string = e => e.date): MonthGroup[] {
-  const groups: MonthGroup[] = [];
-  for (const e of sorted) {
-    const [yr, mo] = fileDate(e).split("-").map(Number);
-    const key = `${yr}-${pad(mo)}`;
-    let group = groups[groups.length - 1];
-    if (!group || group.id !== key) {
-      group = {
-        id: key,
-        monthLabel: MONTH_NAMES[mo - 1],
-        year: yr,
-        isCurrentMonth: yr === TODAY.year && mo === TODAY.month + 1,
-        events: [],
-      };
-      groups.push(group);
-    }
-    group.events.push(e);
-  }
-  return groups;
-}
-
-/** Upcoming months whose first event is further out than this start collapsed. */
-const OPEN_HORIZON_DAYS = 42;
-
-interface TimelineSections {
-  /** Finished events, by month — shown only when the "Earlier" bar is opened. */
-  past: MonthGroup[];
-  pastCount: number;
-  /** Everything not yet over, soonest first — read straight down from Today. */
-  upcoming: MonthGroup[];
-  /** Upcoming months that start collapsed (beyond the horizon, and never the first). */
-  defaultCollapsed: Set<string>;
-}
-
-/**
- * One reading direction, split at now: the finished past folds into a single
- * bar above the Today marker, everything still ahead runs soonest-first below
- * it. Split on "is it over", not on the date, so a 9am meeting has moved above
- * the line by the afternoon, and a multi-day event that began last month but
- * is still running files under this month rather than a past one.
- */
+/** lib/timeline/rows buildTimeline, with lib/event-time's clock. */
 function buildTimeline(events: CalendarEvent[], now: Date, todayStr: string): TimelineSections {
-  const sorted = [...events].sort(compareEvents);
-  const past     = sorted.filter(e => isEventOver(e, now));
-  const upcoming = sorted.filter(e => !isEventOver(e, now));
-  const upcomingGroups = groupByMonth(upcoming, e => (e.date < todayStr ? todayStr : e.date));
-  const defaultCollapsed = new Set(
-    upcomingGroups
-      .filter((g, i) => i > 0 && daysFromToday(g.events[0].date) > OPEN_HORIZON_DAYS)
-      .map(g => g.id),
-  );
-  return { past: groupByMonth(past), pastCount: past.length, upcoming: upcomingGroups, defaultCollapsed };
+  return buildSections(events, todayStr, compareEvents, e => isEventOver(e, now));
 }
 
 // ─── TodayMarker ──────────────────────────────────────────────────────────────
@@ -1541,51 +1453,12 @@ export default function TimelinePage() {
 
   const apiEventIds = useMemo(() => new Set(apiEvents.map(e => e.id)), [apiEvents]);
 
-  const allEvents = useMemo<CalendarEvent[]>(() => {
-    const live: CalendarEvent[] = [
-      // Only DATED tasks fold into the timeline — a dated task IS a deadline.
-      // Undated to-dos live on the Tasks page. Tasks are never `mandatory`: a due
-      // date isn't an event you take attendance for. Completion is tracked via the
-      // task's own status, surfaced (and editable) in the rail.
-      ...taskList
-        .filter(d => d.dueDate != null)
-        .map(d => ({
-          id:          DEADLINE_ID_BASE + d.id,
-          title:       d.title,
-          date:        d.dueDate as string,
-          category:    "deadline",
-          mandatory:   false,
-          description: `${taskAssigneeLabel(d)} · ${d.status === "done" ? "Done" : "Open"}`,
-        })),
-      // Instagram posts are dated tasks tracked on the Instagram page; fold them
-      // into the timeline as deadline rows so they read as a due-by item here too.
-      ...igTaskList.map(t => ({
-        id:          IG_ID_BASE + t.id,
-        title:       t.title,
-        date:        t.dueDate,
-        category:    "deadline",
-        mandatory:   false,
-        description: `Instagram ${t.type} · Status: ${t.status}`,
-      })),
-    ];
-
-    const liveDeadlineTitles = new Set([...taskList.map(d => d.title), ...igTaskList.map(t => t.title)]);
-
-    const deduped = apiEvents.filter(e => {
-      // Deleted, and its slot has closed: gone everywhere while the delete settles.
-      if (hiddenIds.has(e.id)) return false;
-      if (e.category === "deadline") return !liveDeadlineTitles.has(e.title);
-      return true;
-    });
-
-    return [...deduped, ...live];
-  }, [apiEvents, taskList, igTaskList, hiddenIds]);
+  // The line: events plus dated tasks and Instagram posts folded in as deadlines (lib/timeline/rows).
+  const rows = useMemo(() => timelineRows(apiEvents, taskList, igTaskList, hiddenIds), [apiEvents, taskList, igTaskList, hiddenIds]);
+  const allEvents = rows.all;
 
   const filtered    = useMemo(() => filterByLayer(allEvents, activeLayer), [allEvents, activeLayer]);
-  const layerCounts = useMemo(
-    () => Object.fromEntries(LAYERS.map(l => [l.id, filterByLayer(allEvents, l.id).length])),
-    [allEvents],
-  );
+  const layerCounts = useMemo(() => layerCountsOf(allEvents), [allEvents]);
   const selectedEventCanEdit = selectedEvent ? canManageEvents && apiEventIds.has(selectedEvent.id) : false;
 
   // The source Task behind the selected row, if it's a live dated task.
@@ -1629,21 +1502,10 @@ export default function TimelinePage() {
 
   // Completion for the task and Instagram rows folded into the timeline, keyed by
   // their timeline id. Plain calendar events have no entry.
-  const doneById = useMemo(() => {
-    const m = new Map<number, boolean>();
-    for (const d of taskList) if (d.dueDate != null) m.set(DEADLINE_ID_BASE + d.id, d.status === "done");
-    for (const t of igTaskList) m.set(IG_ID_BASE + t.id, t.status === "posted");
-    return m;
-  }, [taskList, igTaskList]);
+  const doneById = rows.doneById;
   // Who a dated task is on ("Treasurer", "Everyone") — shown on its row, as in the mock.
-  const ownerById = useMemo(
-    () => new Map(taskList.filter(d => d.dueDate != null).map(d => [DEADLINE_ID_BASE + d.id, taskAssigneeLabel(d)])),
-    [taskList],
-  );
-  const overduePast = useMemo(
-    () => timeline.past.reduce((n, g) => n + g.events.filter(e => doneById.get(e.id) === false).length, 0),
-    [timeline, doneById],
-  );
+  const ownerById = rows.ownerById;
+  const overduePast = useMemo(() => overdueInPast(timeline, doneById), [timeline, doneById]);
 
   // ── Rail derivations (global — independent of the active filter) ──
   const { start: weekStart, end: weekEnd } = useMemo(() => isoWeekBounds(new Date()), []);
@@ -1691,31 +1553,14 @@ export default function TimelinePage() {
   // each with its day, then anything overdue — "3 things left this week —
   // Chapter meeting tonight at 7:30, Risk forms due Thursday and …".
   const digest = useMemo<React.ReactNode>(() => {
-    if (allEvents.length === 0) return null;
     const now = new Date();
-    const left = weekEvents.filter(e => !isEventOver(e, now));
-    const dayOf = (e: CalendarEvent) => {
-      const diff = daysFromToday(e.date);
-      const start = formatEventTime(e.time, e.schedule)?.split(" – ")[0] ?? null;
-      const evening = start != null && / PM$/.test(start) && Number(start.split(":")[0]) % 12 >= 5;
-      const day = diff <= 0 ? (evening ? "tonight" : "today") : diff === 1 ? "tomorrow" : DAY_NAMES_LONG[new Date(`${e.date}T12:00:00`).getDay()];
-      return diff <= 1 && start ? `${day} at ${start.replace(/ (AM|PM)$/, "")}` : day;
-    };
-    const phrases = left.slice(0, 4).map((e, i) => (
-      <React.Fragment key={e.id}>
-        {i > 0 && (i === Math.min(left.length, 4) - 1 ? " and " : ", ")}
-        {e.title}{e.category === "deadline" ? " due " : " "}<b>{dayOf(e)}</b>
-      </React.Fragment>
-    ));
-    const more = left.length > 4 ? `, plus ${left.length - 4} more` : "";
-    const overdue = overdueCount > 0
-      ? <> <b>{overdueCount} deadline{overdueCount === 1 ? " is" : "s are"} overdue.</b></> : null;
-    if (left.length > 0) {
-      return <>{left.length} thing{left.length === 1 ? "" : "s"} left this week — {phrases}{more}.{overdue}</>;
-    }
-    if (upNext) return <>Nothing else this week — next up is {upNext.title} on <b>{fmtDate(upNext.date)}</b>.{overdue}</>;
-    return <>{lastEvent ? `Nothing’s on the books past ${fmtDate(lastEvent.date)}.` : "Nothing coming up."}{overdue}</>;
-  }, [allEvents.length, weekEvents, overdueCount, upNext, lastEvent]);
+    const parts = timelineDigest({
+      all: allEvents, today: todayStr, weekStart, weekEnd, overdue: overdueCount,
+      compare: compareEvents, isOver: e => isEventOver(e, now),
+      start: e => formatEventTime(e.time, e.schedule)?.split(" – ")[0] ?? null,
+    });
+    return parts && parts.map((p, i) => p.bold ? <b key={i}>{p.text}</b> : <React.Fragment key={i}>{p.text}</React.Fragment>);
+  }, [allEvents, todayStr, weekStart, weekEnd, overdueCount]);
 
   // Open the admin excuse-review panel and scroll it into view (it lives above
   // the spine/rail layout). Triggered from the rail's "Needs attention" block.

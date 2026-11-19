@@ -7,6 +7,7 @@
  * never :3000: that server talks to the shared dev/prod database.
  */
 import Constants from "expo-constants";
+import { DEV_WEB } from "./auth/dev-web";
 
 type Extra = {
   variant?: "development" | "preview" | "production";
@@ -26,7 +27,8 @@ function devApiUrl(): string {
 
 export const config = {
   variant: extra.variant ?? "development",
-  apiUrl: (str(extra.apiUrl) ?? devApiUrl()).replace(/\/$/, ""),
+  /** "" in the web preview: same-origin, through scripts/app-web.mjs's proxy. */
+  apiUrl: DEV_WEB ? "" : (str(extra.apiUrl) ?? devApiUrl()).replace(/\/$/, ""),
   supabaseUrl: str(extra.supabaseUrl) ?? "",
   supabaseAnonKey: str(extra.supabaseAnonKey) ?? "",
   /** Sent as x-app-version; the server's 426 gate compares it to MOBILE_MIN_VERSION. */

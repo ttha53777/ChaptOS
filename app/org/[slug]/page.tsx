@@ -60,7 +60,10 @@ import { PinnedAnnouncement } from "../../components/dashboard/ledger/PinnedAnno
 import { LedgerStrip, Measure } from "../../components/dashboard/ledger/LedgerStrip";
 import { PERMISSIONS } from "@/lib/permissions";
 import { PlateCard } from "../../components/dashboard/plate/PlateCard";
-import { derivePlate, type PlatePerm } from "../../components/dashboard/plate/derive-plate";
+import { numberFacts, type NumberTarget } from "@/lib/dashboard/numbers";
+import { derivePlate, type PlatePerm } from "@/lib/dashboard/plate";
+import { rosterData } from "@/lib/dashboard/standing";
+import { digestRequest, weekDigest } from "@/lib/dashboard/week";
 import { MembersCard } from "../../components/dashboard/MembersCard";
 import { ThisWeek } from "../../components/dashboard/ledger/ThisWeek";
 import { WeekItemPeek, type WeekPeekTarget } from "../../components/dashboard/ledger/WeekItemPeek";
@@ -83,7 +86,8 @@ import "../../components/dashboard/customize/dash-customize.css";
 import { DEFAULT_DASHBOARD_LAYOUT, type DashCardId, type DashStatId, type DashboardLayout } from "@/lib/dashboard-layout";
 import { BillingAlert } from "../../components/dashboard/BillingAlert";
 import { apiErrorMessage, orgFetch, requestJson } from "../../lib/api";
-import { todayStr, toDateStr } from "../../lib/dates";
+import { todayStr } from "../../lib/dates";
+import type { PaperIconName } from "../../components/paper/PaperIcon";
 import type { MetricSnapshot } from "@/lib/metrics";
 
 // ─── Activity ID counter (module-level, reset-safe) ───────────────────────────
@@ -1260,21 +1264,21 @@ export default function Home() {
   // transactions yet — that is the point of asking. So a set opening balance counts
   // as data; only an org that has answered nothing and recorded nothing is unset.
   const hasTreasuryData   = liveTrend.length > 0 || treasuryData?.openingBalance != null;
-  const hasAttendanceData = useMemo(() => attendees.some(b => b.attendance > 0), [attendees]);
-  const hasGpaData        = useMemo(() => brotherList.some(b => b.gpa > 0), [brotherList]);
-  const hasServiceData    = useMemo(() => brotherList.some(b => b.serviceHours > 0), [brotherList]);
+  // The has*Data / measured rules live in lib/dashboard/standing.ts (rosterData), which
+  // the native app runs too; the comments below still say why each rule is what it is.
+  const roster = useMemo(() => rosterData(brotherList, tracked, hasTreasuryData), [brotherList, tracked, hasTreasuryData]);
+  const { hasAttendanceData, hasGpaData, hasServiceData } = roster;
   // A mature org where everyone has paid shows all-zero duesOwed, which alone is
   // indistinguishable from "dues were never assigned". Live books are the
   // tiebreak. Accepted limit: an org with dues assigned, everyone paid, and zero
   // transactions reads as unset — rare, self-correcting on the first entry, and
   // the failure is a soft invitation rather than a false number.
-  const hasDuesData       = useMemo(() => brotherList.some(b => b.duesOwed !== 0), [brotherList]) || hasTreasuryData;
+  const hasDuesData       = roster.hasDuesData;
   // Because dues leans on the books for its tiebreak, it isn't decidable until
   // BOTH fetches land — otherwise a paid-up org flashes "No dues set yet" for
   // the moment the treasury request is still open.
   const duesKnown = rosterLoaded && treasuryLoaded;
-  const hasAnyData = rosterLoaded &&
-    (hasAttendanceData || hasGpaData || hasServiceData || hasDuesData);
+  const hasAnyData = rosterLoaded && roster.hasAnyData;
 
   // `tracked` says which metrics the org opted into; `measured` narrows that to
   // the ones with at least one record behind them anywhere in the org. Anything
@@ -1287,12 +1291,7 @@ export default function Home() {
   //
   // On any org that has recorded something this is identity: every flag is true,
   // so `measured` equals `tracked` and nothing downstream changes.
-  const measured = useMemo<TrackedMetrics>(() => ({
-    attendance:   tracked.attendance   && hasAttendanceData,
-    gpa:          tracked.gpa          && hasGpaData,
-    duesOwed:     tracked.duesOwed     && hasDuesData,
-    serviceHours: tracked.serviceHours && hasServiceData,
-  }), [tracked, hasAttendanceData, hasGpaData, hasDuesData, hasServiceData]);
+  const measured: TrackedMetrics = roster.measured;
 
   const maxRevenue      = useMemo(() => partyList.length ? Math.max(...partyList.map(e => e.doorRevenue)) : 0, [partyList]);
   const bestEvent       = useMemo(() => partyList.length ? partyList.reduce((a, b) => b.doorRevenue > a.doorRevenue ? b : a) : null, [partyList]);
@@ -1379,40 +1378,14 @@ export default function Home() {
   // ── Weekly Digest ──────────────────────────────────────────────────────────
   // Forward-looking "this week's agenda" for the current calendar week (Mon–Sun).
   const weekRange = useMemo(() => isoWeekBounds(new Date(`${todayISO}T00:00:00`)), [todayISO]);
-  const weeklyDigest = useMemo(() => {
-    const { start, end } = weekRange;
-    const inWeek = (iso: string) => iso >= start && iso <= end; // zero-padded ISO compares chronologically
-    return {
-      // Open deadlines only — a task you already finished is not still "due",
-      // and leaving it in also fed the AI digest as outstanding work. Matches
-      // the same filter the plate applies to late tasks.
-      deadlinesDue:    taskList.filter(d => d.status !== "done" && d.dueDate != null && inWeek(d.dueDate)),
-      igDue:           igTaskList.filter(t => t.status !== "posted" && inWeek(t.dueDate)),
-      // Every event on the calendar this week, not just mandatory ones. A week
-      // full of optional socials, rehearsals or practices is still a week with
-      // an agenda — filtering to `mandatory` made those weeks read as empty and
-      // suppressed the digest entirely.
-      // Linked parties have their own digest section; count each event once.
-      eventsThisWeek:  calendarList.filter(e => inWeek(e.date) && !e.partyEventId),
-      partiesThisWeek: partyList.filter(p => inWeek(p.date)),
-      atRiskCount:     statusCounts["At Risk"],
-      // Not "this week", but the most useful thing to say when this week is
-      // quiet: work that is already late.
-      overdueCount:    taskList.filter(d => d.status !== "done" && d.dueDate != null && d.dueDate < todayISO).length,
-    };
-  }, [weekRange, taskList, igTaskList, calendarList, partyList, statusCounts, todayISO]);
-  // The This Week card shows every calendar entry, parties included. The digest
-  // above drops party-linked events only because it lists parties in their own
-  // section; the agenda has no such section, so the same filter erased them.
-  const agendaEvents = useMemo(
-    () => calendarList.filter(e => e.date >= weekRange.start && e.date <= weekRange.end),
-    [calendarList, weekRange],
-  );
-  const digestTotal =
-    weeklyDigest.deadlinesDue.length + weeklyDigest.igDue.length +
-    weeklyDigest.eventsThisWeek.length + weeklyDigest.partiesThisWeek.length;
-  // Something worth narrating: either scheduled items, or late work to flag.
-  const digestHasSignal = digestTotal > 0 || weeklyDigest.overdueCount > 0;
+  // lib/dashboard/week.ts: the same digest + agenda the native app computes.
+  const weeklyDigest = useMemo(() => weekDigest({
+    today: todayISO, tasks: taskList, calendar: calendarList, instagram: igTaskList, parties: partyList,
+    atRiskCount: statusCounts["At Risk"],
+  }), [todayISO, taskList, calendarList, igTaskList, partyList, statusCounts]);
+  // The This Week card shows every calendar entry, parties included (see week.ts).
+  const agendaEvents = weeklyDigest.agenda;
+  const digestHasSignal = weeklyDigest.hasSignal;
   // The week's inputs have all arrived, so an empty week can be reported as
   // empty rather than as "still loading".
   const digestReady = calendarLoaded && loadedSections.has("deadlines");
@@ -1422,19 +1395,7 @@ export default function Home() {
   // generated once per key: cached client-side in localStorage and server-side
   // in-memory, so a plain reload makes zero API calls. The key only changes when
   // the week's items/counts change, which triggers a single fresh generation.
-  const digestKey = useMemo(() => {
-    const ids = (arr: { id: number }[]) => arr.map(x => x.id).sort((a, b) => a - b).join(",");
-    return [
-      "v5", // bump when the AI prompt/length changes, to invalidate cached narrations
-      weekRange.start, weekRange.end,
-      `d:${ids(weeklyDigest.deadlinesDue)}`,
-      `i:${ids(weeklyDigest.igDue)}`,
-      `e:${ids(weeklyDigest.eventsThisWeek)}`,
-      `p:${ids(weeklyDigest.partiesThisWeek)}`,
-      `r:${weeklyDigest.atRiskCount}`,
-      `o:${weeklyDigest.overdueCount}`,
-    ].join("|");
-  }, [weekRange, weeklyDigest]);
+  const digestKey = weeklyDigest.key;
 
   const [digestNarration, setDigestNarration] = useState<string | null>(null);
   const [digestNarrationLoading, setDigestNarrationLoading] = useState(false);
@@ -1463,16 +1424,7 @@ export default function Home() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
-      body: JSON.stringify({
-        key: digestKey,
-        weekRange,
-        deadlines: weeklyDigest.deadlinesDue.map(d => ({ title: d.title, dueDate: d.dueDate })),
-        instagram: igEnabled ? weeklyDigest.igDue.map(t => ({ title: t.title, dueDate: t.dueDate })) : [],
-        events:    weeklyDigest.eventsThisWeek.map(e => ({ title: e.title, date: e.date })),
-        parties:   weeklyDigest.partiesThisWeek.map(p => ({ name: p.name, date: p.date })),
-        atRiskCount: weeklyDigest.atRiskCount,
-        overdueCount: weeklyDigest.overdueCount,
-      }),
+      body: JSON.stringify(digestRequest(weeklyDigest, igEnabled)),
     })
       .then(r => r.ok ? r.json() : null)
       .then((data: { narration?: string | null } | null) => {
@@ -2118,184 +2070,59 @@ export default function Home() {
   const tasksEnabled = isNavVisible("Tasks", currentUser?.org?.enabledWorkflows ?? []);
   const openTaskCount = taskList.filter(t => t.status !== "done").length;
   const overdueTaskCount = weeklyDigest.overdueCount;
-  const monthAgoISO = (() => { const d = new Date(`${todayISO}T00:00:00`); d.setDate(d.getDate() - 30); return toDateStr(d.getFullYear(), d.getMonth(), d.getDate()); })();
-  const joinedRecently = brotherList.filter(b => (b.joinedAt ?? "").slice(0, 10) >= monthAgoISO).length;
   const pendingJoins = currentUser?.org?.pendingJoinRequestCount ?? 0;
+  // The headline numbers: the facts come from lib/dashboard/numbers.ts (the native
+  // app runs the same function); only each number's section state and where its
+  // tap goes belong to this page.
+  const facts = numberFacts({
+    today: todayISO, brothers: brotherList, roster, thresholds: THRESHOLDS,
+    feature: id => feature("operations", id),
+    words: { dues: v("Dues"), service: v("Service"), members: v("Member", true), member: p => v("Member", p) },
+    weekEvents: agendaEvents.length, weekDeadlines: weeklyDigest.deadlinesDue.length,
+    tasksEnabled, openTasks: openTaskCount, overdueTasks: overdueTaskCount,
+    canBrothers, pendingJoins, financeEnabled, canTreasury, treasury: treasuryData, metrics: customMetricSnapshots,
+  });
+  const goTo = (t: NumberTarget) => {
+    if (t.kind === "page") router.push(orgPath(`/${t.page}`));
+    else if (t.kind === "metric") setActiveCustomMetricId(t.definitionId);
+    else if (t.drawer === "deadlines") setWidgetDrawer("deadlines");
+    else setActiveDrawer(t.drawer);
+  };
+  const sectionOf = (id: DashStatId): { loading?: boolean; error?: boolean; onRetry?: () => void } => {
+    switch (id) {
+      case "attendance": case "gpa": case "service": case "members":
+        return { loading: !rosterLoaded, error: rosterFailed, onRetry: retrySections };
+      case "dues": return { loading: !duesKnown, error: rosterFailed || treasuryFailed, onRetry: retrySections };
+      case "week": return { loading: !digestReady, error: weekFailed, onRetry: retryWeek };
+      case "tasks": return { loading: !loadedSections.has("deadlines"), error: sectionErrors.has("deadlines"), onRetry: retrySections };
+      case "balance": return { loading: !treasuryLoaded, error: treasuryFailed, onRetry: retrySections };
+      default: return {};
+    }
+  };
   const dashStats: Partial<Record<DashStatId, DashStat>> = {};
-  if (feature("operations", "kpi-attendance")) dashStats.attendance = { label: "Attendance", icon: "people", tone: "var(--pp-mint-ink)", el: (
-    <Measure
-      label="Attendance"
-      icon="people"
-      tone="var(--pp-mint-ink)"
-      meter={hasAttendanceData ? avgAttendance : undefined}
-      meterLabel={`${avgAttendance.toFixed(1)}% average attendance`}
-      loading={!rosterLoaded}
-      error={rosterFailed}
-      onRetry={retrySections}
-      unset={!hasAttendanceData}
-      value={hasAttendanceData ? avgAttendance.toFixed(1) : "—"}
-      unit="%"
-      note={hasAttendanceData
-        ? `${belowAttCount} below ${THRESHOLDS.attendanceWatch}%`
-        : rosterLoaded ? "No meetings recorded yet." : undefined}
-      noteWarn={hasAttendanceData && belowAttCount > 0}
-      onClick={() => setActiveDrawer("attendance")}
-    />
-  ) };
-  if (feature("operations", "kpi-dues")) dashStats.dues = { label: `${v("Dues")} outstanding`, icon: "wallet", tone: "var(--pp-butter-ink)", el: (
-    <Measure
-      label={`${v("Dues")} outstanding`}
-      icon="wallet"
-      tone="var(--pp-butter-ink)"
-      meter={duesKnown && hasDuesData && brotherList.length > 0 ? ((brotherList.length - owingCount) / brotherList.length) * 100 : undefined}
-      meterLabel={`${brotherList.length - owingCount} of ${brotherList.length} paid up`}
-      /* Two sections, per duesKnown above — the roster holds the
-         balances and the books are the tiebreak. */
-      loading={!duesKnown}
-      error={rosterFailed || treasuryFailed}
-      onRetry={retrySections}
-      unset={!duesKnown || !hasDuesData}
-      unitLeading="$"
-      value={duesKnown && hasDuesData ? outstandingDues.toLocaleString() : "—"}
-      note={duesKnown && hasDuesData
-        ? `${owingCount} ${v("Member", owingCount !== 1).toLowerCase()} owe`
-        : duesKnown ? `No ${v("Dues").toLowerCase()} set yet.` : undefined}
-      noteWarn={duesKnown && hasDuesData && owingCount > 0}
-      noteAction={duesKnown && !hasDuesData && canTreasury && financeEnabled
-        ? { label: "Set an amount", onClick: () => router.push(orgPath("/treasury")) }
-        : undefined}
-      onClick={() => setActiveDrawer("dues")}
-    />
-  ) };
-  if (feature("operations", "kpi-gpa")) dashStats.gpa = { label: "Average GPA", icon: "star", tone: "var(--pp-lilac-ink)", el: (
-    <Measure
-      label="Average GPA"
-      icon="star"
-      tone="var(--pp-lilac-ink)"
-      meter={hasGpaData ? (chapterGPA / 4) * 100 : undefined}
-      meterLabel={`${chapterGPA.toFixed(2)} of 4.00`}
-      loading={!rosterLoaded}
-      error={rosterFailed}
-      onRetry={retrySections}
-      unset={!hasGpaData}
-      value={hasGpaData ? chapterGPA.toFixed(2) : "—"}
-      note={hasGpaData
-        ? `${belowGpaCount} below ${THRESHOLDS.gpaWatch.toFixed(1)}`
-        : rosterLoaded ? "No grades on file yet." : undefined}
-      onClick={() => setActiveDrawer("gpa")}
-    />
-  ) };
-  if (feature("operations", "kpi-service")) dashStats.service = { label: v("Service"), icon: "heart", tone: "var(--pp-sky-ink)", el: (
-    <Measure
-      label={v("Service")}
-      icon="heart"
-      tone="var(--pp-sky-ink)"
-      meter={hasServiceData && brotherList.length > 0 ? (onTrackSvc / brotherList.length) * 100 : undefined}
-      meterLabel={`${onTrackSvc} of ${brotherList.length} on track`}
-      loading={!rosterLoaded}
-      error={rosterFailed}
-      onRetry={retrySections}
-      unset={!hasServiceData}
-      value={hasServiceData ? `${totalServiceHrs}` : "—"}
-      unit="h"
-      note={hasServiceData
-        ? `${onTrackSvc} of ${brotherList.length} on track`
-        : rosterLoaded ? "Nothing logged this term." : undefined}
-      onClick={() => setActiveDrawer("service")}
-    />
-  ) };
-  dashStats.members = { label: v("Member", true), icon: "people", tone: "var(--pp-sky-ink)", el: (
-    <Measure
-      label={v("Member", true)}
-      icon="people"
-      tone="var(--pp-sky-ink)"
-      loading={!rosterLoaded}
-      error={rosterFailed}
-      onRetry={retrySections}
-      value={String(brotherList.length)}
-      note={joinedRecently > 0 ? `+${joinedRecently} in the last 30 days` : "on the roster"}
-      noteGood={joinedRecently > 0}
-      onClick={() => router.push(orgPath("/brothers"))}
-    />
-  ) };
-  dashStats.week = { label: "This week", icon: "cal", tone: "var(--pp-butter-ink)", el: (
-    <Measure
-      label="This week"
-      icon="cal"
-      tone="var(--pp-butter-ink)"
-      loading={!digestReady}
-      error={weekFailed}
-      onRetry={retryWeek}
-      value={String(agendaEvents.length)}
-      unit={agendaEvents.length === 1 ? " event" : " events"}
-      note={weeklyDigest.deadlinesDue.length
-        ? `${weeklyDigest.deadlinesDue.length} deadline${weeklyDigest.deadlinesDue.length === 1 ? "" : "s"} due`
-        : "no deadlines due"}
-      onClick={() => setWidgetDrawer("deadlines")}
-    />
-  ) };
-  if (tasksEnabled) dashStats.tasks = { label: "Open tasks", icon: "box", tone: "var(--pp-peach-ink)", el: (
-    <Measure
-      label="Open tasks"
-      icon="box"
-      tone="var(--pp-peach-ink)"
-      loading={!loadedSections.has("deadlines")}
-      error={sectionErrors.has("deadlines")}
-      onRetry={retrySections}
-      value={String(openTaskCount)}
-      note={overdueTaskCount > 0 ? `${overdueTaskCount} overdue` : openTaskCount > 0 ? "nothing overdue" : "all done"}
-      noteWarn={overdueTaskCount > 0}
-      noteGood={overdueTaskCount === 0}
-      onClick={() => router.push(orgPath("/tasks"))}
-    />
-  ) };
-  if (canBrothers) dashStats.requests = { label: "Asking to join", icon: "door", tone: "var(--pp-lilac-ink)", el: (
-    <Measure
-      label="Asking to join"
-      icon="door"
-      tone="var(--pp-lilac-ink)"
-      value={String(pendingJoins)}
-      note={pendingJoins > 0 ? "waiting on an officer" : "no one waiting"}
-      noteWarn={pendingJoins > 0}
-      onClick={() => router.push(orgPath("/brothers"))}
-    />
-  ) };
-  if (financeEnabled) dashStats.balance = { label: "Balance", icon: "wallet", tone: "var(--pp-mint-ink)", el: (
-    <Measure
-      label="Balance"
-      icon="wallet"
-      tone="var(--pp-mint-ink)"
-      loading={!treasuryLoaded}
-      error={treasuryFailed}
-      onRetry={retrySections}
-      unitLeading="$"
-      value={liveBalance != null ? Math.round(liveBalance).toLocaleString() : "—"}
-      unset={liveBalance == null}
-      note={liveProjected != null ? `$${Math.round(liveProjected).toLocaleString()} projected` : undefined}
-      onClick={() => router.push(orgPath("/treasury"))}
-    />
-  ) };
-  for (const snap of customMetricSnapshots) {
-    const fmtHeadline = Number.isInteger(snap.headline) ? String(snap.headline) : snap.headline.toFixed(1);
-    const headline =
-      snap.aggregation === "count_on_track"
-        ? `${snap.headline} / ${snap.totalCount}`
-        : snap.unit
-        ? `${fmtHeadline}${snap.unit}`
-        : fmtHeadline;
-    const note =
-      snap.aggregation === "count_on_track"
-        ? `${snap.onTrackCount} on track`
-        : `Goal ${snap.goal}${snap.unit ?? ""}`;
-    dashStats[`metric:${snap.definitionId}`] = { label: snap.name, icon: "bars", tone: "var(--pp-rose-ink)", el: (
+  for (const f of Object.values(facts)) {
+    if (!f) continue;
+    const tone = `var(--pp-${f.tone}-ink)`;
+    const icon = f.icon as PaperIconName;
+    const sec = sectionOf(f.id);
+    dashStats[f.id] = { label: f.label, icon, tone, el: (
       <Measure
-        key={snap.definitionId}
-        label={snap.name}
-        icon="bars"
-        tone="var(--pp-rose-ink)"
-        value={headline}
-        note={note}
-        onClick={() => setActiveCustomMetricId(snap.definitionId)}
+        key={f.id}
+        label={f.label}
+        icon={icon}
+        tone={tone}
+        meter={f.meter}
+        meterLabel={f.meterLabel}
+        {...sec}
+        unset={f.unset}
+        value={f.value}
+        unit={f.unit}
+        unitLeading={f.unitLeading}
+        note={sec.loading ? undefined : f.note}
+        noteWarn={f.noteWarn}
+        noteGood={f.noteGood}
+        noteAction={f.action ? { label: f.action.label, onClick: () => goTo(f.action!.target) } : undefined}
+        onClick={() => goTo(f.target)}
       />
     ) };
   }
