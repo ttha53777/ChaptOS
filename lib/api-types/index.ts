@@ -42,15 +42,36 @@
  *   GET    /api/home                           HomeResponse            (?today=YYYY-MM-DD)
  *   GET    /api/calendar                       CalendarEvent[]
  *   GET    /api/calendar/event-types           CalEventType[]
- *   PATCH  /api/calendar/[id]/details          (claim a "who's bringing what" item)
+ *   PATCH  /api/calendar/[id]/details          EventDetailsUpdated     (body detailActionInput: claim or unclaim a "who's bringing what" item)
  *   GET    /api/calendar/[id]/summary          MeetingSummary          (published summary + action items; never the minutes)
  *   PATCH  /api/calendar/[id]/action-items     MeetingSummaryBody      (body toggleActionItemInput; the item's owner, or MANAGE_EVENTS)
  *   GET    /api/calendar/subscription          CalendarSubscriptionView (send ?view=member)
+ *   POST   /api/calendar                       (201; MANAGE_EVENTS; body createCalendarInput, + repeat; the app re-reads GET /api/calendar)
+ *   PATCH  /api/calendar/[id]                  (MANAGE_EVENTS; body updateCalendarInput; the app re-reads GET /api/calendar)
+ *   DELETE /api/calendar/[id]                  204                     (MANAGE_EVENTS)
+ *   GET    /api/calendar/[id]/delete-preview   EventDeletePreview      (MANAGE_EVENTS)
+ *   GET    /api/calendar/agenda-templates      AgendaTemplate[]        (MANAGE_EVENTS)
+ *   GET    /api/programming                    ProgrammingEvent[]      (everyone with the events workflow)
+ *   POST   /api/programming                    ProgrammingEvent        (MANAGE_EVENTS; body createProgrammingTaskInput)
+ *   PATCH  /api/programming/[id]               ProgrammingEvent        (MANAGE_EVENTS; body updateProgrammingTaskInput; published fields frozen)
+ *   DELETE /api/programming/[id]               204                     (MANAGE_EVENTS)
+ *   PATCH  /api/programming/[id]/stage         ProgrammingEvent        (MANAGE_EVENTS; body setStageInput; forward moves gated)
+ *   GET    /api/programming/[id]/docs          ProgrammingDoc[]
+ *   POST   /api/programming/[id]/docs          ProgrammingDoc          (MANAGE_EVENTS; body attachProgrammingDocInput)
+ *   DELETE /api/programming/[id]/docs/[docId]  204                     (MANAGE_EVENTS)
+ *   GET    /api/roles                          RoleChip[]
+ *   POST   /api/ai/summarize-meeting           MeetingSummarized       (body { id }; the app offers it with MANAGE_EVENTS, as the web does)
  *   GET    /api/attendance/live                LiveCheckIn | null
  *   POST   /api/attendance/[eventId]/check-in  LiveCheckIn | null      (DELETE undoes)
  *   GET    /api/attendance/mine                MyAttendance
+ *   GET    /api/attendance/[eventId]           EventAttendance         (who came to a required event; any member)
+ *   GET    /api/attendance/summary             AttendanceSummaryRow[]  (?category=chapter)
+ *   POST   /api/attendance                     (MANAGE_ATTENDANCE; body recordAttendanceInput `changes`; the app re-reads)
+ *   POST   /api/attendance/[eventId]/window    LiveCheckIn | null      (MANAGE_ATTENDANCE; body checkInWindowInput: open | close | reopen | cancel | restore)
  *   GET    /api/excuses/mine                   MyExcuseItem[]
- *   POST   /api/excuses                        (file an excuse)
+ *   POST   /api/excuses                        (file an excuse; brotherId honoured with MANAGE_ATTENDANCE, which also approves it)
+ *   GET    /api/excuses                        ExcuseListItem[]        (MANAGE_ATTENDANCE; ?status=pending)
+ *   PATCH  /api/excuses/[id]                   ExcuseDecided           (MANAGE_ATTENDANCE; body decideExcuseInput)
  *   GET    /api/tasks                          Task[]
  *   GET    /api/tasks/[id]                     TaskDetail              (each-task ticks + history)
  *   PATCH  /api/tasks/[id]                     Task                    (an assignee may tick it)
@@ -68,13 +89,16 @@
  *   GET    /api/announcement                   Announcement
  *   POST   /api/ai/chat                        SSE: ChatStreamEvents   (or ChatAvailability JSON when off)
  *   GET    /api/ai/chat                        ChatAvailability        (files/fileLimits present when attachments are on)
+ *   GET    /api/ai/peek?type=&id=              PeekCard                (an answer row's record; type: member|event|task|transaction)
  *   POST   /api/ai/attachments                 ChatAttachmentInfo      (multipart `file` + `threadId`; 400 → details.code)
  *   GET    /api/ai/attachments?threadId=       ChatAttachmentInfo[]    (DELETE ?threadId= → { ok, removed })
  *   DELETE /api/ai/attachments/[id]            { ok: true }
  *   GET    /api/ai/attachments/[id]/units/[ref] AttachmentUnit         (ref: p7, s2, l3, sh1, sh1!B2:D9)
  *   GET    /api/treasury                       TreasuryData
  *   GET    /api/transactions                   Transaction[]
+ *   GET    /api/treasury/categories            TransactionCategory[]   (every member; hidden ones included)
  *   GET    /api/reimbursements                 Reimbursement[]
+ *   POST   /api/reimbursements                 Reimbursement           (201; body createReimbursementInput; your own, or anyone's with treasury)
  *   POST   /api/reimbursements/[id]/receipt    Reimbursement           (multipart `file`; requester while pending, or treasury)
  *   GET    /api/reimbursements/[id]/receipt    302 → 60s signed URL    (Accept: application/json → { url }; requester or treasury)
  *   GET    /api/dues                           DuesBoard               (?semester=<label>)
@@ -90,6 +114,7 @@ export type * from "./me";
 export type * from "./roster";
 export type * from "./tasks";
 export type * from "./calendar";
+export type * from "./programming";
 export type * from "./treasury";
 export type * from "./dues";
 export type * from "./activity";

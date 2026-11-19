@@ -18,13 +18,15 @@
  * Routes that build their body inline are checked where they're written, with
  * `satisfies` (/api/auth/me, /api/treasury, /api/auth/avatar, /api/auth/terms,
  * /api/auth/invite-status, /api/auth/request-join, /api/auth/join-status,
- * /api/orgs/leave), and the chat stream's send() is typed against ChatStreamEvents.
+ * /api/orgs/leave, /api/attendance/[eventId], /api/calendar/[id]/details), and the chat stream's send() is typed against ChatStreamEvents.
  */
 import type {
   ActivityEntry, Brother, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
   MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, TaskDetail, Transaction, TransactionCategory,
   ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView,
   HomeResponse, MemberUpdated, MobileConfig,
+  AttendanceSummaryRow, ExcuseListItem, ExcuseDecided, EventDeletePreview, AgendaTemplate, MeetingSummarized,
+  ProgrammingEvent, ProgrammingDoc, RoleChip,
   ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
 } from "@/lib/api-types";
 import type { datedFromThings, logbookFromRecords, pastDueFromTasks } from "@/lib/ai-shapes-calendar";
@@ -37,19 +39,23 @@ import type { listVisibleBrothers, getMemberProfile } from "@/lib/services/broth
 import type { publicBrother } from "@/lib/brother-avatar";
 import type { getTaskDetail, listTasks, updateTask } from "@/lib/services/task-service";
 import type { listPolls, castVote } from "@/lib/services/poll-service";
-import type { listCalendar } from "@/lib/services/calendar-service";
+import type { listCalendar, previewDeleteCalendar } from "@/lib/services/calendar-service";
+import type { listAgendaTemplates } from "@/lib/services/agenda-template-service";
+import type { summarizeMeeting } from "@/lib/services/meeting-summary-service";
 import type { listEventTypes } from "@/lib/services/calendar-event-type-service";
-import type { getLiveCheckIn, listMyAttendance, selfCheckIn, undoSelfCheckIn } from "@/lib/services/attendance-service";
-import type { listMyExcuses } from "@/lib/services/excuse-service";
+import type { getLiveCheckIn, listMyAttendance, selfCheckIn, undoSelfCheckIn, summarizeAttendance, openCheckIn, closeCheckIn, reopenCheckIn, cancelCheckIn, restoreCheckIn } from "@/lib/services/attendance-service";
+import type { listMyExcuses, listExcuses, decideExcuse } from "@/lib/services/excuse-service";
 import type { listRecentActivity } from "@/lib/services/activity-service";
 import type { listOwnJoinRequests } from "@/lib/auth/own-join-status";
 import type { listTransactions } from "@/lib/services/transaction-service";
-import type { listReimbursements } from "@/lib/services/reimbursement-service";
+import type { createReimbursement, listReimbursements } from "@/lib/services/reimbursement-service";
 import type { listTransactionCategories } from "@/lib/services/transaction-category-service";
 import type { listServiceEvents } from "@/lib/services/service-event-service";
 import type { listParticipationForOrg, listParticipationForEvent, logMyParticipation, removeMyParticipation } from "@/lib/services/service-participation-service";
 import type { listFundraisers, getFundraiser } from "@/lib/services/fundraiser-service";
 import type { listDocs } from "@/lib/services/doc-service";
+import type { listProgrammingTasks, createProgrammingTask, updateProgrammingTask, setStage, listProgrammingEventDocs, attachProgrammingDoc } from "@/lib/services/programming-service";
+import type { listRoles } from "@/lib/services/role-service";
 import type { listFolders } from "@/lib/services/doc-folder-service";
 import type { getMeetingSummary, setActionItemDone } from "@/lib/services/meeting-summary-service";
 import type { getCalendarSubscription } from "@/lib/services/calendar-subscription-service";
@@ -104,11 +110,25 @@ export const undoCheckIn: Widen<LiveCheckIn | null> = served<Served<typeof undoS
 export const myAttendance: Widen<MyAttendance> = served<Served<typeof listMyAttendance>>();
 export const myExcuses: Widen<MyExcuseItem[]> = served<Served<typeof listMyExcuses>>();
 
+// Meetings: the phone's officer tools.
+export const attendanceSummary: Widen<AttendanceSummaryRow[]> = served<Served<typeof summarizeAttendance>>();
+export const windowOpened: Widen<LiveCheckIn | null> = served<Served<typeof openCheckIn>>();
+export const windowClosed: Widen<LiveCheckIn | null> = served<Served<typeof closeCheckIn>>();
+export const windowReopened: Widen<LiveCheckIn | null> = served<Served<typeof reopenCheckIn>>();
+export const windowCancelled: Widen<LiveCheckIn | null> = served<Served<typeof cancelCheckIn>>();
+export const windowRestored: Widen<LiveCheckIn | null> = served<Served<typeof restoreCheckIn>>();
+export const excuseList: Widen<ExcuseListItem[]> = served<Served<typeof listExcuses>>();
+export const excuseDecided: Widen<ExcuseDecided> = served<Served<typeof decideExcuse>>();
+export const eventDeletePreview: Widen<EventDeletePreview> = served<Served<typeof previewDeleteCalendar>>();
+export const agendaTemplates: Widen<AgendaTemplate[]> = served<Served<typeof listAgendaTemplates>>();
+export const meetingSummarized: Widen<MeetingSummarized> = served<Served<typeof summarizeMeeting>>();
+
 export const activity: Widen<ActivityEntry[]> = served<Served<typeof listRecentActivity>>();
 export const ownJoinRequests: Widen<OwnJoinRequest[]> = served<Served<typeof listOwnJoinRequests>>();
 
 export const transactions: Widen<Transaction[]> = served<Served<typeof listTransactions>>();
 export const reimbursements: Widen<Reimbursement[]> = served<Served<typeof listReimbursements>>();
+export const reimbursementCreated: Widen<Reimbursement> = served<Served<typeof createReimbursement>>();
 export const categories: Widen<TransactionCategory[]> = served<Served<typeof listTransactionCategories>>();
 
 export const duesBoard: Widen<DuesBoard> = served<Served<typeof getDuesBoard>>();
@@ -128,6 +148,14 @@ export const fundraisers: Widen<Fundraiser[]> = served<Served<typeof listFundrai
 export const fundraiser: Widen<Fundraiser> = served<Served<typeof getFundraiser>>();
 
 export const docs: Widen<Doc[]> = served<Served<typeof listDocs>>();
+
+export const programming: Widen<ProgrammingEvent[]> = served<Served<typeof listProgrammingTasks>>();
+export const programmingCreated: Widen<ProgrammingEvent> = served<Served<typeof createProgrammingTask>>();
+export const programmingUpdated: Widen<ProgrammingEvent> = served<Served<typeof updateProgrammingTask>>();
+export const programmingStaged: Widen<ProgrammingEvent> = served<Served<typeof setStage>>();
+export const programmingDocs: Widen<ProgrammingDoc[]> = served<Served<typeof listProgrammingEventDocs>>();
+export const programmingDocAttached: Widen<ProgrammingDoc> = served<Served<typeof attachProgrammingDoc>>();
+export const roles: Widen<RoleChip[]> = served<Served<typeof listRoles>>();
 export const docFolders: Widen<DocFolder[]> = served<Served<typeof listFolders>>();
 
 export const meetingSummary: Widen<MeetingSummary> = served<Served<typeof getMeetingSummary>>();
