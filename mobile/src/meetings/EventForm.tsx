@@ -349,7 +349,7 @@ export function DayStrip({ value, onChange, today, term, usualDow, taken, editin
 
   const long = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   return (
-    <ScrollView ref={ref} horizontal showsHorizontalScrollIndicator={false} onLayout={e => setW(e.nativeEvent.layout.width)}
+    <ScrollView keyboardShouldPersistTaps="handled" ref={ref} horizontal showsHorizontalScrollIndicator={false} onLayout={e => setW(e.nativeEvent.layout.width)}
       contentContainerStyle={{ gap: GAP, paddingVertical: 6, paddingHorizontal: 2 }} accessibilityLabel={`Day, ${long(value)}`}>
       {days.map((d, i) => (
         <DayStub key={d} d={d} on={d === value} first={i === 0 || d.slice(8) === "01"}
@@ -424,7 +424,7 @@ export function Clock({ minutes, onChange, tone }: { minutes: number | null; onC
         </View>
         <StepBtn glyph="+" label="Fifteen minutes later" onStep={() => step(15)} />
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingHorizontal: 1 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingHorizontal: 1 }}>
         {QUICK.map(q => {
           const on = minutes === q;
           return (

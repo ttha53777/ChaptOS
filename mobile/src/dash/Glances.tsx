@@ -70,11 +70,20 @@ function Spark({ data, color, width, height, fill }: { data: number[]; color: st
 
 /* ── tiles ────────────────────────────────────────────────────────────────────── */
 
+function V({ children, unset }: { children: string; unset?: boolean }) {
+  const { c } = useTheme();
+  return <T v="measure" size={25.6} numberOfLines={1} color={unset ? c.ink3 : c.ink}>{children}</T>;
+}
+function N({ children, warn }: { children: string; warn?: boolean }) {
+  const { c } = useTheme();
+  return <T v="mono" size={10.6} numberOfLines={1} color={warn ? c.pastel.peach.ink : c.ink3} style={{ marginTop: "auto" }}>{children}</T>;
+}
+function L({ children }: { children: string }) {
+  return <T v="callout" size={13.4} lh={1.32} numberOfLines={3}>{children}</T>;
+}
+
 function Body({ id, g }: { id: DashCardId; g: GlanceCtx }) {
   const { c } = useTheme();
-  const V = ({ children, unset }: { children: string; unset?: boolean }) => <T v="measure" size={25.6} numberOfLines={1} color={unset ? c.ink3 : c.ink}>{children}</T>;
-  const N = ({ children, warn }: { children: string; warn?: boolean }) => <T v="mono" size={10.6} numberOfLines={1} color={warn ? c.pastel.peach.ink : c.ink3} style={{ marginTop: "auto" }}>{children}</T>;
-  const L = ({ children }: { children: string }) => <T v="callout" size={13.4} lh={1.32} numberOfLines={3}>{children}</T>;
   const d = g.data;
   if (id === "members") {
     const counts = g.standing, n = d.brothers.length, off = counts ? counts.watch + counts.risk : 0;

@@ -7,6 +7,7 @@ import type { AcceptTermsResponse, MeResponse } from "@/lib/api-types";
 import type { acceptTermsInput } from "@/lib/validation/terms";
 import { useMutation } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
+import { haptics } from "~/motion/haptics";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { z } from "zod";
@@ -30,7 +31,10 @@ export default function Terms() {
   const version = entry?.me.terms.version ?? "";
   const accept = useMutation({
     mutationFn: (body: z.input<typeof acceptTermsInput>) => api<AcceptTermsResponse>("/api/auth/terms", { method: "POST", body }),
+    // Success is felt when the server has recorded it, not on the press.
+    onError: () => haptics.error(),
     onSuccess: terms => {
+      haptics.success();
       // The answer is the fresh TermsStatus: patch /me rather than refetching it.
       queryClient.setQueryData<MeResponse | null>(keys.me(activeOrg.get().slug), me => (me ? { ...me, terms } : me));
     },
@@ -55,7 +59,7 @@ export default function Terms() {
             <Icon name="out" size={15} color={c.ink3} />
           </Pressable>
           {accept.error ? <T v="callout" color={c.risk}>{accept.error.message}</T> : null}
-          <Button label={accept.isPending ? "Saving…" : "I agree"} icon="arrow-r" block haptic="success"
+          <Button label={accept.isPending ? "Saving…" : "I agree"} icon="arrow-r" block
             disabled={accept.isPending || !version} onPress={() => accept.mutate({ version })} />
         </View>
         <Pressable onPress={() => void signOutHere()} hitSlop={10} accessibilityRole="button" style={{ alignSelf: "center" }}>

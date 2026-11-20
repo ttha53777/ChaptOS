@@ -7,7 +7,6 @@ import { router } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useChatAvailability } from "~/data/chat";
 import { Icon } from "~/icons/Icon";
-import { haptics } from "~/motion/haptics";
 import { useTheme } from "~/theme/PaperProvider";
 import { T } from "~/ui/T";
 
@@ -17,7 +16,7 @@ export function AskBar() {
   if (avail.data && !avail.data.enabled) return null;
   return (
     <Pressable
-      onPress={() => { haptics.select(); router.push("/ask"); }}
+      onPress={() => router.push("/ask")}
       accessibilityRole="button"
       accessibilityLabel="Ask Chapt about your chapter"
       style={({ pressed }) => [styles.bar, { borderColor: pressed ? c.pastel.lilac.ink : c.line2, backgroundColor: pressed ? c.pastel.lilac.soft : "transparent" }]}

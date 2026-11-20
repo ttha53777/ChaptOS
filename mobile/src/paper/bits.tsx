@@ -9,11 +9,13 @@
  *   Tape         .note::after       translucent tape strip
  *   StickyNote   .note / .pinned    pastel note, dark ink in both themes
  */
-import { type ReactNode } from "react";
-import { Image, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import { useRef, useState, type ReactNode } from "react";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import { DUR } from "~/motion/motion";
 import { Icon, type IconName } from "~/icons/Icon";
 import type { Tone } from "~/theme/palette";
-import { useTheme } from "~/theme/PaperProvider";
+import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { hard, soft } from "~/theme/shadow";
 import { T } from "~/ui/T";
 
@@ -121,10 +123,27 @@ export function Avatar({ name, uri, tone = "lilac", size = "md", px, ring, style
         borderColor: lg ? c.ink : ring ?? "rgba(38,33,27,0.08)",
       }, lg && hard(c.pastel.peach.fill, 4), style]}
     >
-      {uri
-        ? <Image source={{ uri }} style={{ width: d - 3, height: d - 3, borderRadius: d / 2 }} />
-        : <T v={lg ? "title" : "pill"} color={c.avInk} style={{ fontSize: d * (lg ? 0.3 : 0.32), lineHeight: d * 0.4 }}>{initials(name)}</T>}
+      {/* Initials are the placeholder while a photo loads, and the fallback if it never does. */}
+      <T v={lg ? "title" : "pill"} color={c.avInk} style={{ fontSize: d * (lg ? 0.3 : 0.32), lineHeight: d * 0.4 }}>{initials(name)}</T>
+      {uri ? <AvatarPhoto key={uri} uri={uri} d={d} /> : null}
     </View>
+  );
+}
+
+/** A photo that fades in over the initials when it arrives from the network. One already
+ *  in the image cache (loaded within a frame or so) shows at once, so a list you've seen
+ *  doesn't flicker as it remounts. A failed load leaves the initials showing. */
+function AvatarPhoto({ uri, d }: { uri: string; d: number }) {
+  const m = useMotion();
+  const shown = useSharedValue(0);
+  const t0 = useRef(Date.now());
+  const [failed, setFailed] = useState(false);
+  const fade = useAnimatedStyle(() => ({ opacity: shown.value }));
+  if (failed) return null;
+  return (
+    <Animated.Image source={{ uri }} onError={() => setFailed(true)}
+      onLoad={() => { shown.value = Date.now() - t0.current < 50 || m.reduced ? 1 : withTiming(1, m.timing(DUR.fade, "out")); }}
+      style={[{ position: "absolute", width: d - 3, height: d - 3, borderRadius: d / 2 }, fade]} />
   );
 }
 

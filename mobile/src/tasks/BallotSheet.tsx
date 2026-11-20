@@ -29,6 +29,7 @@ import { useTheme } from "~/theme/PaperProvider";
 import { T } from "~/ui/T";
 import { TBtn } from "./List";
 import { castVote } from "./vote";
+import { pressedDim } from "~/motion/press";
 
 export const FIRST_VOTE = "Your vote is in — here's how the room is leaning so far.";
 
@@ -165,8 +166,8 @@ function Body({ poll, today, rosterSize, canManage, canVote, onEdit, onDelete, o
               {closed
                 ? <TBtn small soft label="Reopen" disabled={busy} onPress={() => void setStatus("open")} />
                 : <TBtn small soft label="Close poll" onPress={() => setConfirm(true)} />}
-              <Pressable onPress={onEdit} accessibilityRole="button" accessibilityLabel="Edit poll" hitSlop={6} style={styles.ib}><Icon name="pencil" size={17} color={c.ink3} /></Pressable>
-              <Pressable onPress={onDelete} accessibilityRole="button" accessibilityLabel="Delete poll" hitSlop={6} style={styles.ib}><Icon name="trash" size={17} color={c.ink3} /></Pressable>
+              <Pressable onPress={onEdit} accessibilityRole="button" accessibilityLabel="Edit poll" hitSlop={6} style={({ pressed }) => [styles.ib, pressed && pressedDim]}><Icon name="pencil" size={17} color={c.ink3} /></Pressable>
+              <Pressable onPress={onDelete} accessibilityRole="button" accessibilityLabel="Delete poll" hitSlop={6} style={({ pressed }) => [styles.ib, pressed && pressedDim]}><Icon name="trash" size={17} color={c.ink3} /></Pressable>
             </View>
           ) : null}
           <View style={[styles.foot, { justifyContent: "flex-end" }]}>

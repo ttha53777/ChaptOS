@@ -22,6 +22,7 @@ import { haptics } from "~/motion/haptics";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 /* ── section head ─────────────────────────────────────────────────────────────── */
 
@@ -51,7 +52,7 @@ export function OnDeck({ event, roll, today, start, time, pendingNames, canAtten
 
   return (
     <View style={[styles.deck, { backgroundColor: c.card, borderColor: c.ink }, hard(c.pastel.sky.fill, 5)]}>
-      <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={`${event.title}, ${head.when}. Opens the minutes.`} style={styles.deckTop}>
+      <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={`${event.title}, ${head.when}. Opens the minutes.`} style={({ pressed }) => [styles.deckTop, pressed && pressedDim]}>
         <View style={styles.calWrap}>
           <View style={[styles.tape, { backgroundColor: c.pastel.butter.fill }]} />
           <View style={[styles.cal, { backgroundColor: c.card, borderColor: c.ink }, hard(c.pastel.sky.fill, 3)]}>
@@ -139,7 +140,7 @@ function Act({ label, icon, ink, small, onPress }: { label: string; icon?: IconN
   const { c } = useTheme();
   const fg = ink ? c.paper : c.ink;
   return (
-    <Pressable onPress={() => { haptics.tap(); onPress(); }} accessibilityRole="button"
+    <Pressable onPress={onPress} accessibilityRole="button"
       style={({ pressed }) => [styles.act, small && styles.actSm, { backgroundColor: ink ? c.ink : c.card, borderColor: small ? c.line2 : c.ink },
         !small && !pressed ? hard(ink ? c.pastel.lilac.fill : c.pastel.peach.fill, 3) : null, pressed && { transform: [{ translateX: 1 }, { translateY: 1 }] }]}>
       {icon ? <Icon name={icon} size={small ? 13 : 15} color={fg} /> : null}

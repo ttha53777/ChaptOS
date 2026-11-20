@@ -9,7 +9,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { BackHandler, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
 import { CloseX } from "~/shell/sheets";
@@ -29,9 +29,9 @@ export function LocalSheet({ open, onClose, title, kicker, children }: { open: b
     if (open) {
       setShown(true);
       drag.value = 0;
-      p.value = withTiming(1, { duration: m.t(m.reduced ? 180 : 300) });
+      p.value = withTiming(1, m.timing(m.reduced ? 180 : 300, m.reduced ? "out" : "sheet"));
     } else if (shown) {
-      p.value = withTiming(0, { duration: m.t(m.reduced ? 160 : 220) }, fin => { if (fin) scheduleOnRN(setShown, false); });
+      p.value = withTiming(0, m.timing(m.reduced ? 160 : 220, m.reduced ? "out" : "in"), fin => { if (fin) scheduleOnRN(setShown, false); });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -42,13 +42,16 @@ export function LocalSheet({ open, onClose, title, kicker, children }: { open: b
     return () => sub.remove();
   }, [open, onClose]);
 
+  // Built on the JS side: m.spring() must not run inside the gesture worklet.
+  const settle = m.spring("settle");
   const pan = usePanGesture({
     activeOffsetY: [-6, 6],
     onUpdate: e => { "worklet"; drag.value = Math.max(0, e.translationY); },
     onDeactivate: e => {
       "worklet";
       if (drag.value > 120 || e.velocityY > 700) scheduleOnRN(onClose);
-      else drag.value = withTiming(0, { duration: 200 });
+      // Hand the finger's speed to the spring, so a short flick settles instead of stopping dead.
+      else drag.value = withSpring(0, { ...settle, velocity: e.velocityY });
     },
   });
 
@@ -77,7 +80,7 @@ export function LocalSheet({ open, onClose, title, kicker, children }: { open: b
             </View>
           </View>
         </GestureDetector>
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 8 }}>{children}</ScrollView>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 8 }}>{children}</ScrollView>
       </Animated.View>
     </View>
   );

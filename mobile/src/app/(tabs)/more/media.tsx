@@ -40,6 +40,7 @@ import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { EventSheet as TimelineSheet } from "~/timeline/EventSheet";
 import { Segmented } from "~/ui/Segmented";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 const ASK = "What should we post on Instagram next? Consider our upcoming events and content calendar.";
 type Narrow = "open" | Lane | null;
@@ -153,7 +154,7 @@ export default function Media() {
           <View style={{ gap: 22 }}>
             {narrow ? (
               <Pressable onPress={() => setNarrow(null)} accessibilityRole="button" accessibilityLabel={`Showing ${NARROW_LABEL[narrow]} only. Show every lane`}
-                style={[styles.narrow, { borderColor: c.ink, backgroundColor: c.card }]}>
+                style={({ pressed }) => [[styles.narrow, { borderColor: c.ink, backgroundColor: c.card }], pressed && pressedDim]}>
                 <T v="callout" color={c.ink}>{`Showing ${NARROW_LABEL[narrow]}`}</T>
                 <Icon name="x" size={13} color={c.ink2} />
               </Pressable>

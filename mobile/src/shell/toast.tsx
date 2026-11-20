@@ -9,20 +9,22 @@
  * sheet, as in the mock. Enters with the spring lift (translateY 20 → 0, scale .96 → 1);
  * reduced motion: a fade. Swipe down or tap the × to dismiss early.
  */
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { cancelAnimation, Easing, useAnimatedProps, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { Icon, type IconName } from "~/icons/Icon";
+import { haptics } from "~/motion/haptics";
 import { DUR } from "~/motion/motion";
 import type { Tone } from "~/theme/palette";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
 import { useChrome } from "./chrome";
+import { pressedDim } from "~/motion/press";
 
 export const UNDO_MS = 10_000;
 
@@ -126,14 +128,14 @@ export function ToastHost() {
         {shown.undo ? (
           <Pressable
             accessibilityRole="button"
-            onPress={() => { const u = shown.undo; shown.undone = true; toast.dismiss(); u?.(); }}
+            onPress={() => { const u = shown.undo; shown.undone = true; haptics.tap(); toast.dismiss(); u?.(); }}
             hitSlop={8}
-            style={[styles.undo, { backgroundColor: c.pastel[tone].fill }]}
+            style={({ pressed }) => [[styles.undo, { backgroundColor: c.pastel[tone].fill }], pressed && pressedDim]}
           >
             <T v="buttonSm" color={c.note.ink}>{shown.undoLabel ?? "Undo"}</T>
           </Pressable>
         ) : (
-          <Pressable onPress={toast.dismiss} accessibilityRole="button" accessibilityLabel="Dismiss" hitSlop={10} style={styles.dismiss}>
+          <Pressable onPress={toast.dismiss} accessibilityRole="button" accessibilityLabel="Dismiss" hitSlop={10} style={({ pressed }) => [styles.dismiss, pressed && pressedDim]}>
             <Icon name="x" size={13} color={c.paper} />
           </Pressable>
         )}
@@ -142,23 +144,26 @@ export function ToastHost() {
   );
 }
 
-/** The web's UndoRing: steps once a second, like its `stroke-dashoffset 1s linear`. A 1Hz
- *  prop change, not a per-frame animation. */
+/** The web's UndoRing (`stroke-dashoffset 1s linear`, which reads as one continuous sweep).
+ *  Driven on the UI thread: a single linear timing from full to empty, so the ring never
+ *  steps and the JS thread does no work while a toast waits. */
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const RING_C = 2 * Math.PI * 8;
 export function UndoRing({ ms, tone = "rose", size = 18 }: { ms: number; tone?: Tone; size?: number }) {
   const { c } = useTheme();
   const m = useMotion();
-  const [left, setLeft] = useState(ms);
-  const t0 = useRef(Date.now());
+  const spent = useSharedValue(0);
   useEffect(() => {
-    const id = setInterval(() => setLeft(Math.max(0, ms - (Date.now() - t0.current) / m.speed)), 1000);
-    return () => clearInterval(id);
-  }, [ms, m.speed]);
-  const C = 2 * Math.PI * 8;
+    spent.value = 0;
+    spent.value = withTiming(1, { duration: ms * m.speed, easing: Easing.linear });
+    return () => cancelAnimation(spent);
+  }, [ms, m.speed, spent]);
+  const arc = useAnimatedProps(() => ({ strokeDashoffset: RING_C * spent.value }));
   return (
-    <Svg width={size} height={size} viewBox="0 0 20 20" accessibilityLabel={`${Math.ceil(left / 1000)} seconds to undo`}>
+    <Svg width={size} height={size} viewBox="0 0 20 20" accessibilityLabel={`${Math.ceil(ms / 1000)} seconds to undo`}>
       <Circle cx={10} cy={10} r={8} fill="none" stroke={c.paper} strokeOpacity={0.2} strokeWidth={2.5} />
-      <Circle cx={10} cy={10} r={8} fill="none" stroke={c.pastel[tone].fill} strokeWidth={2.5} strokeLinecap="round"
-        strokeDasharray={C} strokeDashoffset={C * (1 - left / ms)} transform="rotate(-90 10 10)" />
+      <AnimatedCircle cx={10} cy={10} r={8} fill="none" stroke={c.pastel[tone].fill} strokeWidth={2.5} strokeLinecap="round"
+        strokeDasharray={RING_C} animatedProps={arc} transform="rotate(-90 10 10)" />
     </Svg>
   );
 }

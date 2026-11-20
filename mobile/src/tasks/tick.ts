@@ -72,7 +72,7 @@ export function tickTask(task: Task, done: boolean): void {
 function untick(task: Task, plateKey: string, putBackOnPlate: () => void) {
   const restore = patchTaskInCache(task.id, t => tickedLocally(t, false));
   putBackOnPlate();
-  haptics.tap();
+  // The toast's Undo press gives the tap.
   after(task.id, () => setTaskDone(task.id, false)).then(landed, e => {
     restore();
     dropFromPlate(plateKey);

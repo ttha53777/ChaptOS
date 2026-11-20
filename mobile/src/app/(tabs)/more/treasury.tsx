@@ -30,7 +30,7 @@ import { config } from "~/config";
 import { useCalendar } from "~/data/calendar";
 import { localDay } from "~/data/home";
 import {
-  exportCsv, keepsBooks, useCategories, useReimbursements, useSemesters, useTermDues, useTransactions, useTreasury,
+  exportCsv, keepsBooks, patchTransaction, useCategories, useReimbursements, useSemesters, useTermDues, useTransactions, useTreasury,
 } from "~/data/money";
 import { useParties } from "~/data/parties";
 import { useRoster } from "~/data/tasks";
@@ -100,7 +100,7 @@ export default function TreasuryPage() {
   const termRows = semq.data ?? EMPTY;
   const reimbursements = reimbq.data ?? EMPTY;
   const rosterList = roster.data ?? EMPTY;
-  const catalog = useMemo(() => catalogOf(catq.data ?? []), [catq.data]);
+  const catalog = useMemo(() => catalogOf(catq.data ?? EMPTY), [catq.data]);
   const activeLabel = termRows.find(t => t.isActive)?.label ?? me?.org?.activeTerm?.label ?? null;
   const today = localDay();
   const opening = treasury.data?.openingBalance ?? null;
@@ -116,7 +116,9 @@ export default function TreasuryPage() {
   const people = useMemo(() => toPeople(rosterList), [rosterList]);
   const duesErr = dues.error && !board ? errorMessage(dues.error, "Couldn't load dues. Try again in a moment.") : null;
 
-  const visible = tabRows(books, txTab, txCat);
+  // Memoized so logRows below only recomputes the running balance when the rows change,
+  // not on every keystroke, scrub frame or sheet toggle.
+  const visible = useMemo(() => tabRows(books, txTab, txCat), [books, txTab, txCat]);
   const logRows = useMemo(() => withRunning(books.activeTxns, visible, txSearch), [books.activeTxns, visible, txSearch]);
   const catOptions = useMemo(() => categoryOptions(txTab, catalog, tabRows(books, txTab, "all")), [txTab, catalog, books]);
   const ppCats = useMemo(() => breakdownOf(books, donut, catalog), [books, donut, catalog]);
@@ -125,7 +127,8 @@ export default function TreasuryPage() {
     const w = chartWindow(termRow, today, e.posted);
     return { opening: opening ?? 0, posted: e.posted, scheduled: e.scheduled, termStart: w.termStart, asOf: w.asOf, isToday: w.asOf === today };
   }, [books, catalog, termRow, today, opening]);
-  const up = comingUp({ transactions, parties, charges: duesOn ? board?.charges ?? [] : [], today, chargesToday: board?.today });
+  const up = useMemo(() => comingUp({ transactions, parties, charges: duesOn ? board?.charges ?? [] : [], today, chargesToday: board?.today }),
+    [transactions, parties, duesOn, board, today]);
   const duesRoll = duesRollup(rosterList, board?.members.filter(m => m.standing === "overdue") ?? []);
   const pendingCount = reimbursements.filter(r => r.status === "pending").length;
   const duesOwing = board?.members.filter(m => m.standing === "overdue" || m.standing === "due").length ?? 0;
@@ -171,7 +174,7 @@ export default function TreasuryPage() {
   if (dg.nextOut) digest.push({ text: " Next out: " }, { text: dg.nextOut.what, bold: true }, { text: ` on ${dg.nextOut.on}.` });
 
   async function markPaid(t: Transaction) {
-    try { const { patchTransaction } = await import("~/data/money"); await patchTransaction(t.id, { status: "posted" }); haptics.success(); }
+    try { await patchTransaction(t.id, { status: "posted" }); haptics.success(); }
     catch (e) { haptics.error(); toast.error("Failed to mark transaction as paid.", { detail: errorMessage(e) }); }
   }
   const onExport = async () => {
@@ -196,7 +199,7 @@ export default function TreasuryPage() {
     body = <OpenBooks />;
   } else {
     body = <>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs}>
+      <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs}>
         <View style={[styles.rule, { backgroundColor: c.ink }]} />
         {tabs.map(t => {
           const on = t === tab;

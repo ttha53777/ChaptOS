@@ -76,15 +76,19 @@ function TicketPic() {
   );
 }
 
-function LinePic() {
+function Row({ date, title, tone, past, fresh }: { date: string; title: string; tone: "sky" | "rose" | "butter"; past?: boolean; fresh?: boolean }) {
   const { c } = useTheme();
-  const Row = ({ date, title, tone, past, fresh }: { date: string; title: string; tone: "sky" | "rose" | "butter"; past?: boolean; fresh?: boolean }) => (
+  return (
     <View style={[styles.lrow, past && { opacity: 0.5 }]}>
       <View style={[styles.ldot, { borderColor: c.pastel[tone].ink, backgroundColor: fresh ? c.pastel[tone].ink : c.card }]} />
       <T v="mono" size={10} color={c.ink3} style={{ width: 40 }}>{date}</T>
       <T v="meta" size={12} color={c.ink} style={fresh ? { fontWeight: "700" } : undefined}>{title}</T>
     </View>
   );
+}
+
+function LinePic() {
+  const { c } = useTheme();
   return (
     <View style={styles.line}>
       <View style={[styles.lrail, { backgroundColor: c.line2 }]} />

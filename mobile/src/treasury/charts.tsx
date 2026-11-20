@@ -10,7 +10,7 @@
  *   Breakdown     the inked ring ("$440 came in"), the lede, a row per category (tap to see
  *                 its entries), or the uncharged ring with the org's ready categories
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Svg, { Circle, Line, Path } from "react-native-svg";
@@ -20,10 +20,12 @@ import {
   type BreakdownRow, type ChartRange,
 } from "@/lib/treasury/chart";
 import { Icon } from "~/icons/Icon";
+import { haptics } from "~/motion/haptics";
 import { TONES } from "~/theme/palette";
 import { useTheme } from "~/theme/PaperProvider";
 import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 const H = 170, LEFT = 46, BOTTOM = 22;
 
@@ -52,6 +54,15 @@ export function BalanceChart({ opening, posted, scheduled, termStart, asOf, isTo
   const [hover, setHover] = useState<string | null>(null);
   const model = useMemo(() => balanceModel(opening, posted, scheduled, termStart, asOf, range), [opening, posted, scheduled, termStart, asOf, range]);
   const mk = useMemo(() => balanceMarks(model), [model]);
+  // The three paths only change with the data or the width, so a scrub frame (which
+  // re-renders this chart) doesn't redo the regex rewrite of every path.
+  const paths = useMemo(() => {
+    const sx = Math.max(0, w - LEFT) / 1000, sy = (H - BOTTOM) / 200;
+    const scale = (d: string) => d.replace(/([MHV])(-?[\d.]+)(?: (-?[\d.]+))?/g, (_, cmd: string, a: string, b?: string) =>
+      cmd === "M" ? `M${(+a * sx).toFixed(1)} ${(+b! * sy).toFixed(1)}` : cmd === "H" ? `H${(+a * sx).toFixed(1)}` : `V${(+a * sy).toFixed(1)}`);
+    return { area: scale(mk.area), fut: mk.hasFut ? scale(mk.fut) : "", line: scale(mk.line) };
+  }, [mk, w]);
+  const lastDay = useRef<string | null>(null);
   const onLayout = (e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width);
 
   if (ghost) {
@@ -77,16 +88,24 @@ export function BalanceChart({ opening, posted, scheduled, termStart, asOf, isTo
 
   const pw = Math.max(0, w - LEFT), ph = H - BOTTOM;
   const sx = pw / 1000, sy = ph / 200;
-  const scale = (d: string) => d.replace(/([MHV])(-?[\d.]+)(?: (-?[\d.]+))?/g, (_, cmd: string, a: string, b?: string) =>
-    cmd === "M" ? `M${(+a * sx).toFixed(1)} ${(+b! * sy).toFixed(1)}` : cmd === "H" ? `H${(+a * sx).toFixed(1)}` : `V${(+a * sy).toFixed(1)}`);
   const px = (iso: string) => model.X(iso) * sx, py = (v: number) => model.Y(v) * sy;
   const tx = px(model.asOf), ty = py(mk.bal);
   const hv = hover ? scrubAt(model, hover) : null;
 
+  // A detent under the finger: one selection tick when the scrub lands on a day that
+  // has entries (a real data point), never on the empty days in between.
+  const scrubTo = (x: number) => {
+    if (!pw) return;
+    const day = dayAtFraction(model, (x - LEFT) / pw);
+    if (day === lastDay.current) return;
+    lastDay.current = day;
+    if (scrubAt(model, day).ents.length > 0) haptics.select();
+    setHover(day);
+  };
   const pan = Gesture.Pan().activeOffsetX([-6, 6]).failOffsetY([-14, 14]).runOnJS(true)
-    .onBegin(e => { if (pw) setHover(dayAtFraction(model, (e.x - LEFT) / pw)); })
-    .onUpdate(e => { if (pw) setHover(dayAtFraction(model, (e.x - LEFT) / pw)); })
-    .onFinalize(() => setHover(null));
+    .onBegin(e => scrubTo(e.x))
+    .onUpdate(e => scrubTo(e.x))
+    .onFinalize(() => { lastDay.current = null; setHover(null); });
 
   return (
     <View>
@@ -97,7 +116,7 @@ export function BalanceChart({ opening, posted, scheduled, termStart, asOf, isTo
           <T v="buttonSm" size={12} color={mk.delta >= 0 ? c.pastel.mint.ink : c.pastel.peach.ink}>{mk.deltaText}</T>
         </View>
         {mk.projText ? (
-          <Pressable onPress={onScheduled} accessibilityRole="button" style={styles.proj} hitSlop={6}>
+          <Pressable onPress={onScheduled} accessibilityRole="button" style={({ pressed }) => [styles.proj, pressed && pressedDim]} hitSlop={6}>
             <Icon name="clock" size={13} color={c.ink3} />
             <T v="body" size={13.5} color={c.ink2}>{mk.projText.n} scheduled → <T v="bodyStrong" size={13.5}>{mk.projText.to}</T> by {mk.projText.by}</T>
           </Pressable>
@@ -109,9 +128,9 @@ export function BalanceChart({ opening, posted, scheduled, termStart, asOf, isTo
           {w ? <>
             <Svg width={pw} height={ph} style={{ position: "absolute", left: LEFT, top: 0 }}>
               {mk.grid.map(v => <Line key={v} x1={0} x2={pw} y1={py(v)} y2={py(v)} stroke={c.line} strokeWidth={1} strokeDasharray="3 4" />)}
-              <Path d={scale(mk.area)} fill={c.pastel.mint.soft} />
-              {mk.hasFut ? <Path d={scale(mk.fut)} fill="none" stroke={c.pastel.peach.ink} strokeWidth={2} strokeDasharray="5 5" strokeLinejoin="round" opacity={0.85} /> : null}
-              <Path d={scale(mk.line)} fill="none" stroke={c.pastel.mint.ink} strokeWidth={2.2} strokeLinejoin="round" />
+              <Path d={paths.area} fill={c.pastel.mint.soft} />
+              {mk.hasFut ? <Path d={paths.fut} fill="none" stroke={c.pastel.peach.ink} strokeWidth={2} strokeDasharray="5 5" strokeLinejoin="round" opacity={0.85} /> : null}
+              <Path d={paths.line} fill="none" stroke={c.pastel.mint.ink} strokeWidth={2.2} strokeLinejoin="round" />
               <Line x1={tx} x2={tx} y1={0} y2={ph} stroke={c.line2} strokeWidth={1.5} strokeDasharray="4 4" />
               {hv ? <Line x1={hv.x * 10 * sx} x2={hv.x * 10 * sx} y1={0} y2={ph} stroke={c.ink} strokeWidth={1.5} /> : null}
             </Svg>

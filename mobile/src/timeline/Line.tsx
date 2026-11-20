@@ -33,6 +33,7 @@ import { alpha } from "~/theme/palette";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 export const typeOf = (types: CalEventType[] | undefined, slug: string) => types?.find(t => t.slug === slug);
 export const catLabel = (types: CalEventType[] | undefined, slug: string) => typeOf(types, slug)?.label ?? slug;
@@ -43,7 +44,7 @@ export function FilterSeg({ value, counts, onChange }: { value: CalLayer; counts
   const { c } = useTheme();
   return (
     <View style={[styles.segScroll, { backgroundColor: c.paper2, borderColor: c.line }]}>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+    <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false}>
     <View style={styles.seg} accessibilityRole="tablist" accessibilityLabel="Filter events">
       {LAYERS.map(l => {
         const on = l.id === value;
@@ -134,10 +135,9 @@ export function ViewSwitch({ value, onChange }: { value: TimelineView; onChange:
   );
 }
 
-/** "Add to my calendar" · "Add Deadline" · "Add Event", each only when it's a real capability. */
-export function AddButtons({ onCalendar, onDeadline, onEvent }: { onCalendar: () => void; onDeadline?: () => void; onEvent?: () => void }) {
+function AddBtn({ icon, label, kind, onPress, shadow }: { icon: "cal" | "plus"; label: string; kind: "ghost" | "outline" | "ink"; onPress: () => void; shadow?: string }) {
   const { c } = useTheme();
-  const Btn = ({ icon, label, kind, onPress, shadow }: { icon: "cal" | "plus"; label: string; kind: "ghost" | "outline" | "ink"; onPress: () => void; shadow?: string }) => (
+  return (
     <Pressable accessibilityRole="button" onPress={onPress}
       style={({ pressed }) => [
         styles.add,
@@ -151,11 +151,16 @@ export function AddButtons({ onCalendar, onDeadline, onEvent }: { onCalendar: ()
       <T v="button" size={14} color={kind === "ink" ? c.paper : c.ink}>{label}</T>
     </Pressable>
   );
+}
+
+/** "Add to my calendar" · "Add Deadline" · "Add Event", each only when it's a real capability. */
+export function AddButtons({ onCalendar, onDeadline, onEvent }: { onCalendar: () => void; onDeadline?: () => void; onEvent?: () => void }) {
+  const { c } = useTheme();
   return (
     <View style={styles.adds}>
-      <Btn icon="cal" label="Add to my calendar" kind="ghost" onPress={onCalendar} />
-      {onDeadline ? <Btn icon="plus" label="Add Deadline" kind="outline" onPress={onDeadline} shadow={c.pastel.peach.fill} /> : null}
-      {onEvent ? <Btn icon="plus" label="Add Event" kind="ink" onPress={onEvent} shadow={c.pastel.lilac.fill} /> : null}
+      <AddBtn icon="cal" label="Add to my calendar" kind="ghost" onPress={onCalendar} />
+      {onDeadline ? <AddBtn icon="plus" label="Add Deadline" kind="outline" onPress={onDeadline} shadow={c.pastel.peach.fill} /> : null}
+      {onEvent ? <AddBtn icon="plus" label="Add Event" kind="ink" onPress={onEvent} shadow={c.pastel.lilac.fill} /> : null}
     </View>
   );
 }
@@ -303,7 +308,7 @@ const Row = memo(function Row({ block, event, types, today, past, done, owner, i
   return (
     <Animated.View entering={enter} exiting={torn ? (m.reduced ? FadeOut.duration(200) : TEAR.duration(m.t(360))) : undefined}
       onLayout={onLayout ? (e: LayoutChangeEvent) => onLayout(block, event.id, e.nativeEvent.layout.y) : undefined}>
-      <Pressable onPress={() => onOpen(event)} accessibilityRole="button" accessibilityLabel={a11y} style={styles.row}>
+      <Pressable onPress={() => onOpen(event)} accessibilityRole="button" accessibilityLabel={a11y} style={({ pressed }) => [styles.row, pressed && pressedDim]}>
         {({ pressed }) => (
           <>
             <View style={[styles.date, quiet && { opacity: 0.55 }]}>
@@ -362,7 +367,7 @@ export function EndLine({ last, onAdd }: { last: string; onAdd?: () => void }) {
       <View style={[styles.endDot, { borderColor: c.line2 }]} />
       <T v="callout" size={14} color={c.ink3}>{`Nothing scheduled past ${shortDate(last)}.`}</T>
       {onAdd ? (
-        <Pressable onPress={onAdd} accessibilityRole="button" hitSlop={8} style={[styles.endAdd, { borderBottomColor: c.ink2 }]}>
+        <Pressable onPress={onAdd} accessibilityRole="button" hitSlop={8} style={({ pressed }) => [[styles.endAdd, { borderBottomColor: c.ink2 }], pressed && pressedDim]}>
           <T v="callout" size={14} color={c.ink} style={{ fontWeight: "600" }}>Add event →</T>
         </Pressable>
       ) : null}
@@ -377,7 +382,7 @@ export function FilterEmpty({ onAll }: { onAll?: () => void }) {
     <View style={{ alignItems: "center", paddingVertical: 64, gap: 14 }}>
       <T v="body" size={16} color={c.ink3} style={{ fontStyle: "italic" }}>No events on this filter.</T>
       {onAll ? (
-        <Pressable onPress={onAll} accessibilityRole="button" style={[styles.legendBtn, { borderColor: c.line2, backgroundColor: c.card }]}>
+        <Pressable onPress={onAll} accessibilityRole="button" style={({ pressed }) => [[styles.legendBtn, { borderColor: c.line2, backgroundColor: c.card }], pressed && pressedDim]}>
           <T v="callout" color={c.ink} style={{ fontWeight: "600" }}>Show all events</T>
         </Pressable>
       ) : null}

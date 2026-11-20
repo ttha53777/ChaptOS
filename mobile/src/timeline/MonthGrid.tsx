@@ -23,10 +23,21 @@ import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
 import { catLabel, typeOf } from "./Line";
+import { pressedDim } from "~/motion/press";
 
 export interface Ym { year: number; month: number }
 const pad = (n: number) => String(n).padStart(2, "0");
 const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+function NavBtn({ icon, label, onPress }: { icon: "chev-l" | "chev-r"; label: string; onPress: () => void }) {
+  const { c } = useTheme();
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={4}
+      style={({ pressed }) => [styles.nav, { borderColor: pressed ? c.ink : c.line2, backgroundColor: c.card }]}>
+      <Icon name={icon} size={15} color={c.ink} />
+    </Pressable>
+  );
+}
 
 export function MonthGrid({ events, types, month, onMonth, today, picked, onDay, dir }: {
   events: CalendarEvent[]; types: CalEventType[] | undefined; month: Ym; onMonth: (m: Ym, dir: 1 | -1) => void;
@@ -57,12 +68,6 @@ export function MonthGrid({ events, types, month, onMonth, today, picked, onDay,
   const goToday = () => { haptics.select(); const [y, mo] = today.split("-").map(Number) as [number, number]; onMonth({ year: y, month: mo - 1 }, prefix < today ? 1 : -1); };
 
   const enter = m.reduced || dir === 0 ? FadeIn.duration(200) : (dir > 0 ? SlideInRight : SlideInLeft).duration(m.t(280)).reduceMotion(ReduceMotion.System);
-  const NavBtn = ({ icon, label, onPress }: { icon: "chev-l" | "chev-r"; label: string; onPress: () => void }) => (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={4}
-      style={({ pressed }) => [styles.nav, { borderColor: pressed ? c.ink : c.line2, backgroundColor: c.card }]}>
-      <Icon name={icon} size={15} color={c.ink} />
-    </Pressable>
-  );
 
   return (
     <View style={styles.wrap}>
@@ -82,7 +87,7 @@ export function MonthGrid({ events, types, month, onMonth, today, picked, onDay,
           </View>
           <View style={styles.navs}>
             {!isThisMonth ? (
-              <Pressable onPress={goToday} accessibilityRole="button" style={[styles.nav, styles.todayBtn, { backgroundColor: c.ink, borderColor: c.ink }, hard(c.pastel.peach.fill, 2)]}>
+              <Pressable onPress={goToday} accessibilityRole="button" style={({ pressed }) => [[styles.nav, styles.todayBtn, { backgroundColor: c.ink, borderColor: c.ink }, hard(c.pastel.peach.fill, 2)], pressed && pressedDim]}>
                 <T v="buttonSm" color={c.paper}>Today</T>
               </Pressable>
             ) : null}

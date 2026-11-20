@@ -35,6 +35,7 @@ import { T } from "~/ui/T";
 import { useChrome } from "./chrome";
 import { OrgStamp } from "./OrgStamp";
 import { WebToolbar } from "~/web/Toolbar";
+import { pressedDim } from "~/motion/press";
 
 export const BAR_H = 46;
 /** The web's phone toolbar (`header.dash-toolbar`, h-14). */
@@ -196,7 +197,7 @@ export function Screen({ title, large: largeProp, subtitle, back, onBack, org, r
         <Animated.View style={[styles.rule, { backgroundColor: c.line }, rule]} />
         <View style={styles.barSide}>
           {back ? (
-            <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel={`Back to ${back}`} hitSlop={8} style={styles.back}>
+            <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel={`Back to ${back}`} hitSlop={8} style={({ pressed }) => [styles.back, pressed && pressedDim]}>
               <Icon name="chev-l" size={18} color={c.ink2} />
               <T v="callout" color={c.ink2} numberOfLines={1}>{back}</T>
             </Pressable>

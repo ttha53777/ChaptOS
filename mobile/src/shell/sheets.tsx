@@ -37,6 +37,7 @@ import type { Tone } from "~/theme/palette";
 import { useMotion, useTheme, type Motion } from "~/theme/PaperProvider";
 import { T } from "~/ui/T";
 import { setChrome } from "./chrome";
+import { pressedDim } from "~/motion/press";
 
 export type SheetSize = "fit" | "tall" | "half";
 
@@ -338,7 +339,7 @@ export function CloseX({ onPress, label = "Close" }: { onPress: () => void; labe
   const { c } = useTheme();
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={8}
-      style={[styles.x, { backgroundColor: c.paper, borderColor: c.line2 }]}>
+      style={({ pressed }) => [[styles.x, { backgroundColor: c.paper, borderColor: c.line2 }], pressed && pressedDim]}>
       <Icon name="x" size={15} color={c.ink3} />
     </Pressable>
   );

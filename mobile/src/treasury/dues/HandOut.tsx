@@ -25,6 +25,7 @@ import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
 import { DuBtn, DuLink, Money, Search, Seg, Sg, Stack } from "./bits";
 import { DayStep, DueChoiceBtn } from "./ChargeEdit";
+import { pressedDim } from "~/motion/press";
 
 export type SheetStart = { mode: "all" } | { mode: "role"; key?: number | "none" } | { mode: "pick"; brotherIds?: number[] };
 type RateKey = number | "base" | "none";
@@ -155,7 +156,7 @@ export function HandOutSheet({ start, people, roles, board, duesWord, onClose, o
                   <T v="meta" size={13} color={c.ink3}>Leave someone out:</T>
                   {excl.map(id => (
                     <Pressable key={id} onPress={() => setExcl(e => e.filter(x => x !== id))} accessibilityRole="button" accessibilityLabel={`Put ${byId.get(id)?.name} back`}
-                      style={[styles.xchip, { borderColor: c.ink, backgroundColor: c.paper2 }]}>
+                      style={({ pressed }) => [[styles.xchip, { borderColor: c.ink, backgroundColor: c.paper2 }], pressed && pressedDim]}>
                       <T v="pill" size={12}>{byId.get(id)?.name ?? "Member"}</T><Icon name="x" size={11} color={c.ink2} />
                     </Pressable>
                   ))}
@@ -164,7 +165,7 @@ export function HandOutSheet({ start, people, roles, board, duesWord, onClose, o
                 {xMatches.length ? (
                   <View style={[styles.pop, { borderColor: c.line2, backgroundColor: c.card }]}>
                     {xMatches.map(p => (
-                      <Pressable key={p.id} onPress={() => { setExcl(e => [...e, p.id]); setXq(""); }} accessibilityRole="button" style={styles.popRow}>
+                      <Pressable key={p.id} onPress={() => { setExcl(e => [...e, p.id]); setXq(""); }} accessibilityRole="button" style={({ pressed }) => [styles.popRow, pressed && pressedDim]}>
                         <T v="bodyStrong" size={14}>{p.name}</T><T v="meta" size={12} color={c.ink3}>{p.title}</T>
                       </Pressable>
                     ))}
@@ -181,7 +182,7 @@ export function HandOutSheet({ start, people, roles, board, duesWord, onClose, o
                     return (
                       <View key={rk(k)} style={[styles.rate, { borderColor: r.on ? c.ink : c.line2, backgroundColor: c.card }]}>
                         <Pressable onPress={() => { haptics.select(); set({ on: !r.on }); }} accessibilityRole="checkbox" accessibilityState={{ checked: r.on }} accessibilityLabel={l}
-                          style={[styles.cb, { borderColor: c.ink, backgroundColor: r.on ? c.ink : c.card }]}>
+                          style={({ pressed }) => [[styles.cb, { borderColor: c.ink, backgroundColor: r.on ? c.ink : c.card }], pressed && pressedDim]}>
                           {r.on ? <Icon name="check" size={13} color={c.paper} /> : null}
                         </Pressable>
                         <View style={{ flex: 1, minWidth: 0, opacity: r.on ? 1 : 0.55 }}>

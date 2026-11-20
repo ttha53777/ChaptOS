@@ -21,6 +21,7 @@ import { toast } from "~/shell/toast";
 import { useTheme } from "~/theme/PaperProvider";
 import { Field } from "~/ui/Field";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 const receiptWhy = (e: unknown) => {
   const msg = isApiError(e) && e.status >= 500 ? "The server couldn't store it right now" : errorMessage(e);
@@ -85,7 +86,7 @@ function TapedPrint({ file, onRemove }: { file: PickedReceipt; onRemove: () => v
         <Tape width={56} rotate={-4} style={{ position: "absolute", top: -10, alignSelf: "center" }} />
       </View>
       <Pressable onPress={() => { haptics.select(); onRemove(); }} accessibilityRole="button" accessibilityLabel="Remove the receipt" hitSlop={8}
-        style={[styles.remove, { backgroundColor: c.ink }]}>
+        style={({ pressed }) => [[styles.remove, { backgroundColor: c.ink }], pressed && pressedDim]}>
         <Icon name="x" size={13} color={c.paper} />
       </Pressable>
     </View>
@@ -186,7 +187,7 @@ export function RequestSheet({ open, onClose, onSent, meId, categories }: { open
           <View style={{ gap: 6 }}>
             <T v="label" color={c.ink2}>Day you paid</T>
             <View style={[styles.day, { borderColor: c.line2, backgroundColor: c.card }]}>
-              <Pressable onPress={() => { haptics.select(); setDate(d => shiftDay(d, -1)); }} accessibilityRole="button" accessibilityLabel="A day earlier" hitSlop={8} style={styles.dayBtn}>
+              <Pressable onPress={() => { haptics.select(); setDate(d => shiftDay(d, -1)); }} accessibilityRole="button" accessibilityLabel="A day earlier" hitSlop={8} style={({ pressed }) => [styles.dayBtn, pressed && pressedDim]}>
                 <Icon name="chev-l" size={16} color={c.ink2} />
               </Pressable>
               <T v="callout" style={{ flex: 1, textAlign: "center" }} accessibilityLiveRegion="polite">

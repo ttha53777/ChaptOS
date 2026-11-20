@@ -19,6 +19,7 @@ import { alpha, type Tone } from "~/theme/palette";
 import { useTheme } from "~/theme/PaperProvider";
 import { T } from "~/ui/T";
 import { duePill, formatTone, gaps, mediaDate, monthTitle, PILL_TONE, postedOn, shortDay, type Lane, type Measure } from "./model";
+import { pressedDim } from "~/motion/press";
 
 /* ── Snap ─────────────────────────────────────────────────────────────────────── */
 
@@ -180,12 +181,12 @@ export function Month({ posts, events, today, month, onMonth, onDay }: {
   return (
     <View style={{ gap: 10 }}>
       <View style={styles.mh}>
-        <Pressable onPress={() => move(-1)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Previous month" style={[styles.navBtn, { borderColor: c.line2 }]}><Icon name="chev-l" size={16} color={c.ink2} /></Pressable>
+        <Pressable onPress={() => move(-1)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Previous month" style={({ pressed }) => [[styles.navBtn, { borderColor: c.line2 }], pressed && pressedDim]}><Icon name="chev-l" size={16} color={c.ink2} /></Pressable>
         <T v="heading" style={{ flex: 1 }} accessibilityRole="header">{monthTitle(month)} <T v="heading" color={c.ink3}>{String(year)}</T></T>
         {month !== today.slice(0, 7) ? (
-          <Pressable onPress={() => onMonth(today.slice(0, 7))} hitSlop={6} accessibilityRole="button" style={[styles.todayBtn, { borderColor: c.line2 }]}><T v="pill" color={c.ink2}>Today</T></Pressable>
+          <Pressable onPress={() => onMonth(today.slice(0, 7))} hitSlop={6} accessibilityRole="button" style={({ pressed }) => [[styles.todayBtn, { borderColor: c.line2 }], pressed && pressedDim]}><T v="pill" color={c.ink2}>Today</T></Pressable>
         ) : null}
-        <Pressable onPress={() => move(1)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Next month" style={[styles.navBtn, { borderColor: c.line2 }]}><Icon name="chev-r" size={16} color={c.ink2} /></Pressable>
+        <Pressable onPress={() => move(1)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Next month" style={({ pressed }) => [[styles.navBtn, { borderColor: c.line2 }], pressed && pressedDim]}><Icon name="chev-r" size={16} color={c.ink2} /></Pressable>
       </View>
       {longest > 0 ? <T v="meta" color={c.ink3}>{"Longest quiet stretch this month: "}<T v="meta" color={c.ink} style={{ fontWeight: "700" }}>{`${longest} day${longest === 1 ? "" : "s"}`}</T>{longest >= 5 ? ", hatched" : ""}</T> : null}
       <View style={[styles.cal, { borderColor: c.ink, backgroundColor: c.card, boxShadow: `4px 4px 0 ${c.note.fill.lilac}` }]}>

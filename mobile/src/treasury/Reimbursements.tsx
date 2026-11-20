@@ -24,6 +24,7 @@ import { useTheme } from "~/theme/PaperProvider";
 import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
 import { Calm, TrBtn } from "./bits";
+import { pressedDim } from "~/motion/press";
 
 export interface ReimbEnv {
   canTreasury: boolean;
@@ -150,13 +151,13 @@ const ReimbCard = memo(function ReimbCard({ r, odd, env, archived }: { r: Reimbu
           <T v="body" size={14.5} color={c.ink2} align="center" style={{ marginTop: 8 }}>{r.description}</T>
           <T v="meta" size={11} color={c.ink3} align="center">submitted {relativeAge(r.createdAt, Date.now())}</T>
           {r.hasReceipt && (mine || env.canTreasury) ? (
-            <Pressable onPress={() => void openReceipt()} accessibilityRole="link" style={styles.receipt} hitSlop={6}>
+            <Pressable onPress={() => void openReceipt()} accessibilityRole="link" style={({ pressed }) => [styles.receipt, pressed && pressedDim]} hitSlop={6}>
               <Icon name="receipt" size={13} color={c.ink2} />
               <T v="meta" size={12.5} color={c.ink2} style={{ textDecorationLine: "underline" }}>{opening ? "Opening…" : "View receipt"}</T>
             </Pressable>
           ) : null}
           {!r.hasReceipt && mine && pending ? (
-            <Pressable onPress={() => env.onAttach(r)} accessibilityRole="button" style={styles.receipt} hitSlop={6}>
+            <Pressable onPress={() => env.onAttach(r)} accessibilityRole="button" style={({ pressed }) => [styles.receipt, pressed && pressedDim]} hitSlop={6}>
               <Icon name="receipt" size={13} color={c.ink2} />
               <T v="meta" size={12.5} color={c.ink2} style={{ textDecorationLine: "underline" }}>Attach receipt</T>
             </Pressable>

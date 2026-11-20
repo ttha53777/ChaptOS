@@ -41,6 +41,7 @@ import type { Tone } from "~/theme/palette";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { T } from "~/ui/T";
 import { CountChip, DashCard } from "./Card";
+import { pressedDim } from "~/motion/press";
 
 const LANES: [PlateLane, string][] = [["late", "Late"], ["today", "Today"], ["soon", "Coming up"]];
 const CAP = 5;
@@ -58,6 +59,23 @@ function when(iso: string, today: string): string {
   if (d === -1) return "yesterday";
   if (d > 1 && d < 7) return b.toLocaleDateString("en-US", { weekday: "short" });
   return `${MON[b.getMonth()]} ${b.getDate()}`;
+}
+
+function Btn({ label, icon, onPress, ghost, solid, disabled, after }: { label: string; icon?: IconName; onPress: () => void; ghost?: boolean; solid?: boolean; disabled?: boolean; after?: IconName }) {
+  const { c } = useTheme();
+  return (
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={label}
+      style={({ pressed }) => [styles.btn, {
+        backgroundColor: solid ? c.ink : ghost ? "transparent" : c.card,
+        borderColor: ghost ? c.line2 : c.ink,
+        boxShadow: ghost || pressed ? undefined : `2px 2px 0 ${c.pastel.butter.fill}`,
+        opacity: disabled ? 0.55 : 1,
+      }, pressed && { transform: [{ translateX: 1 }, { translateY: 1 }] }]}>
+      {icon ? <Icon name={icon} size={13} color={solid ? c.paper : c.ink} /> : null}
+      <T v="buttonSm" size={12.6} color={solid ? c.paper : c.ink}>{label}</T>
+      {after ? <Icon name={after} size={12} color={solid ? c.paper : c.ink} /> : null}
+    </Pressable>
+  );
 }
 
 export function PlateCard({ items, today, data, hasData, roleNames, duesWord, memberWord, i }: {
@@ -95,21 +113,6 @@ export function PlateCard({ items, today, data, hasData, roleNames, duesWord, me
   const exit = FadeOutLeft.duration(m.t(m.reduced ? 160 : 260)).reduceMotion(ReduceMotion.Never);
   const enter = FadeIn.duration(m.t(220)).reduceMotion(ReduceMotion.Never);
 
-  function Btn({ label, icon, onPress, ghost, solid, disabled, after }: { label: string; icon?: IconName; onPress: () => void; ghost?: boolean; solid?: boolean; disabled?: boolean; after?: IconName }) {
-    return (
-      <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={label}
-        style={({ pressed }) => [styles.btn, {
-          backgroundColor: solid ? c.ink : ghost ? "transparent" : c.card,
-          borderColor: ghost ? c.line2 : c.ink,
-          boxShadow: ghost || pressed ? undefined : `2px 2px 0 ${c.pastel.butter.fill}`,
-          opacity: disabled ? 0.55 : 1,
-        }, pressed && { transform: [{ translateX: 1 }, { translateY: 1 }] }]}>
-        {icon ? <Icon name={icon} size={13} color={solid ? c.paper : c.ink} /> : null}
-        <T v="buttonSm" size={12.6} color={solid ? c.paper : c.ink}>{label}</T>
-        {after ? <Icon name={after} size={12} color={solid ? c.paper : c.ink} /> : null}
-      </Pressable>
-    );
-  }
 
   function row(it: PlateItem) {
     const isOpen = open === it.key;
@@ -202,10 +205,10 @@ export function PlateCard({ items, today, data, hasData, roleNames, duesWord, me
                   <T v="bodyStrong" size={13.6} numberOfLines={1}>{`${r.name} · ${fmt$(r.amount)}`}</T>
                   <T v="meta" size={12} color={c.ink3} numberOfLines={1}>{`${r.description} · ${when(r.date, today)}`}</T>
                 </View>
-                <Pressable disabled={busy === it.key} onPress={() => act([r.id], "rejected")} style={[styles.mini, { borderColor: c.line2 }]} accessibilityRole="button" accessibilityLabel={`Reject ${r.name}`}>
+                <Pressable disabled={busy === it.key} onPress={() => act([r.id], "rejected")} style={({ pressed }) => [[styles.mini, { borderColor: c.line2 }], pressed && pressedDim]} accessibilityRole="button" accessibilityLabel={`Reject ${r.name}`}>
                   <T v="buttonSm" size={12}>Reject</T>
                 </Pressable>
-                <Pressable disabled={busy === it.key} onPress={() => act([r.id], "approved")} style={[styles.mini, { borderColor: c.pastel.mint.border, backgroundColor: c.pastel.mint.soft }]} accessibilityRole="button" accessibilityLabel={`Approve ${r.name}`}>
+                <Pressable disabled={busy === it.key} onPress={() => act([r.id], "approved")} style={({ pressed }) => [[styles.mini, { borderColor: c.pastel.mint.border, backgroundColor: c.pastel.mint.soft }], pressed && pressedDim]} accessibilityRole="button" accessibilityLabel={`Approve ${r.name}`}>
                   <T v="buttonSm" size={12} color={c.pastel.mint.ink}>Approve</T>
                 </Pressable>
               </View>
@@ -324,7 +327,7 @@ export function PlateCard({ items, today, data, hasData, roleNames, duesWord, me
             </Animated.View>
           )}
           {scoped.length > CAP + 1 ? (
-            <Pressable onPress={() => setMore(v => !v)} style={styles.more} accessibilityRole="button">
+            <Pressable onPress={() => setMore(v => !v)} style={({ pressed }) => [styles.more, pressed && pressedDim]} accessibilityRole="button">
               <T v="buttonSm" size={12.6} color={c.ink2}>{more ? "Show less" : `Show ${scoped.length - CAP} more`}</T>
             </Pressable>
           ) : null}

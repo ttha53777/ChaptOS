@@ -33,6 +33,7 @@ import type { Tone } from "~/theme/palette";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 /* ── head ─────────────────────────────────────────────────────────────────────── */
 
@@ -324,8 +325,8 @@ export function DoneSection({ done, env, onReopen }: { done: Task[]; env: RowEnv
   if (!done.length) return null;
   return (
     <View>
-      <Pressable onPress={() => { haptics.tap(); setOpen(o => !o); }} accessibilityRole="button" accessibilityState={{ expanded: open }}
-        style={[styles.doneBar, { borderColor: c.line2 }]}>
+      <Pressable onPress={() => setOpen(o => !o)} accessibilityRole="button" accessibilityState={{ expanded: open }}
+        style={({ pressed }) => [[styles.doneBar, { borderColor: c.line2 }], pressed && pressedDim]}>
         <View style={[styles.doneTile, { backgroundColor: c.note.fill.mint, borderColor: c.note.ink }]}><Icon name="check" size={13} color={c.note.ink} /></View>
         <T v="bodyStrong" size={14.4} color={c.ink2} style={{ flex: 1 }}>{`${done.length} done this term`}</T>
         <View style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }}><Icon name="chev-d" size={16} color={c.ink3} /></View>
@@ -366,7 +367,7 @@ export function VotesHead({ canManagePolls, openCount, onNewPoll }: { canManageP
       <T v="title" size={18.4} ls={-0.022} accessibilityRole="header">Votes</T>
       <View style={[styles.rule, { backgroundColor: c.line }]} />
       {canManagePolls ? (
-        <Pressable onPress={onNewPoll} accessibilityRole="button" style={[styles.secBtn, { borderColor: c.ink, backgroundColor: c.card }]}>
+        <Pressable onPress={onNewPoll} accessibilityRole="button" style={({ pressed }) => [[styles.secBtn, { borderColor: c.ink, backgroundColor: c.card }], pressed && pressedDim]}>
           <Icon name="plus" size={13} color={c.ink} />
           <T v="buttonSm" size={12.8} color={c.ink}>New poll</T>
         </Pressable>
@@ -392,7 +393,7 @@ export const VoteCard = memo(function VoteCard({ poll, today, canVote, onVote, o
   const v = voteCardOf(poll, canVote);
   return (
     <View style={[styles.vote, v.closed ? { borderColor: c.line2, backgroundColor: c.card } : [{ borderColor: c.ink, backgroundColor: c.card }, hard(c.pastel.lilac.fill, 3)]]}>
-      <Pressable onPress={() => onOpen(poll)} accessibilityRole="button" style={styles.voteH}>
+      <Pressable onPress={() => onOpen(poll)} accessibilityRole="button" style={({ pressed }) => [styles.voteH, pressed && pressedDim]}>
         <T v="title" size={17.3} ls={-0.02} lh={1.25}>{poll.question}</T>
         <T v="meta" size={12.8} color={c.ink3}>{`${closesTxt(poll, today)} · ${poll.totalVotes} of ${poll.assigneeCount} voted`}</T>
       </Pressable>

@@ -9,7 +9,6 @@
 import type { AnswerRow, DeclineShape, QuoteShape, ReasonsShape, RecordShape, StepsShape, WeekItem, WeekShape } from "@/lib/api-types";
 import { Pressable, View } from "react-native";
 import { Icon } from "~/icons/Icon";
-import { haptics } from "~/motion/haptics";
 import { Button } from "~/paper/Button";
 import { alpha } from "~/theme/palette";
 import { useTheme } from "~/theme/PaperProvider";
@@ -24,25 +23,27 @@ const addDays = (iso: string, n: number) => {
   return dt.toISOString().slice(0, 10);
 };
 
-export function Week({ s }: { s: WeekShape }) {
+function WeekRow({ it }: { it: WeekItem }) {
   const { c } = useTheme();
   const a = useActions();
+  const ink = it.kind === "deadline" ? c.cat.deadline : (c.scheme === "dark" ? it.cat?.colorDark : it.cat?.color) ?? c.cat.chapter;
+  const ref = usableRef(it.ref);
+  return (
+    <Pressable disabled={!ref} onPress={() => { if (ref) a.peek(ref); }} accessibilityRole="button"
+      style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5, opacity: pressed ? 0.6 : 1 }]}>
+      <View style={{ width: 3, alignSelf: "stretch", borderRadius: 2, backgroundColor: ink }} />
+      <View style={{ flex: 1 }}>
+        <T v="callout" numberOfLines={1}>{it.title}{it.mandatory ? <T v="meta" color={c.pastel.rose.ink}>  required</T> : null}{it.mine ? <T v="meta" color={c.pastel.sky.ink}>  yours</T> : null}</T>
+        <T v="meta" color={c.ink3} numberOfLines={1}>{[it.kind === "deadline" ? "Due" : it.cat?.label, clockLabel(it.time), it.place].filter(Boolean).join(" · ")}</T>
+      </View>
+      {it.attended === true ? <Icon name="check" size={13} color={c.pastel.mint.ink} /> : null}
+    </Pressable>
+  );
+}
+
+export function Week({ s }: { s: WeekShape }) {
+  const { c } = useTheme();
   const days = Array.from({ length: 7 }, (_, i) => addDays(s.start, i));
-  const ink = (it: WeekItem) => (it.kind === "deadline" ? c.cat.deadline : (c.scheme === "dark" ? it.cat?.colorDark : it.cat?.color) ?? c.cat.chapter);
-  const Item = ({ it }: { it: WeekItem }) => {
-    const ref = usableRef(it.ref);
-    return (
-      <Pressable disabled={!ref} onPress={() => { if (ref) { haptics.select(); a.peek(ref); } }} accessibilityRole="button"
-        style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5, opacity: pressed ? 0.6 : 1 }]}>
-        <View style={{ width: 3, alignSelf: "stretch", borderRadius: 2, backgroundColor: ink(it) }} />
-        <View style={{ flex: 1 }}>
-          <T v="callout" numberOfLines={1}>{it.title}{it.mandatory ? <T v="meta" color={c.pastel.rose.ink}>  required</T> : null}{it.mine ? <T v="meta" color={c.pastel.sky.ink}>  yours</T> : null}</T>
-          <T v="meta" color={c.ink3} numberOfLines={1}>{[it.kind === "deadline" ? "Due" : it.cat?.label, clockLabel(it.time), it.place].filter(Boolean).join(" · ")}</T>
-        </View>
-        {it.attended === true ? <Icon name="check" size={13} color={c.pastel.mint.ink} /> : null}
-      </Pressable>
-    );
-  };
   return (
     <View style={[styles.card, { borderColor: c.ink, backgroundColor: c.card, gap: 0, paddingVertical: 6 }]}>
       {days.map((d, i) => {
@@ -54,7 +55,7 @@ export function Week({ s }: { s: WeekShape }) {
               <T v="subhead" color={items.length ? c.ink : c.ink3}>{Number(d.slice(8))}</T>
             </View>
             <View style={{ flex: 1, justifyContent: "center" }}>
-              {items.length ? items.map((it, j) => <Item key={j} it={it} />) : <T v="meta" color={c.faint}>—</T>}
+              {items.length ? items.map((it, j) => <WeekRow key={j} it={it} />) : <T v="meta" color={c.faint}>—</T>}
             </View>
           </View>
         );
@@ -62,7 +63,7 @@ export function Week({ s }: { s: WeekShape }) {
       {s.after ? (
         <View style={{ borderTopWidth: 1.5, borderTopColor: c.line, paddingTop: 8, marginTop: 4 }}>
           <T v="label" color={c.ink3}>After that · {monthDay(s.after.date)}</T>
-          <Item it={s.after} />
+          <WeekRow it={s.after} />
         </View>
       ) : null}
     </View>
@@ -160,7 +161,7 @@ export function Quote({ s }: { s: QuoteShape }) {
   const a = useActions();
   return (
     <View style={[styles.card, { borderColor: c.line, backgroundColor: c.card }]}>
-      <Pressable onPress={() => { haptics.select(); a.peek({ type: "event", id: s.meeting.id }); }} accessibilityRole="button">
+      <Pressable onPress={() => a.peek({ type: "event", id: s.meeting.id })} accessibilityRole="button">
         <Kicker text={`${s.meeting.title} · ${monthDay(s.meeting.date)}${s.decided ? " · Decided" : ""}`} />
       </Pressable>
       <View style={{ borderLeftWidth: 3, borderLeftColor: c.pastel.butter.ink, paddingLeft: 12 }}>

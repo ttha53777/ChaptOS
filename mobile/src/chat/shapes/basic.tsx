@@ -76,7 +76,7 @@ export function Tally({ s, rows, tone }: { s: TallyShape; rows: AnswerRow[]; ton
         {s.marks ? (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5 }} accessible accessibilityLabel={`${s.hit} of ${s.of} ${s.hitWord}`}>
             {s.marks.map(mk => (
-              <Pressable key={mk.id} onPress={() => { haptics.select(); a.peek({ type: "member", id: mk.id }); }} hitSlop={2}
+              <Pressable key={mk.id} onPress={() => a.peek({ type: "member", id: mk.id })} hitSlop={2}
                 accessibilityLabel={`${mk.name}${mk.value ? `, ${mk.value}` : ""}`}
                 style={{ width: 14, height: 14, borderRadius: 7, borderWidth: 1.2,
                   borderColor: mk.state === "rest" ? c.line2 : p.ink,

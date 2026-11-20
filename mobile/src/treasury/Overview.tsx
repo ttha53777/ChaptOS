@@ -24,6 +24,7 @@ import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
 import { Calm, DateBlock, Leader, PillToggle, SecNote, TrBtn, TrCard } from "./bits";
 import { BalanceChart, Breakdown } from "./charts";
+import { pressedDim } from "~/motion/press";
 
 export function FirstEntry({ canTreasury, duesWord, treasuryWord, onLog }: { canTreasury: boolean; duesWord: string; treasuryWord: string; onLog: () => void }) {
   const { c } = useTheme();
@@ -114,7 +115,7 @@ export function BreakdownCard({ mode, onMode, rows, catalog, unstarted, canTreas
         <View style={[styles.cardF, { borderTopColor: c.line, backgroundColor: c.paper2 }]}>
           <Icon name="folder" size={14} color={c.ink3} />
           <T v="meta" size={12.5} color={c.ink3} style={{ flex: 1 }}>Categories are yours to name</T>
-          <Pressable onPress={onEditCategories} accessibilityRole="link" hitSlop={8} style={styles.edit}>
+          <Pressable onPress={onEditCategories} accessibilityRole="link" hitSlop={8} style={({ pressed }) => [styles.edit, pressed && pressedDim]}>
             <T v="buttonSm" size={12.5} color={c.ink2}>Edit</T><Icon name="arrow-r" size={13} color={c.ink2} />
           </Pressable>
         </View>
@@ -231,7 +232,7 @@ export function LogCard({ rows, anyInTerm, tab, onTab, category, onCategory, cat
           <View style={styles.logTools}>
             <PillToggle label="Show" inkOn value={tab} onChange={onTab} options={[["all", "All"], ["income", "Income"], ["expense", "Expense"]] as const} />
             <Pressable onPress={() => setCatOpen(o => !o)} accessibilityRole="button" accessibilityState={{ expanded: catOpen }}
-              style={[styles.select, { borderColor: c.line2, backgroundColor: c.card }]}>
+              style={({ pressed }) => [[styles.select, { borderColor: c.line2, backgroundColor: c.card }], pressed && pressedDim]}>
               <T v="meta" color={c.ink}>{catLabel}</T><Icon name="updown" size={12} color={c.ink3} />
             </Pressable>
           </View>
@@ -279,7 +280,7 @@ export function LogCard({ rows, anyInTerm, tab, onTab, category, onCategory, cat
             )}
           </Ruled>
         ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces={false}>
+          <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} bounces={false}>
             <View>
               <View style={[styles.margin, { left: COLS.date, backgroundColor: c.pastel.rose.ink }]} pointerEvents="none" />
               <View style={[styles.tr, { borderBottomColor: c.line, backgroundColor: c.paper2 }]}>
@@ -346,12 +347,12 @@ const LogRow = memo(function LogRow({ t, env }: { t: Transaction & { running: nu
       <View style={[styles.td, styles.acts, { width: COLS.acts }]}>
         {env.canTreasury ? <>
           {t.status === "scheduled" ? (
-            <Pressable onPress={() => env.onMarkPaid(t)} accessibilityRole="button" style={[styles.markPaid, { backgroundColor: c.pastel.mint.soft, borderColor: c.pastel.mint.border }]}>
+            <Pressable onPress={() => env.onMarkPaid(t)} accessibilityRole="button" style={({ pressed }) => [[styles.markPaid, { backgroundColor: c.pastel.mint.soft, borderColor: c.pastel.mint.border }], pressed && pressedDim]}>
               <T v="pill" color={c.pastel.mint.ink}>Mark Paid</T>
             </Pressable>
           ) : null}
-          <Pressable onPress={() => env.onEdit(t)} accessibilityRole="button" accessibilityLabel="Edit" hitSlop={4} style={styles.iconBtn}><Icon name="pencil" size={15} color={c.ink3} /></Pressable>
-          <Pressable onPress={() => env.onDelete(t)} accessibilityRole="button" accessibilityLabel="Delete" hitSlop={4} style={styles.iconBtn}><Icon name="trash" size={15} color={c.ink3} /></Pressable>
+          <Pressable onPress={() => env.onEdit(t)} accessibilityRole="button" accessibilityLabel="Edit" hitSlop={4} style={({ pressed }) => [styles.iconBtn, pressed && pressedDim]}><Icon name="pencil" size={15} color={c.ink3} /></Pressable>
+          <Pressable onPress={() => env.onDelete(t)} accessibilityRole="button" accessibilityLabel="Delete" hitSlop={4} style={({ pressed }) => [styles.iconBtn, pressed && pressedDim]}><Icon name="trash" size={15} color={c.ink3} /></Pressable>
         </> : null}
       </View>
     </View>
@@ -374,7 +375,7 @@ export function AtTheDoor({ parties, today, canTreasury, onOpen, onDelete, onAdd
           const up = p.date >= today, d = ppDay(p.date);
           return (
             <Pressable key={p.id} onPress={() => onOpen(p)} accessibilityRole="button"
-              style={[styles.tix, { backgroundColor: c.card, borderColor: c.ink, borderStyle: up ? "dashed" : "solid" }, hard(up ? c.pastel.lilac.fill : c.pastel.rose.fill, 4)]}>
+              style={({ pressed }) => [[styles.tix, { backgroundColor: c.card, borderColor: c.ink, borderStyle: up ? "dashed" : "solid" }, hard(up ? c.pastel.lilac.fill : c.pastel.rose.fill, 4)], pressed && pressedDim]}>
               <View style={styles.tixL}>
                 <T v="kicker" size={10} ls={0.12} color={up ? c.pastel.lilac.ink : c.pastel.rose.ink}>{up ? "Coming up" : "Party"} · {d.w} {d.m} {d.d}</T>
                 <T v="title" size={17} ls={-0.022} lh={1.15} style={{ marginTop: 3 }}>{p.name}</T>
@@ -387,7 +388,7 @@ export function AtTheDoor({ parties, today, canTreasury, onOpen, onDelete, onAdd
                 <T v="mono" size={10} color={c.ink3}>{p.attendance > 0 && p.doorRevenue > 0 ? `${fmt$(round2(p.doorRevenue / p.attendance))}/head` : "door"}</T>
               </View>
               {canTreasury ? (
-                <Pressable onPress={() => onDelete(p)} accessibilityRole="button" accessibilityLabel={`Delete ${p.name}`} hitSlop={6} style={[styles.tixDel, { backgroundColor: c.card }]}>
+                <Pressable onPress={() => onDelete(p)} accessibilityRole="button" accessibilityLabel={`Delete ${p.name}`} hitSlop={6} style={({ pressed }) => [[styles.tixDel, { backgroundColor: c.card }], pressed && pressedDim]}>
                   <Icon name="trash" size={14} color={c.ink3} />
                 </Pressable>
               ) : null}
@@ -395,7 +396,7 @@ export function AtTheDoor({ parties, today, canTreasury, onOpen, onDelete, onAdd
           );
         })}
         {canTreasury ? (
-          <Pressable onPress={onAdd} accessibilityRole="button" style={[styles.tixAdd, sorted.length === 0 && styles.tixFirst, { borderColor: c.line2 }]}>
+          <Pressable onPress={onAdd} accessibilityRole="button" style={({ pressed }) => [[styles.tixAdd, sorted.length === 0 && styles.tixFirst, { borderColor: c.line2 }], pressed && pressedDim]}>
             <Icon name="plus" size={sorted.length === 0 ? 20 : 16} color={c.ink2} />
             {sorted.length === 0 ? (
               <View style={{ gap: 2, flex: 1 }}>
@@ -426,9 +427,6 @@ export function Statement({ term, treasuryWord, asOf, ins, outs, books, unstarte
 }) {
   const { c } = useTheme();
   const n = books.parties.length;
-  const H5 = ({ t, tone }: { t: string; tone: string }) => (
-    <View style={styles.h5}><View style={[styles.h5bar, { backgroundColor: tone }]} /><T v="label" size={10.5} ls={0.11} color={c.ink3}>{t}</T></View>
-  );
   return (
     <View style={[styles.stmt, { backgroundColor: c.card, borderColor: c.ink }, hard(c.pastel.butter.fill, 7)]}>
       <View style={[styles.stmtTape, { backgroundColor: c.pastel.sky.fill }]} />
@@ -448,6 +446,20 @@ export function Statement({ term, treasuryWord, asOf, ins, outs, books, unstarte
   );
 }
 
+function H5({ t, tone }: { t: string; tone: string }) {
+  const { c } = useTheme();
+  return <View style={styles.h5}><View style={[styles.h5bar, { backgroundColor: tone }]} /><T v="label" size={10.5} ls={0.11} color={c.ink3}>{t}</T></View>;
+}
+function Cell({ k, v, color }: { k: string; v: string; color: string }) {
+  const { c } = useTheme();
+  return (
+    <View style={[styles.cell, { borderColor: c.line, backgroundColor: c.card, boxShadow: c.sh1 }]}>
+      <T v="label" size={10} ls={0.09} color={c.ink3}>{k}</T>
+      <T v="title" size={26} ls={-0.04} color={color} style={{ marginTop: 4 }}>{v}</T>
+    </View>
+  );
+}
+
 export function ReportGrid({ books }: { books: Books }) {
   const { c } = useTheme();
   const cells = [
@@ -456,12 +468,6 @@ export function ReportGrid({ books }: { books: Books }) {
     { k: "Door Revenue", v: fmt$(Math.round(books.totalDoorRev)), color: c.pastel.peach.ink },
     { k: "Net Balance", v: fmt$(Math.round(books.balance)), color: books.balance >= 0 ? c.ink : c.pastel.peach.ink },
   ];
-  const Cell = ({ k, v, color }: { k: string; v: string; color: string }) => (
-    <View style={[styles.cell, { borderColor: c.line, backgroundColor: c.card, boxShadow: c.sh1 }]}>
-      <T v="label" size={10} ls={0.09} color={c.ink3}>{k}</T>
-      <T v="title" size={26} ls={-0.04} color={color} style={{ marginTop: 4 }}>{v}</T>
-    </View>
-  );
   return (
     <View style={{ marginTop: 24, gap: 12 }}>
       <View style={styles.grid}>{cells.map(x => <View key={x.k} style={{ width: "48%" }}><Cell {...x} /></View>)}</View>

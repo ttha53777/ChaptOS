@@ -34,6 +34,7 @@ import type { Tone } from "~/theme/palette";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 export const BANDS: { value: BrotherStatus; label: string; tag: string; tone: Tone }[] = [
   { value: "Good", label: "Good", tag: "GOOD", tone: "mint" },
@@ -131,7 +132,7 @@ export function StandingCard({ roster, counts, t, measured, nothingMeasured, hin
             {live.map((b, i) => (
               <Dim key={b.value} on={filter === "All" || filter === b.value} style={{ flex: counts[b.value] }}>
                 <Pressable accessibilityRole="button" accessibilityLabel={`Filter ${b.label}`} onPress={() => toggle(b.value)}
-                  style={[styles.band, { backgroundColor: c.pastel[b.tone].fill }, i > 0 && { borderLeftWidth: 1.5, borderLeftColor: c.ink }]}>
+                  style={({ pressed }) => [[styles.band, { backgroundColor: c.pastel[b.tone].fill }, i > 0 && { borderLeftWidth: 1.5, borderLeftColor: c.ink }], pressed && pressedDim]}>
                   <T v="bodyStrong" size={13} color={c.ink}>{counts[b.value] > 2 ? String(counts[b.value]) : ""}</T>
                 </Pressable>
               </Dim>
@@ -162,7 +163,7 @@ export function StandingCard({ roster, counts, t, measured, nothingMeasured, hin
             return (
               <Dim key={b.id} on={filter === "All" || filter === st}>
                 <Pressable accessibilityRole="button" accessibilityLabel={`Open ${b.name}`} onPress={() => onOpen(b)}
-                  style={[styles.face, { borderColor: ring }, you && { borderColor: c.ink }]}>
+                  style={({ pressed }) => [[styles.face, { borderColor: ring }, you && { borderColor: c.ink }], pressed && pressedDim]}>
                   <Avatar name={b.name} uri={you ? myPhoto ?? b.avatarUrl : b.avatarUrl} tone="lilac" px={32} />
                 </Pressable>
               </Dim>

@@ -38,6 +38,7 @@ import { useFontScale, useTheme } from "~/theme/PaperProvider";
 import { resolveType } from "~/theme/type";
 import { T } from "~/ui/T";
 import { TBtn } from "./List";
+import { pressedDim } from "~/motion/press";
 
 type DayKey = "today" | "tom" | "week" | "pick" | "none";
 
@@ -310,7 +311,7 @@ export function TaskForm({ open, task, onClose, onSaved }: { open: boolean; task
               ) : (
                 <View style={{ gap: 12 }}>
                   <View style={styles.swRow}>
-                    <Pressable onPress={() => setEv("each")} style={styles.swLab} accessibilityRole="button">
+                    <Pressable onPress={() => setEv("each")} style={({ pressed }) => [styles.swLab, pressed && pressedDim]} accessibilityRole="button">
                       <Icon name="people" size={15} color={ev === "each" ? c.ink : c.ink3} />
                       <T v="bodyStrong" size={13.4} color={ev === "each" ? c.ink : c.ink3}>Everyone does it</T>
                     </Pressable>
@@ -318,7 +319,7 @@ export function TaskForm({ open, task, onClose, onSaved }: { open: boolean; task
                       style={[styles.sw2, { borderColor: c.ink, backgroundColor: ev === "any" ? c.note.fill.butter : c.note.fill.lilac }]}>
                       <View style={[styles.knob, { backgroundColor: c.card, borderColor: c.ink, alignSelf: ev === "any" ? "flex-end" : "flex-start" }]} />
                     </Pressable>
-                    <Pressable onPress={() => setEv("any")} style={styles.swLab} accessibilityRole="button">
+                    <Pressable onPress={() => setEv("any")} style={({ pressed }) => [styles.swLab, pressed && pressedDim]} accessibilityRole="button">
                       <Icon name="hand" size={15} color={ev === "any" ? c.ink : c.ink3} />
                       <T v="bodyStrong" size={13.4} color={ev === "any" ? c.ink : c.ink3}>Just one person</T>
                     </Pressable>
@@ -343,7 +344,7 @@ export function TaskForm({ open, task, onClose, onSaved }: { open: boolean; task
               <BigInput value={notes} onChangeText={setNotes} placeholder="Links, details, what “done” looks like…" maxLength={2000} multiline autoFocus={!task?.notes} tone="butter" small />
             </View>
           ) : (
-            <Pressable onPress={() => setShowNote(true)} accessibilityRole="button" style={styles.addnote}>
+            <Pressable onPress={() => setShowNote(true)} accessibilityRole="button" style={({ pressed }) => [styles.addnote, pressed && pressedDim]}>
               <Icon name="plus" size={15} color={c.ink2} /><T v="bodyStrong" size={14.4} color={c.ink2}>Add a note</T>
             </Pressable>
           )}

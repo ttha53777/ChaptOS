@@ -176,10 +176,11 @@ export function CheckInTicket(props: CheckInTicketProps) {
     });
   }
 
-  async function undo() {
+  /** `fromToast`: the toast's Undo press already gave the tap. */
+  async function undo(fromToast = false) {
     if (busy.current || phase !== "here") return;
     busy.current = true;
-    haptics.tap();
+    if (!fromToast) haptics.tap();
     setStamp("out");
     setPhase("undoing");
     reattach(m.reduced ? 0 : 120);
@@ -200,7 +201,7 @@ export function CheckInTicket(props: CheckInTicketProps) {
 
   const undoRef = useRef(undo);
   undoRef.current = undo;
-  useImperativeHandle(ref, () => ({ undo: () => { void undoRef.current(); } }), []);
+  useImperativeHandle(ref, () => ({ undo: () => { void undoRef.current(true); } }), []);
 
   const tone = TONE[win];
   const excused = excuse?.status === "approved";
@@ -253,7 +254,7 @@ export function CheckInTicket(props: CheckInTicketProps) {
               <T v="callout" numberOfLines={1}>{phase === "failing" ? "Not checked in" : phase === "undoing" ? "Taking it back" : "You're checked in"}</T>
               {at ? <T v="mono" color={c.ink3}>{at}</T> : null}
             </View>
-            {here && win !== "closed" && <Button label="Undo" variant="soft" size="sm" onPress={undo} accessibilityHint="Removes your check-in" />}
+            {here && win !== "closed" && <Button label="Undo" variant="soft" size="sm" onPress={() => void undo()} accessibilityHint="Removes your check-in" />}
           </View>
           <Stamp label="HERE" sub={at || undefined} tone="mint" state={stamp} rotate={-9} onImpact={landed} />
         </Animated.View>

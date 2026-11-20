@@ -13,6 +13,7 @@ import { Avatar } from "~/paper/bits";
 import { useTheme } from "~/theme/PaperProvider";
 import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 export type Swatch = { fill: string; ink: string; soft: string; border: string; dashed: boolean };
 
@@ -83,7 +84,7 @@ export function DuLink({ label, onPress, rose, icon }: { label: string; onPress:
   const { c } = useTheme();
   const col = rose ? c.pastel.rose.ink : c.ink2;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" hitSlop={8} style={styles.link}>
+    <Pressable onPress={onPress} accessibilityRole="button" hitSlop={8} style={({ pressed }) => [styles.link, pressed && pressedDim]}>
       {icon ? <Icon name={icon} size={13} color={col} /> : null}
       <T v="buttonSm" size={13} color={col} style={{ textDecorationLine: "underline", textDecorationColor: c.line2 }}>{label}</T>
     </Pressable>

@@ -74,7 +74,7 @@ export default function DocsPage() {
                 {pinned.length ? (
                   <View style={{ gap: 10 }}>
                     <T v="label" color={c.ink3} accessibilityRole="header">Pinned</T>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} snapToInterval={CARD_W + 12} decelerationRate="fast"
+                    <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} snapToInterval={CARD_W + 12} decelerationRate="fast"
                       contentContainerStyle={{ gap: 12, paddingVertical: 12, paddingRight: 18 }} style={{ marginHorizontal: -18 }} contentInset={{ left: 18 }}
                       contentOffset={{ x: -18, y: 0 }}>
                       {pinned.map((d, i) => <PinnedCard key={d.id} d={d} i={i} />)}
@@ -90,7 +90,7 @@ export default function DocsPage() {
                       const inside = inFolder(f);
                       return (
                         <Animated.View key={f.id} layout={layout}>
-                          <Pressable onPress={() => { haptics.select(); setOpen(s => { const n = new Set(s); if (n.has(f.id)) n.delete(f.id); else n.add(f.id); return n; }); }}
+                          <Pressable onPress={() => { setOpen(s => { const n = new Set(s); if (n.has(f.id)) n.delete(f.id); else n.add(f.id); return n; }); }}
                             accessibilityRole="button" accessibilityState={{ expanded: isOpen }} accessibilityLabel={`${f.name} folder, ${inside.length} docs`}>
                             <View style={[styles.tab, { marginLeft: `${[0, 30, 12][i % 3]}%`, backgroundColor: c.note.fill.butter, borderColor: c.ink }]}>
                               <T v="subhead" color={c.note.ink} numberOfLines={1} style={{ fontSize: 13.5 }}>{f.name}</T>

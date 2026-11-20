@@ -28,6 +28,7 @@ import { useTheme } from "~/theme/PaperProvider";
 import { T } from "~/ui/T";
 import { TBtn } from "./List";
 import { B, BigInput, Chip, Crowd, Head, Lab, PreviewRow, WhoTag } from "./TaskForm";
+import { pressedDim } from "~/motion/press";
 
 export function PollForm({ open, poll, onClose }: { open: boolean; poll: Poll | null; onClose: () => void }) {
   const { c } = useTheme();
@@ -137,14 +138,14 @@ export function PollForm({ open, poll, onClose }: { open: boolean; poll: Poll | 
                       returnKeyType={i === opts.length - 1 ? "done" : "next"} />
                   </View>
                   {opts.length > 2 ? (
-                    <Pressable onPress={() => setOpts(l => l.filter((_, j) => j !== i))} accessibilityRole="button" accessibilityLabel={`Remove choice ${i + 1}`} hitSlop={8} style={styles.rm}>
+                    <Pressable onPress={() => setOpts(l => l.filter((_, j) => j !== i))} accessibilityRole="button" accessibilityLabel={`Remove choice ${i + 1}`} hitSlop={8} style={({ pressed }) => [styles.rm, pressed && pressedDim]}>
                       <Icon name="x" size={14} color={c.ink3} />
                     </Pressable>
                   ) : null}
                 </View>
               ))}
               {opts.length < 10 ? (
-                <Pressable onPress={() => setOpts(l => [...l, ""])} accessibilityRole="button" style={styles.add}>
+                <Pressable onPress={() => setOpts(l => [...l, ""])} accessibilityRole="button" style={({ pressed }) => [styles.add, pressed && pressedDim]}>
                   <Icon name="plus" size={15} color={c.ink2} /><T v="bodyStrong" size={14.4} color={c.ink2}>Add a choice</T>
                 </Pressable>
               ) : null}

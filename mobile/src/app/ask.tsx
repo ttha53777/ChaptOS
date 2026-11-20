@@ -196,7 +196,7 @@ function CiteBody({ cite }: { cite: AnswerCitation }) {
       <T v="label" color={c.ink3}>{u.label}</T>
       {u.text ? <T v="body" selectable>{u.text}</T> : null}
       {u.grid ? (
-        <ScrollView horizontal>
+        <ScrollView keyboardShouldPersistTaps="handled" horizontal>
           <View style={{ borderWidth: 1, borderColor: c.line, borderRadius: 8 }}>
             {u.grid.map((row, i) => (
               <View key={i} style={{ flexDirection: "row", borderTopWidth: i ? 1 : 0, borderTopColor: c.lineSoft }}>

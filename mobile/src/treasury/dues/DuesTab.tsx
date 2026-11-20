@@ -35,6 +35,7 @@ import { DuBtn, DuCard, DuLink, Empty, Kicker, Search, Seg, Strip, useStanding }
 import { ChargeEditSheet } from "./ChargeEdit";
 import { DuesMemberDrawer, type DuesWriteDone } from "./Drawer";
 import { HandOutSheet, type SheetStart } from "./HandOut";
+import { pressedDim } from "~/motion/press";
 
 export interface DuesJump { filter: DuesFilter | null; memberId: number | null; sheet?: boolean; at: number }
 
@@ -252,7 +253,7 @@ function Stub({ ch, on, canTreasury, onPress, onEdit }: { ch: DuesChargeSummary;
         </View>
       </Pressable>
       {canTreasury ? (
-        <Pressable onPress={onEdit} accessibilityRole="button" accessibilityLabel={`Edit ${ch.name}`} hitSlop={8} style={[styles.more, { borderColor: c.line2, backgroundColor: c.card }]}>
+        <Pressable onPress={onEdit} accessibilityRole="button" accessibilityLabel={`Edit ${ch.name}`} hitSlop={8} style={({ pressed }) => [[styles.more, { borderColor: c.line2, backgroundColor: c.card }], pressed && pressedDim]}>
           <Icon name="dots" size={14} color={c.ink2} />
         </Pressable>
       ) : null}

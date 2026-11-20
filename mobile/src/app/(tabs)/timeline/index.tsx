@@ -71,6 +71,7 @@ import { DaySheet, MonthGrid, type Ym } from "~/timeline/MonthGrid";
 import { useNow } from "~/today/live";
 import { PageBrief } from "~/ui/PageBrief";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 const VIEW_KEY = "chaptos:timeline-view";
 const UNDO_MS = 6000;
@@ -391,7 +392,7 @@ function JumpPill({ scrollY, todayY, onJump }: { scrollY: SharedValue<number>; t
   return (
     <Animated.View style={[styles.jumpWrap, { bottom: tabBar + 16 }, st]} pointerEvents="box-none">
       <Pressable onPress={() => onJump(todayY.value)} accessibilityRole="button" accessibilityLabel="Jump to today"
-        style={[styles.jump, { backgroundColor: c.ink, boxShadow: c.sh2 }]}>
+        style={({ pressed }) => [[styles.jump, { backgroundColor: c.ink, boxShadow: c.sh2 }], pressed && pressedDim]}>
         <Icon name={dir === "up" ? "chev-u" : "chev-d"} size={14} color={c.paper} />
         <T v="pill" color={c.paper}>Today</T>
       </Pressable>

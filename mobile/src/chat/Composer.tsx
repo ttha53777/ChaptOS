@@ -18,6 +18,7 @@ import { haptics } from "~/motion/haptics";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { T } from "~/ui/T";
 import { addFiles, filesBusy, removeFile, useFiles, type FileChip } from "./files";
+import { pressedDim } from "~/motion/press";
 
 const MIME: Record<string, string> = {
   ".pdf": "application/pdf",
@@ -65,7 +66,7 @@ export function Composer({ value, onChange, onSend, onStop, streaming, limits, o
       {failed.length ? <T v="meta" color={c.pastel.rose.ink} accessibilityLiveRegion="polite">{failed[failed.length - 1]!.error}</T> : null}
       <View style={[styles.box, { borderColor: focused ? c.ink : c.line2, backgroundColor: c.paper2 }, focused && { boxShadow: [{ offsetX: 2, offsetY: 2, blurRadius: 0, spreadDistance: 0, color: c.pastel.lilac.fill }] }]}>
         {limits ? (
-          <Pressable onPress={() => void pick()} disabled={streaming} accessibilityRole="button" accessibilityLabel="Attach a file" hitSlop={6} style={styles.clip}>
+          <Pressable onPress={() => void pick()} disabled={streaming} accessibilityRole="button" accessibilityLabel="Attach a file" hitSlop={6} style={({ pressed }) => [styles.clip, pressed && pressedDim]}>
             <Icon name="clip" size={18} color={c.ink2} />
           </Pressable>
         ) : null}
@@ -86,12 +87,12 @@ export function Composer({ value, onChange, onSend, onStop, streaming, limits, o
           style={[styles.input, { color: c.ink, paddingLeft: limits ? 2 : 15 }]}
         />
         {streaming ? (
-          <Pressable onPress={() => { haptics.tap(); onStop(); }} accessibilityRole="button" accessibilityLabel="Stop" style={[styles.send, { backgroundColor: c.ink }]}>
+          <Pressable onPress={() => { haptics.tap(); onStop(); }} accessibilityRole="button" accessibilityLabel="Stop" style={({ pressed }) => [[styles.send, { backgroundColor: c.ink }], pressed && pressedDim]}>
             <View style={{ width: 11, height: 11, borderRadius: 2, backgroundColor: c.paper }} />
           </Pressable>
         ) : (
           <Pressable onPress={() => { if (canSend) { haptics.tap(); onSend(); } }} disabled={!canSend} accessibilityRole="button" accessibilityLabel="Ask" accessibilityState={{ disabled: !canSend }}
-            style={[styles.send, { backgroundColor: canSend ? c.ink : c.paper3 }]}>
+            style={({ pressed }) => [[styles.send, { backgroundColor: canSend ? c.ink : c.paper3 }], pressed && pressedDim]}>
             <View style={{ transform: [{ rotate: "-90deg" }] }}><Icon name="arrow-r" size={16} color={canSend ? c.paper : c.faint} /></View>
           </Pressable>
         )}

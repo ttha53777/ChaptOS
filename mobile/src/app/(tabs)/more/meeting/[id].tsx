@@ -52,6 +52,7 @@ import { AttendanceBlock } from "~/timeline/Attendance";
 import { tickActionItem } from "~/timeline/Minutes";
 import { useNow } from "~/today/live";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 type Tab = "min" | "sum" | "att";
 
@@ -141,7 +142,7 @@ export default function MeetingPage() {
   return (
     <Screen title={event.title} back={back} onRefresh={refresh}
       right={
-        <Pressable onPress={() => setMenu(true)} accessibilityRole="button" accessibilityLabel="More" hitSlop={8} style={styles.more}>
+        <Pressable onPress={() => setMenu(true)} accessibilityRole="button" accessibilityLabel="More" hitSlop={8} style={({ pressed }) => [styles.more, pressed && pressedDim]}>
           <Icon name="dots" size={18} color={c.ink2} />
         </Pressable>
       }
@@ -432,7 +433,7 @@ function DockBtn({ label, icon, ink, grow, disabled, onPress }: { label: string;
   const { c } = useTheme();
   const fg = ink ? c.paper : c.pastel.lilac.ink;
   return (
-    <Pressable onPress={() => { haptics.tap(); onPress(); }} disabled={disabled} accessibilityRole="button"
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button"
       style={({ pressed }) => [styles.dockBtn, grow && { flex: 1 }, ink ? { backgroundColor: c.ink, borderColor: c.ink } : { backgroundColor: c.card, borderColor: c.line2 },
         !pressed ? hard(ink ? c.pastel.sky.fill : c.pastel.lilac.soft, 3) : { transform: [{ translateX: 1 }, { translateY: 1 }] }, disabled && { opacity: 0.6 }]}>
       <Icon name={icon} size={16} color={fg} />

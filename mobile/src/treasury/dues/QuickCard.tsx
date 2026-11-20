@@ -14,6 +14,23 @@ import { useTheme } from "~/theme/PaperProvider";
 import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
 import { Stack, Strip, useStanding } from "./bits";
+import { pressedDim } from "~/motion/press";
+
+// Module-level so React keeps one component type across renders: defined inside
+// DuesQuickCard, every render remounted the whole card (and dropped its pressed state).
+function Card({ onPress, label, children }: { onPress: () => void; label: string; children: ReactNode }) {
+  const { c } = useTheme();
+  return (
+    <Pressable onPress={onPress} accessibilityRole="link" accessibilityLabel={label}
+      style={({ pressed }) => [styles.card, { backgroundColor: c.card, borderColor: c.ink }, hard(c.pastel.butter.fill, pressed ? 2 : 4)]}>
+      {children}
+    </Pressable>
+  );
+}
+function Foot({ children }: { children: ReactNode }) {
+  const { c } = useTheme();
+  return <View style={[styles.f, { borderTopColor: c.line2 }]}>{children}</View>;
+}
 
 export function DuesQuickCard({ board, error, people, duesWord, canTreasury, onGo, onHandOut }: {
   board: DuesBoard | null; error: string | null; people: Map<number, DuesPerson>; duesWord: string; canTreasury: boolean;
@@ -30,23 +47,15 @@ export function DuesQuickCard({ board, error, people, duesWord, canTreasury, onG
       <View style={[styles.goAr, { borderColor: c.ink }]}><Icon name="arrow-r" size={15} color={c.ink} /></View>
     </View>
   );
-  const Card = ({ children }: { children: ReactNode }) => (
-    <Pressable onPress={() => onGo("all")} accessibilityRole="link" accessibilityLabel={`Open ${duesWord}`}
-      style={({ pressed }) => [styles.card, { backgroundColor: c.card, borderColor: c.ink }, hard(c.pastel.butter.fill, pressed ? 2 : 4)]}>
-      {children}
-    </Pressable>
-  );
-  const Foot = ({ children }: { children: ReactNode }) => (
-    <View style={[styles.f, { borderTopColor: c.line2 }]}>{children}</View>
-  );
+  const open = () => onGo("all");
 
   if (!board) {
-    return <Card>{head(null)}{error ? <View style={styles.d1}><T v="body" size={14} color={c.ink2}>{error}</T></View> : <View style={{ marginHorizontal: 20, marginBottom: 20 }}><SkeletonCard height={150} /></View>}</Card>;
+    return <Card onPress={open} label={`Open ${duesWord}`}>{head(null)}{error ? <View style={styles.d1}><T v="body" size={14} color={c.ink2}>{error}</T></View> : <View style={{ marginHorizontal: 20, marginBottom: 20 }}><SkeletonCard height={150} /></View>}</Card>;
   }
 
   if (board.charges.length === 0) {
     return (
-      <Card>
+      <Card onPress={open} label={`Open ${duesWord}`}>
         {head(null)}
         <View style={styles.d1}>
           <T v="body" size={14} color={c.ink2}>
@@ -59,7 +68,7 @@ export function DuesQuickCard({ board, error, people, duesWord, canTreasury, onG
         <Foot>
           <T v="meta" size={12.5} color={c.ink3} style={{ flex: 1 }}>{plural(board.members.length, "member")}, nothing billed</T>
           {canTreasury ? (
-            <Pressable onPress={onHandOut} accessibilityRole="button" hitSlop={8} style={styles.open}>
+            <Pressable onPress={onHandOut} accessibilityRole="button" hitSlop={8} style={({ pressed }) => [styles.open, pressed && pressedDim]}>
               <Icon name="plus" size={14} color={c.ink} /><T v="buttonSm" size={13} color={c.ink}>Hand out {duesWord.toLowerCase()}</T>
             </Pressable>
           ) : null}
@@ -73,7 +82,7 @@ export function DuesQuickCard({ board, error, people, duesWord, canTreasury, onG
   const toPeople = (ms: typeof board.members) => q.owingFirst(ms).map(m => people.get(m.brotherId)).filter((p): p is DuesPerson => !!p);
 
   return (
-    <Card>
+    <Card onPress={open} label={`Open ${duesWord}`}>
       {head(
         <View style={[styles.pill, q.owe ? { backgroundColor: c.pastel.rose.soft, borderColor: c.pastel.rose.border } : { backgroundColor: c.pastel.mint.soft, borderColor: c.pastel.mint.border }]}>
           <T v="pill" size={11.5} color={q.owe ? c.pastel.rose.ink : c.pastel.mint.ink}>{q.owe ? `${q.owe} owe` : "All paid"}</T>

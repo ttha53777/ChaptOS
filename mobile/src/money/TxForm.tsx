@@ -34,6 +34,7 @@ import { Field } from "~/ui/Field";
 import { Segmented } from "~/ui/Segmented";
 import { Switch } from "~/ui/Switch";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 export type TxKind = "income" | "expense";
 
@@ -177,11 +178,11 @@ export function TxForm({ open, kind, tx, cats, onClose, onSaved }: {
         <View style={{ gap: 6 }}>
           <T v="label" color={c.ink2}>Day</T>
           <View style={[styles.day, { borderColor: c.line2, backgroundColor: c.card }]}>
-            <Pressable onPress={() => moveDay(-1)} accessibilityRole="button" accessibilityLabel="A day earlier" hitSlop={8} style={styles.dayBtn}>
+            <Pressable onPress={() => moveDay(-1)} accessibilityRole="button" accessibilityLabel="A day earlier" hitSlop={8} style={({ pressed }) => [styles.dayBtn, pressed && pressedDim]}>
               <Icon name="chev-l" size={16} color={c.ink2} />
             </Pressable>
             <T v="callout" style={{ flex: 1, textAlign: "center" }} accessibilityLiveRegion="polite">{dayLabel}</T>
-            <Pressable onPress={() => moveDay(1)} accessibilityRole="button" accessibilityLabel="A day later" hitSlop={8} style={styles.dayBtn}>
+            <Pressable onPress={() => moveDay(1)} accessibilityRole="button" accessibilityLabel="A day later" hitSlop={8} style={({ pressed }) => [styles.dayBtn, pressed && pressedDim]}>
               <Icon name="chev-r" size={16} color={c.ink2} />
             </Pressable>
           </View>

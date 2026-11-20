@@ -30,6 +30,7 @@ import { EmptyState, ErrorState, SkeletonCard, SkeletonList } from "~/shell/stat
 import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { toneOf } from "~/timeline/model";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 const LANE_EMPTY: Record<ProgrammingStage, string> = {
   idea: "No ideas waiting. Anything the chapter might do starts here.",
@@ -135,7 +136,7 @@ export default function Programming() {
               </View>
             ) : null}
             {usedTypes.length > 1 ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>
+              <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>
                 {usedTypes.map(t => {
                   const on = types.has(t.slug);
                   const p = c.pastel[toneOf(t.slug)];
@@ -221,7 +222,7 @@ function LaneTabs({ lane, counts, onPick }: { lane: ProgrammingStage; counts: Re
       {STAGES.map(s => {
         const on = s === lane;
         return (
-          <Pressable key={s} onPress={() => onPick(s)} style={styles.tab} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${STAGE[s].label}, ${counts[s]}`}>
+          <Pressable key={s} onPress={() => onPick(s)} style={({ pressed }) => [styles.tab, pressed && pressedDim]} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${STAGE[s].label}, ${counts[s]}`}>
             <T v="pill" color={on ? c.paper : c.ink2} numberOfLines={1}>{STAGE[s].label}</T>
             <View style={[styles.count, { backgroundColor: on ? c.note.fill[STAGE[s].tone] : c.paper2 }]}>
               <T v="mono" color={on ? c.note.ink : c.ink3} style={{ fontSize: 10.5, fontWeight: "700" }}>{counts[s]}</T>

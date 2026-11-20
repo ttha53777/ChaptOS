@@ -20,6 +20,7 @@ import { Icon } from "~/icons/Icon";
 import { OrgSheet, StampFace } from "~/shell/OrgStamp";
 import { useTheme } from "~/theme/PaperProvider";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 export function WebToolbar({ kicker, title, back, onBack }: { kicker?: string; title: string; back?: string; onBack?: () => void }) {
   const { c } = useTheme();
@@ -32,7 +33,7 @@ export function WebToolbar({ kicker, title, back, onBack }: { kicker?: string; t
   return (
     <View style={styles.row}>
       {back ? (
-        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel={`Back to ${back}`} hitSlop={10} style={styles.back}>
+        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel={`Back to ${back}`} hitSlop={10} style={({ pressed }) => [styles.back, pressed && pressedDim]}>
           <Icon name="chev-l" size={20} color={c.ink2} />
         </Pressable>
       ) : (

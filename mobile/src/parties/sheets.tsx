@@ -43,6 +43,7 @@ import { Switch } from "~/ui/Switch";
 import { T } from "~/ui/T";
 import { ReceiptLines, RollDots, Wristband } from "./bits";
 import { canManage, cash, dow, isUpcoming, longDate, monDay, needsWrapUp, PARTY_TYPES, partyTime, profit, signed, subLine } from "./model";
+import { pressedDim } from "~/motion/press";
 
 function useOrgBits() {
   const me = useEntryOf("ready")?.me ?? null;
@@ -372,8 +373,8 @@ export function WrapUp({ party, rolled, onClose }: { party: Party | null; rolled
               <View style={styles.rollHead}>
                 <T v="label" color={c.ink2}>{`Who came? (${present.size}/${people.length})`}</T>
                 <View style={{ flexDirection: "row", gap: 4 }}>
-                  <Pressable onPress={() => markShown(true)} hitSlop={6} style={styles.allNone} accessibilityRole="button" accessibilityLabel="Tick everyone shown"><T v="kicker" color={c.ink3}>All</T></Pressable>
-                  <Pressable onPress={() => markShown(false)} hitSlop={6} style={styles.allNone} accessibilityRole="button" accessibilityLabel="Untick everyone shown"><T v="kicker" color={c.ink3}>None</T></Pressable>
+                  <Pressable onPress={() => markShown(true)} hitSlop={6} style={({ pressed }) => [styles.allNone, pressed && pressedDim]} accessibilityRole="button" accessibilityLabel="Tick everyone shown"><T v="kicker" color={c.ink3}>All</T></Pressable>
+                  <Pressable onPress={() => markShown(false)} hitSlop={6} style={({ pressed }) => [styles.allNone, pressed && pressedDim]} accessibilityRole="button" accessibilityLabel="Untick everyone shown"><T v="kicker" color={c.ink3}>None</T></Pressable>
                 </View>
               </View>
               {people.length > 8 ? (

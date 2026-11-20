@@ -26,6 +26,7 @@ import { clockLabel, startOf } from "~/today/time";
 import { T } from "~/ui/T";
 import { weekRange } from "./Brief";
 import { DashCard, HeadSub } from "./Card";
+import { pressedDim } from "~/motion/press";
 
 const WD = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const WD_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -78,7 +79,7 @@ export function WeekCard({ agenda, deadlines, start, end, today, types, calendar
       right={
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           <HeadSub label={weekRange(start, end)} />
-          <Pressable onPress={onAll} accessibilityRole="button" accessibilityLabel="All, open Timeline" hitSlop={8} style={styles.lnk}>
+          <Pressable onPress={onAll} accessibilityRole="button" accessibilityLabel="All, open Timeline" hitSlop={8} style={({ pressed }) => [styles.lnk, pressed && pressedDim]}>
             <T v="buttonSm" size={12.6}>All</T>
             <Icon name="arrow-r" size={12} color={c.ink} />
           </Pressable>

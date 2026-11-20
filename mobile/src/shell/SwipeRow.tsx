@@ -32,6 +32,7 @@ import { DUR } from "~/motion/motion";
 import type { Tone } from "~/theme/palette";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 export const ACTION_W = 84;
 const OPEN_AT = 60;
@@ -121,7 +122,7 @@ export function SwipeRow({ actions, onPress, label, hint, radius = 18, children 
         scheduleOnRN(haptics.select);
       }
     },
-    onDeactivate: () => {
+    onDeactivate: e => {
       "worklet";
       if (raw.value < -FULL) {
         if (reduced) gone.value = withTiming(0, flyCfg);
@@ -129,8 +130,10 @@ export function SwipeRow({ actions, onPress, label, hint, radius = 18, children 
         scheduleOnRN(commit, n - 1);
         return;
       }
-      if (x.value < -OPEN_AT) { x.value = withSpring(-W, snapCfg); scheduleOnRN(opened); }
-      else { x.value = withSpring(0, snapCfg); }
+      // The finger's speed carries into the snap, so a flick opens (or shuts) with momentum.
+      const snap = reduced ? snapCfg : { ...snapCfg, velocity: e.velocityX };
+      if (x.value < -OPEN_AT) { x.value = withSpring(-W, snap); scheduleOnRN(opened); }
+      else { x.value = withSpring(0, snap); }
       full.value = withTiming(0, fullCfg);
       fullOn.value = false;
     },
@@ -203,7 +206,7 @@ function ActionButton({ a, onPress }: { a: SwipeAction; onPress: () => void }) {
   const { c } = useTheme();
   return (
     <Pressable onPress={onPress} importantForAccessibility="no" accessibilityElementsHidden
-      style={[styles.act, { backgroundColor: c.note.fill[a.tone] }]}>
+      style={({ pressed }) => [[styles.act, { backgroundColor: c.note.fill[a.tone] }], pressed && pressedDim]}>
       <Icon name={a.icon} size={20} color={c.note.ink} />
       <T v="pill" color={c.note.ink}>{a.label}</T>
     </Pressable>

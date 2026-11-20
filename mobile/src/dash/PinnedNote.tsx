@@ -102,7 +102,7 @@ function Empty({ word, onWrite }: { word: string; onWrite: () => void }) {
 /** `.dash .pinned .pin-edit`: a small outlined pill with a hard shadow. */
 function NoteButton({ label, ink, hs, onPress }: { label: string; ink: string; hs: string; onPress: () => void }) {
   return (
-    <Pressable onPress={() => { haptics.tap(); onPress(); }} accessibilityRole="button" accessibilityLabel={label}
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}
       style={({ pressed }) => [styles.btn, { borderColor: ink, boxShadow: pressed ? undefined : `2px 2px 0 ${hs}` }, pressed && { transform: [{ translateX: 1 }, { translateY: 1 }] }]}>
       <T v="buttonSm" size={12.8} color={ink}>{label}</T>
     </Pressable>

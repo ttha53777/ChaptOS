@@ -31,6 +31,7 @@ import { monthDay, weekdayShort } from "~/today/time";
 import { Field } from "~/ui/Field";
 import { Switch } from "~/ui/Switch";
 import { T } from "~/ui/T";
+import { pressedDim } from "~/motion/press";
 
 const shiftDay = (d: string, n: number) => { const x = new Date(`${d}T12:00:00`); x.setDate(x.getDate() + n); return localDay(x); };
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -69,9 +70,9 @@ function DayField({ date, onChange, label = "Date" }: { date: string; onChange: 
     <View style={{ gap: 6 }}>
       <Lab>{label}</Lab>
       <View style={[styles.day, { borderColor: c.line2, backgroundColor: c.card }]}>
-        <Pressable onPress={() => { haptics.select(); onChange(shiftDay(date, -1)); }} accessibilityRole="button" accessibilityLabel="A day earlier" hitSlop={8} style={styles.dayBtn}><Icon name="chev-l" size={16} color={c.ink2} /></Pressable>
+        <Pressable onPress={() => { haptics.select(); onChange(shiftDay(date, -1)); }} accessibilityRole="button" accessibilityLabel="A day earlier" hitSlop={8} style={({ pressed }) => [styles.dayBtn, pressed && pressedDim]}><Icon name="chev-l" size={16} color={c.ink2} /></Pressable>
         <T v="callout" style={{ flex: 1, textAlign: "center" }} accessibilityLiveRegion="polite">{shown}</T>
-        <Pressable onPress={() => { haptics.select(); onChange(shiftDay(date, 1)); }} accessibilityRole="button" accessibilityLabel="A day later" hitSlop={8} style={styles.dayBtn}><Icon name="chev-r" size={16} color={c.ink2} /></Pressable>
+        <Pressable onPress={() => { haptics.select(); onChange(shiftDay(date, 1)); }} accessibilityRole="button" accessibilityLabel="A day later" hitSlop={8} style={({ pressed }) => [styles.dayBtn, pressed && pressedDim]}><Icon name="chev-r" size={16} color={c.ink2} /></Pressable>
       </View>
     </View>
   );
@@ -182,7 +183,7 @@ export function LedgerTxForm({ open, tx, catalog, terms, activeTerm, events, onC
                   if (!ev) return null;
                   return (
                     <Pressable key={id} onPress={() => setEventIds(xs => xs.filter(x => x !== id))} accessibilityRole="button" accessibilityLabel={`Remove ${ev.title}`}
-                      style={[styles.ev, { backgroundColor: c.pastel.lilac.soft, borderColor: c.pastel.lilac.border }]}>
+                      style={({ pressed }) => [[styles.ev, { backgroundColor: c.pastel.lilac.soft, borderColor: c.pastel.lilac.border }], pressed && pressedDim]}>
                       <Icon name="cal" size={12} color={c.pastel.lilac.ink} />
                       <T v="pill" size={11} color={c.pastel.lilac.ink}>{ev.title}</T>
                       <Icon name="x" size={10} color={c.pastel.lilac.ink} />
@@ -197,7 +198,7 @@ export function LedgerTxForm({ open, tx, catalog, terms, activeTerm, events, onC
                 <View style={styles.wrap}>
                   {addable.map(ev => (
                     <Pressable key={ev.id} onPress={() => setEventIds(xs => [...xs, ev.id])} accessibilityRole="button"
-                      style={[styles.chip, { borderColor: c.line2, backgroundColor: c.card, borderStyle: "dashed" }]}>
+                      style={({ pressed }) => [[styles.chip, { borderColor: c.line2, backgroundColor: c.card, borderStyle: "dashed" }], pressed && pressedDim]}>
                       <T v="pill" size={12} color={c.ink2}>{ev.title} · {ev.date}</T>
                     </Pressable>
                   ))}

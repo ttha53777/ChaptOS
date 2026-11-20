@@ -17,11 +17,11 @@ import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { cancelAnimation, Easing, FadeIn, FadeInDown, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
 import Svg, { Circle, Path } from "react-native-svg";
 import { Icon } from "~/icons/Icon";
-import { haptics } from "~/motion/haptics";
 import { alpha } from "~/theme/palette";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { T } from "~/ui/T";
 import type { LedgerStep } from "./types";
+import { pressedDim } from "~/motion/press";
 
 const NODE = 18;
 
@@ -127,7 +127,7 @@ export function Trace({ steps }: { steps: LedgerStep[] }) {
   const sources = [...new Set(real.map(s => s.source).filter(Boolean))].join(", ");
   return (
     <View style={{ gap: 8 }}>
-      <Pressable onPress={() => { haptics.select(); setOpen(o => !o); }} accessibilityRole="button" accessibilityState={{ expanded: open }} hitSlop={6} style={styles.trace}>
+      <Pressable onPress={() => setOpen(o => !o)} accessibilityRole="button" accessibilityState={{ expanded: open }} hitSlop={6} style={({ pressed }) => [styles.trace, pressed && pressedDim]}>
         <Icon name="check" size={12} color={c.pastel.mint.ink} />
         <T v="meta" color={c.ink3} style={{ flex: 1 }} numberOfLines={1}>Read {real.length} record{real.length > 1 ? "s" : ""}{sources ? ` · ${sources}` : ""}</T>
         <Icon name={open ? "chev-u" : "chev-d"} size={13} color={c.ink3} />

@@ -36,6 +36,7 @@ import { T } from "~/ui/T";
 import { Stars } from "./Card";
 import { canManage, isForward, isPublished, missingFor, money, needsConfirmFirst, needsWrapUp, ownerLabel, RATING, shortDate, STAGE, STAGES } from "./model";
 import { AttachLink, EditDetails, FixStep, OffTimeline, OwnerSheet, WrapUp } from "./steps";
+import { pressedDim } from "~/motion/press";
 
 type Target = { e: ProgrammingEvent; stage: ProgrammingStage };
 
@@ -166,7 +167,7 @@ export function EventSheet({ id, onClose }: { id: number | null; onClose: () => 
           </View>
 
           {officer ? (
-            <Pressable onPress={() => setDeleting(true)} accessibilityRole="button" style={styles.del} hitSlop={6}>
+            <Pressable onPress={() => setDeleting(true)} accessibilityRole="button" style={({ pressed }) => [styles.del, pressed && pressedDim]} hitSlop={6}>
               <Icon name="trash" size={14} color={c.pastel.rose.ink} />
               <T v="callout" color={c.pastel.rose.ink}>Delete event</T>
             </Pressable>
@@ -208,7 +209,7 @@ export function Ladder({ stage, officer, onPick }: { stage: ProgrammingStage; of
         const on = s === stage;
         const past = i < idx;
         return (
-          <Pressable key={s} onPress={() => onPick(s)} disabled={!officer} style={styles.rung}
+          <Pressable key={s} onPress={() => onPick(s)} disabled={!officer} style={({ pressed }) => [styles.rung, pressed && pressedDim]}
             accessibilityRole="tab" accessibilityState={{ selected: on, disabled: !officer }} accessibilityLabel={`${STAGE[s].label}${on ? ", current" : officer ? ", move here" : ""}`}>
             <View style={[styles.rungDot, { backgroundColor: on ? c.note.fill[STAGE[s].tone] : past ? c.ink3 : "transparent", borderColor: on ? c.paper : c.ink3 }]} />
             <T v="pill" color={on ? c.paper : past ? c.ink2 : c.ink3} numberOfLines={1}>{STAGE[s].label}</T>
@@ -249,7 +250,7 @@ function LinkRow({ title, url, first, officer, onRemove }: { title: string; url:
       </Pressable>
       {officer ? (
         <Pressable onPress={() => { if (arming) { haptics.tap(); onRemove(); } else setArming(true); }} hitSlop={8} accessibilityRole="button" accessibilityLabel={arming ? `Remove ${title}, tap to confirm` : `Remove ${title}`}
-          style={[styles.rm, { borderColor: arming ? c.pastel.rose.border : c.line2, backgroundColor: arming ? c.pastel.rose.soft : "transparent" }]}>
+          style={({ pressed }) => [[styles.rm, { borderColor: arming ? c.pastel.rose.border : c.line2, backgroundColor: arming ? c.pastel.rose.soft : "transparent" }], pressed && pressedDim]}>
           {arming ? <T v="pill" color={c.pastel.rose.ink}>Remove</T> : <Icon name="x" size={12} color={c.ink3} />}
         </Pressable>
       ) : null}

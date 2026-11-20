@@ -129,7 +129,7 @@ const UP = 64, DOWN = 34, BAR_W = 58;
 
 export function Strip({ chron, max, onOpen }: { chron: Party[]; max: number; onOpen: (id: number) => void }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}>
+    <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}>
       {chron.map((p, i) => <Bar key={p.id} p={p} i={i} max={max} onPress={() => onOpen(p.id)} />)}
     </ScrollView>
   );

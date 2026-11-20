@@ -29,7 +29,6 @@ import Animated, { withDelay, withTiming } from "react-native-reanimated";
 import { useCalendarFeed } from "~/data/calendar";
 import { Icon, type IconName } from "~/icons/Icon";
 import { DUR } from "~/motion/motion";
-import { haptics } from "~/motion/haptics";
 import { Button } from "~/paper/Button";
 import { Pill, Tape } from "~/paper/bits";
 import { Ticket } from "~/paper/Ticket";
@@ -250,7 +249,7 @@ function Where({ place }: { place: string }) {
         <View style={[styles.icon, { backgroundColor: c.note.fill.sky }]}><Icon name="pin" size={16} color={c.pastel.sky.ink} /></View>
         <T v="callout" style={{ flex: 1 }} selectable>{place}</T>
         <Button label="Directions" size="sm" variant="ghost" tone="sky"
-          onPress={() => { haptics.tap(); void Linking.openURL(mapsUrl(place)).catch(() => undefined); }} />
+          onPress={() => { void Linking.openURL(mapsUrl(place)).catch(() => undefined); }} />
       </View>
     </Section>
   );
@@ -324,19 +323,23 @@ function EventBody({ event, types, viewer, today, roster, officer, links, linked
   );
 }
 
-function SourceLinks({ links }: { links: SheetLinks }) {
+function SourceLink({ label, onPress }: { label: string; onPress: () => void }) {
   const { c } = useTheme();
-  const L = ({ label, onPress }: { label: string; onPress: () => void }) => (
+  return (
     <Pressable onPress={onPress} accessibilityRole="link" style={({ pressed }) => [styles.link, { borderColor: c.line2, backgroundColor: pressed ? c.paper2 : c.card }]}>
       <T v="callout" color={c.ink} style={{ fontWeight: "600", flex: 1 }}>{label}</T>
       <Icon name="arrow-r" size={15} color={c.ink2} />
     </Pressable>
   );
+}
+
+function SourceLinks({ links }: { links: SheetLinks }) {
+  const { c } = useTheme();
   return (
     <View style={{ gap: 8 }}>
-      {links.party ? <L label="Open in Parties" onPress={links.party} /> : null}
-      {links.fundraiser ? <L label="Open in Fundraisers" onPress={links.fundraiser} /> : null}
-      {links.programming ? <L label="Open in Programming" onPress={links.programming} /> : null}
+      {links.party ? <SourceLink label="Open in Parties" onPress={links.party} /> : null}
+      {links.fundraiser ? <SourceLink label="Open in Fundraisers" onPress={links.fundraiser} /> : null}
+      {links.programming ? <SourceLink label="Open in Programming" onPress={links.programming} /> : null}
     </View>
   );
 }
@@ -443,7 +446,7 @@ export function SubscribeSheet({ open, onClose, onAdded }: { open: boolean; onCl
   const { c } = useTheme();
   const q = useCalendarFeed(open);
   const url = q.data?.enabled ? q.data.url : null;
-  const go = (href: string) => { haptics.tap(); void Linking.openURL(href).then(() => { onAdded?.(); onClose(); }, () => undefined); };
+  const go = (href: string) => { void Linking.openURL(href).then(() => { onAdded?.(); onClose(); }, () => undefined); };
   return (
     <Sheet open={open} onClose={onClose} title="Add to your calendar" kicker="Calendar feed" tone="sky" icon="cal"
       footer={url ? (

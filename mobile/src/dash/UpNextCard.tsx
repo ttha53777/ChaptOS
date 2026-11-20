@@ -385,7 +385,7 @@ function Blank({ events, today, now, onAddEvent }: { events: CalendarEvent[]; to
         ) : onAddEvent ? "Add the first event and it shows up here for everyone." : "When an officer adds an event, it shows up here."}
       </T>
       {onAddEvent ? (
-        <Pressable onPress={() => { haptics.tap(); onAddEvent(); }} accessibilityRole="button" accessibilityLabel="Add an event"
+        <Pressable onPress={onAddEvent} accessibilityRole="button" accessibilityLabel="Add an event"
           style={({ pressed }) => [styles.btn, styles.addBtn, { backgroundColor: c.ink, borderColor: c.ink, boxShadow: pressed ? undefined : `2px 2px 0 ${c.pastel.mint.fill}` },
             pressed && { transform: [{ translateX: 1 }, { translateY: 1 }] }]}>
           <Icon name="plus" size={13} color={c.paper} />

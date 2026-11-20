@@ -33,6 +33,7 @@ import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
 import { tickTask } from "./tick";
+import { pressedDim } from "~/motion/press";
 
 const TONE: Record<"done" | "over" | "up", Tone> = { done: "mint", over: "peach", up: "sky" };
 
@@ -93,8 +94,8 @@ function Body({ task, today, me, roster, canComplete, canManage, onEdit, onDelet
           <View style={{ flex: 1 }} />
           {canManage ? (
             <>
-              <Pressable onPress={onEdit} accessibilityRole="button" accessibilityLabel="Edit" hitSlop={4} style={styles.tool}><Icon name="pencil" size={17} color={c.ink3} /></Pressable>
-              <Pressable onPress={onDelete} accessibilityRole="button" accessibilityLabel="Delete" hitSlop={4} style={styles.tool}><Icon name="trash" size={17} color={c.ink3} /></Pressable>
+              <Pressable onPress={onEdit} accessibilityRole="button" accessibilityLabel="Edit" hitSlop={4} style={({ pressed }) => [styles.tool, pressed && pressedDim]}><Icon name="pencil" size={17} color={c.ink3} /></Pressable>
+              <Pressable onPress={onDelete} accessibilityRole="button" accessibilityLabel="Delete" hitSlop={4} style={({ pressed }) => [styles.tool, pressed && pressedDim]}><Icon name="trash" size={17} color={c.ink3} /></Pressable>
             </>
           ) : null}
           <CloseX onPress={onClose} />
@@ -140,7 +141,7 @@ function Body({ task, today, me, roster, canComplete, canManage, onEdit, onDelet
         <Sec><Lab>Note</Lab><T v="body" size={15} color={c.ink}>{task.notes}</T></Sec>
       ) : canManage ? (
         <Sec>
-          <Pressable onPress={onEdit} accessibilityRole="button" style={styles.addn}>
+          <Pressable onPress={onEdit} accessibilityRole="button" style={({ pressed }) => [styles.addn, pressed && pressedDim]}>
             <Icon name="plus" size={15} color={c.ink2} /><T v="bodyStrong" size={15} color={c.ink2}>Add a note</T>
           </Pressable>
         </Sec>
@@ -369,7 +370,7 @@ function History({ task, detail, failed, nameOf }: { task: Task; detail: TaskDet
   const ink = { c: c.pastel.sky.ink, d: c.pastel.mint.ink, e: c.ink3, r: c.pastel.peach.ink };
   return (
     <Sec>
-      <Pressable onPress={() => setOpen(o => !o)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={styles.histSum}>
+      <Pressable onPress={() => setOpen(o => !o)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={({ pressed }) => [styles.histSum, pressed && pressedDim]}>
         <T v="bodyStrong" size={14.4} color={c.ink2}>{`History${detail ? ` · ${plural(lines.length, "entry", "entries")}` : ""}`}</T>
         <View style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }}><Icon name="chev-d" size={15} color={c.ink3} /></View>
       </Pressable>
