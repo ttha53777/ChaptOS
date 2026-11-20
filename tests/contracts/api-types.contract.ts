@@ -23,7 +23,7 @@
 import type {
   ActivityEntry, Brother, DashboardResponse, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
   MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, SemesterRow, Task, TaskDetail, Transaction, TransactionCategory, TreasurySettings,
-  ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView, CalendarFeedLive,
+  ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, DocSaved, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView, CalendarFeedLive,
   HomeResponse, MemberUpdated, MobileConfig, JoinRequestPage, JoinRequestApproved,
   AttendanceSummaryRow, ExcuseListItem, ExcuseDecided, EventDeletePreview, AgendaTemplate, MeetingSummarized, MinutesSaved,
   ProgrammingEvent, ProgrammingDoc, RoleChip, Party, PartyRollRow, InstagramPost,
@@ -56,12 +56,12 @@ import type { listTransactionCategories } from "@/lib/services/transaction-categ
 import type { listServiceEvents } from "@/lib/services/service-event-service";
 import type { listParticipationForOrg, listParticipationForEvent, logMyParticipation, removeMyParticipation } from "@/lib/services/service-participation-service";
 import type { listFundraisers, getFundraiser } from "@/lib/services/fundraiser-service";
-import type { listDocs } from "@/lib/services/doc-service";
+import type { listDocs, createDoc, updateDoc, setDocPinned, refreshDocMetadata } from "@/lib/services/doc-service";
 import type { listProgrammingTasks, createProgrammingTask, updateProgrammingTask, setStage, listProgrammingEventDocs, attachProgrammingDoc } from "@/lib/services/programming-service";
 import type { listRoles } from "@/lib/services/role-service";
 import type { listInstagramTasks, createInstagramTask, updateInstagramTask } from "@/lib/services/instagram-service";
 import type { listParties, createParty, updateParty, wrapUpParty, summarizePartyAttendance } from "@/lib/services/party-service";
-import type { listFolders } from "@/lib/services/doc-folder-service";
+import type { listFolders, createFolder, renameFolder, setFolderPinned, moveDoc } from "@/lib/services/doc-folder-service";
 import type { getMeetingSummary, setActionItemDone } from "@/lib/services/meeting-summary-service";
 import type { calendarFeedLive, getCalendarSubscription } from "@/lib/services/calendar-subscription-service";
 import type { getHome } from "@/lib/services/home-service";
@@ -164,6 +164,14 @@ export const fundraisers: Widen<Fundraiser[]> = served<Served<typeof listFundrai
 export const fundraiser: Widen<Fundraiser> = served<Served<typeof getFundraiser>>();
 
 export const docs: Widen<Doc[]> = served<Served<typeof listDocs>>();
+export const docCreated: Widen<DocSaved> = served<Served<typeof createDoc>>();
+export const docUpdated: Widen<DocSaved> = served<Served<typeof updateDoc>>();
+export const docPinned: Widen<DocSaved> = served<Served<typeof setDocPinned>>();
+export const docRefreshed: Widen<DocSaved> = served<Served<typeof refreshDocMetadata>>();
+export const docMoved: Widen<DocSaved> = served<Served<typeof moveDoc>>();
+export const docFolderCreated: Widen<DocFolder> = served<Served<typeof createFolder>>();
+export const docFolderRenamed: Widen<DocFolder> = served<Served<typeof renameFolder>>();
+export const docFolderPinned: Widen<DocFolder> = served<Served<typeof setFolderPinned>>();
 
 export const programming: Widen<ProgrammingEvent[]> = served<Served<typeof listProgrammingTasks>>();
 export const programmingCreated: Widen<ProgrammingEvent> = served<Served<typeof createProgrammingTask>>();

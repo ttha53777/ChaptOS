@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { DocMenu } from "./DocMenu";
 import type { Folder, FolderHue } from "./lib";
+import { docCountLabel, folderMenu, sectionNone } from "@/lib/docs/library";
 import { PaperIcon } from "../../../components/paper/PaperIcon";
 
 /**
@@ -63,6 +64,7 @@ export function FolderSection({
   children: ReactNode;
 }) {
   const pinned = folder?.pinnedAt != null;
+  const none = sectionNone({ folderName: folder?.name ?? null, visible: visibleCount, queryActive, canManage });
   const open = forceOpen || !collapsed;
   // Only real folders reorder (Unfiled is a virtual, always-last section).
   const folderDraggable = reorderable && folder != null;
@@ -115,7 +117,7 @@ export function FolderSection({
           </svg>
           <PaperIcon name="folder" className="fi" />
           <span className="name">{name}</span>
-          <span className="ct">{totalCount === 1 ? "1 doc" : `${totalCount} docs`}</span>
+          <span className="ct">{docCountLabel(totalCount)}</span>
           {pinned && (
             <span className="pin" title="Pinned" aria-label="Pinned">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -129,25 +131,14 @@ export function FolderSection({
         {canManage && folder && (
           <DocMenu
             label="Folder actions"
-            items={[
-              { label: pinned ? "Unpin" : "Pin to top", onClick: onPin },
-              { label: "Rename", onClick: onRename },
-              { label: "Delete", onClick: onDelete, danger: true },
-            ]}
+            items={folderMenu(pinned).map(i => ({ label: i.label, danger: i.danger, onClick: { pin: onPin, rename: onRename, delete: onDelete }[i.id] }))}
           />
         )}
       </div>
 
       {open && (
         <div className="dx-ledger">
-          {visibleCount === 0 && queryActive && (
-            <p className="dx-none-match">
-              {folder ? <>Nothing in {folder.name} matches this filter.</> : <>Nothing unfiled matches this filter.</>}
-            </p>
-          )}
-          {visibleCount === 0 && !queryActive && !(canManage && folder) && (
-            <p className="dx-none-match">Nothing filed here yet.</p>
-          )}
+          {none != null && <p className="dx-none-match">{none}</p>}
           {children}
           {reorderable && visibleCount > 0 && (
             // Drop below the last row to file a doc at the end of this section.

@@ -38,3 +38,7 @@ export interface DocFolder {
   pinnedAt: string | null;
   position: number | null;
 }
+
+/** POST /api/docs, PATCH /api/docs/[id] (and /move, /pin), POST /api/docs/refresh-metadata:
+ *  the saved row, without the contributor's name (only the list joins it; carry it over). */
+export type DocSaved = Omit<Doc, "createdByName">;

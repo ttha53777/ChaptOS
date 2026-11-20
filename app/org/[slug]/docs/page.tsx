@@ -5,7 +5,12 @@ import { Sidebar } from "../../../components/Sidebar";
 import { Modal, ConfirmDialog, LoadingSpinner } from "../../../components/dashboard/primitives";
 import { useToast } from "../../../components/dashboard/Toast";
 import { useChapter } from "../../../context/ChapterContext";
-import { folderHue, kindOf, type Doc, type Folder } from "./lib";
+import { folderHue, type Doc, type Folder } from "./lib";
+import {
+  FILTERS, SAY, SORTS, digestLine, docDeleteMessage, filterDocs, folderCounts as folderCountsOf, folderDeleteMessage,
+  folderTotals as folderTotalsOf, glanceOf, groupByFolder, isSortId, kindCounts, newestFirstOf, pageState, pinnedShelf,
+  shownUnder, sortDocs, sortFolders, unfiledCount as unfiledCountOf, type KindFilter, type SortId,
+} from "@/lib/docs/library";
 import { FolderPicker } from "./FolderPicker";
 import { DocForm, type DocDraft } from "./DocForm";
 import { FolderForm } from "./FolderForm";
@@ -21,22 +26,6 @@ import "./docs-ledger.css";
 
 const EMPTY_DRAFT: DocDraft = { title: "", url: "", description: "" };
 
-type KindFilter = "all" | "doc" | "sheet" | "form" | "link";
-const FILTERS: { id: KindFilter; label: string }[] = [
-  { id: "all",   label: "All" },
-  { id: "doc",   label: "Docs" },
-  { id: "sheet", label: "Sheets" },
-  { id: "form",  label: "Forms" },
-  { id: "link",  label: "Links" },
-];
-
-type SortId = "manual" | "newest" | "name" | "kind";
-const SORTS: { id: SortId; label: string }[] = [
-  { id: "manual", label: "Manual" },
-  { id: "newest", label: "Newest" },
-  { id: "name",   label: "Name" },
-  { id: "kind",   label: "Kind" },
-];
 const SORT_PREF_KEY = "chaptos-docs-sort";
 // Which sections are folded shut, keyed "f-{folderId}" / "unfiled"; persists
 // per browser. Stale keys for deleted folders are harmless — never read again.
@@ -80,7 +69,7 @@ export default function DocsPage() {
   useEffect(() => {
     try {
       const savedSort = localStorage.getItem(SORT_PREF_KEY);
-      if (savedSort === "manual" || savedSort === "newest" || savedSort === "name" || savedSort === "kind") setSort(savedSort);
+      if (isSortId(savedSort)) setSort(savedSort);
     } catch { /* ignore */ }
     try {
       const raw = localStorage.getItem(COLLAPSE_PREF_KEY);
@@ -110,7 +99,7 @@ export default function DocsPage() {
       requestJson<Folder[]>("/api/docs/folders").catch(() => [] as Folder[]),
     ])
       .then(([d, f]) => { setDocs(d); setFolders(f); })
-      .catch(() => setLoadError("Could not load docs. Please refresh."))
+      .catch(() => setLoadError(SAY.fail.load))
       .finally(() => setLoading(false));
   }, []);
 
@@ -155,18 +144,12 @@ export default function DocsPage() {
       setDocs(prev => [{ ...created, createdByName: currentUser?.name ?? null }, ...prev]);
       // If the active search/kind filter would hide the new doc, clear both so
       // it doesn't land invisibly in its section.
-      const k = kindOf(created.url);
-      const bucket: KindFilter = k === "drive" ? "link" : (k as KindFilter);
-      const q = query.trim().toLowerCase();
-      const visible = (filter === "all" || bucket === filter)
-        && (!q || created.title.toLowerCase().includes(q)
-          || (created.description?.toLowerCase().includes(q) ?? false)
-          || created.url.toLowerCase().includes(q));
+      const visible = shownUnder(created, query, filter);
       if (!visible) { setQuery(""); setFilter("all"); }
       closeAdd();
-      toast.success(`Added "${created.title}".`);
+      toast.success(SAY.added(created.title));
     } catch (err) {
-      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to add doc.";
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : SAY.fail.add;
       setPageError(message);
       toast.error(message);
     } finally {
@@ -191,9 +174,9 @@ export default function DocsPage() {
       // PATCH returns the raw doc (no createdByName); preserve attribution.
       setDocs(prev => prev.map(d => d.id === updated.id ? { ...updated, createdByName: d.createdByName } : d));
       setEditTarget(null);
-      toast.success("Doc updated.");
+      toast.success(SAY.updated);
     } catch (err) {
-      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to update doc.";
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : SAY.fail.update;
       setPageError(message);
       toast.error(message);
     } finally {
@@ -209,9 +192,9 @@ export default function DocsPage() {
     try {
       await requestJson<void>(`/api/docs/${id}`, { method: "DELETE" });
       setDocs(prev => prev.filter(d => d.id !== id));
-      toast.success(`Deleted "${title}".`);
+      toast.success(SAY.deleted(title));
     } catch (err) {
-      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to delete doc.";
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : SAY.fail.delete;
       setPageError(message);
       toast.error(message);
     }
@@ -220,9 +203,9 @@ export default function DocsPage() {
   async function handleCopy(doc: Doc) {
     try {
       await navigator.clipboard.writeText(doc.url);
-      toast.success("Link copied.");
+      toast.success(SAY.copied);
     } catch {
-      toast.error("Couldn't copy the link.");
+      toast.error(SAY.copyFailed);
     }
   }
 
@@ -235,9 +218,9 @@ export default function DocsPage() {
       });
       // Endpoint returns the raw doc (no createdByName); preserve attribution.
       setDocs(prev => prev.map(d => d.id === updated.id ? { ...updated, createdByName: d.createdByName } : d));
-      toast.success("Preview refreshed.");
+      toast.success(SAY.refreshed);
     } catch (err) {
-      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to refresh preview.";
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : SAY.fail.refresh;
       toast.error(message);
     }
   }
@@ -260,9 +243,9 @@ export default function DocsPage() {
     try {
       const created = await createFolderApi(name);
       setShowAddFolder(false);
-      toast.success(`Created folder "${created.name}".`);
+      toast.success(SAY.folderCreated(created.name));
     } catch (err) {
-      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to create folder.";
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : SAY.fail.folderCreate;
       setPageError(message);
       toast.error(message);
     } finally {
@@ -279,7 +262,7 @@ export default function DocsPage() {
       const created = await createFolderApi(name);
       await handleMove(docId, created.id);
     } catch (err) {
-      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to create folder.";
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : SAY.fail.folderCreate;
       setPageError(message);
       toast.error(message);
     } finally {
@@ -291,10 +274,10 @@ export default function DocsPage() {
   async function handleCreateFolderForAdd(name: string): Promise<Folder | null> {
     try {
       const created = await createFolderApi(name);
-      toast.success(`Created folder "${created.name}".`);
+      toast.success(SAY.folderCreated(created.name));
       return created;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to create folder.");
+      toast.error(err instanceof Error ? err.message.replace(/^.*?: /, "") : SAY.fail.folderCreate);
       return null;
     }
   }
@@ -311,9 +294,9 @@ export default function DocsPage() {
       });
       setFolders(prev => prev.map(f => f.id === updated.id ? updated : f));
       setRenameTarget(null);
-      toast.success("Folder renamed.");
+      toast.success(SAY.folderRenamed);
     } catch (err) {
-      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to rename folder.";
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : SAY.fail.folderRename;
       setPageError(message);
       toast.error(message);
     } finally {
@@ -331,9 +314,9 @@ export default function DocsPage() {
       setFolders(prev => prev.filter(f => f.id !== id));
       // Released docs return to Unfiled.
       setDocs(prev => prev.map(d => d.folderId === id ? { ...d, folderId: null } : d));
-      toast.success(`Deleted folder "${name}".`);
+      toast.success(SAY.folderDeleted(name));
     } catch (err) {
-      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to delete folder.";
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : SAY.fail.folderDelete;
       setPageError(message);
       toast.error(message);
     }
@@ -357,9 +340,9 @@ export default function DocsPage() {
       setDocs(prev => prev.map(d => d.id === updated.id ? { ...updated, createdByName: d.createdByName } : d));
       setMoveTarget(null);
       const dest = folderId == null ? "Unfiled" : (folders.find(f => f.id === folderId)?.name ?? "folder");
-      toast.success(`Moved to ${dest}.`);
+      toast.success(SAY.moved(dest));
     } catch (err) {
-      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to move doc.";
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : SAY.fail.move;
       setPageError(message);
       toast.error(message);
     }
@@ -453,9 +436,9 @@ export default function DocsPage() {
       });
       // The pin endpoint doesn't enrich createdByName; carry it forward.
       setDocs(prev => prev.map(d => d.id === updated.id ? { ...updated, createdByName: d.createdByName } : d));
-      toast.success(pinned ? `Pinned "${doc.title}".` : `Unpinned "${doc.title}".`);
+      toast.success(SAY.pinned(doc.title, pinned));
     } catch (err) {
-      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to pin doc.";
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : SAY.fail.pinDoc;
       setPageError(message);
       toast.error(message);
     }
@@ -471,9 +454,9 @@ export default function DocsPage() {
         body: JSON.stringify({ pinned }),
       });
       setFolders(prev => prev.map(f => f.id === updated.id ? updated : f));
-      toast.success(pinned ? `Pinned "${folder.name}".` : `Unpinned "${folder.name}".`);
+      toast.success(SAY.pinned(folder.name, pinned));
     } catch (err) {
-      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to pin folder.";
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : SAY.fail.pinFolder;
       setPageError(message);
       toast.error(message);
     }
@@ -512,90 +495,18 @@ export default function DocsPage() {
 
   // Newest-first always — used by the meta-line measures independent of the
   // user's chosen display sort.
-  const newestFirst = useMemo(
-    () => [...docs].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id),
-    [docs],
-  );
-
-  const sorted = useMemo(() => {
-    const arr = [...newestFirst];
-    if (sort === "name") arr.sort((a, b) => a.title.localeCompare(b.title) || a.id - b.id);
-    else if (sort === "kind") arr.sort((a, b) =>
-      kindOf(a.url).localeCompare(kindOf(b.url)) || a.title.localeCompare(b.title) || a.id - b.id);
-    else if (sort === "manual") arr.sort((a, b) => {
-      // Hand-ordered docs (position set) come first in their position; docs never
-      // dragged (null) fall to the bottom in newest order. Comparison is within a
-      // section — grouping by folder happens downstream in docsByFolder.
-      const ap = a.position, bp = b.position;
-      if (ap != null && bp != null) return ap - bp || a.id - b.id;
-      if (ap != null) return -1;
-      if (bp != null) return 1;
-      return 0; // both null → keep newestFirst order
-    });
-    // "newest" keeps newestFirst order. Pinned docs render on the shelf, not
-    // here, so no pin float — the shelf orders by pinnedAt itself.
-    return arr;
-  }, [newestFirst, sort]);
-
-  // The shelf: pinned docs, most-recently pinned first. Honors the search (a
-  // query should find everything) but ignores the kind filter — the shelf
-  // stays put while the ledgers filter, matching the mock.
-  const pinnedDocs = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return docs
-      .filter(d => d.pinnedAt != null)
-      .sort((a, b) => b.pinnedAt!.localeCompare(a.pinnedAt!) || b.id - a.id)
-      .filter(d => !q
-        || d.title.toLowerCase().includes(q)
-        || (d.description?.toLowerCase().includes(q) ?? false)
-        || d.url.toLowerCase().includes(q));
-  }, [docs, query]);
-
+  const newestFirst = useMemo(() => newestFirstOf(docs), [docs]);
+  const sorted = useMemo(() => sortDocs(newestFirst, sort), [newestFirst, sort]);
+  // The shelf honors the search but not the kind filter.
+  const pinnedDocs = useMemo(() => pinnedShelf(docs, query), [docs, query]);
   // Everything below the shelf works on the unpinned library.
   const unpinned = useMemo(() => sorted.filter(d => d.pinnedAt == null), [sorted]);
-
-  // Per-kind counts for the filter segment, over what the tabs actually
-  // filter (the ledgers). Anything not Doc/Sheet/Form reads as a Link here.
-  const counts = useMemo(() => {
-    const c = { all: unpinned.length, doc: 0, sheet: 0, form: 0, link: 0 } as Record<KindFilter, number>;
-    for (const d of unpinned) {
-      const k = kindOf(d.url);
-      if (k === "doc") c.doc++;
-      else if (k === "sheet") c.sheet++;
-      else if (k === "form") c.form++;
-      else c.link++; // drive + link both surface under "Links"
-    }
-    return c;
-  }, [unpinned]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return unpinned.filter(d => {
-      if (filter !== "all") {
-        const k = kindOf(d.url);
-        const bucket: KindFilter = k === "drive" ? "link" : (k as KindFilter);
-        if (bucket !== filter) return false;
-      }
-      if (!q) return true;
-      return d.title.toLowerCase().includes(q)
-        || (d.description?.toLowerCase().includes(q) ?? false)
-        || d.url.toLowerCase().includes(q);
-    });
-  }, [unpinned, query, filter]);
+  const counts = useMemo(() => kindCounts(unpinned), [unpinned]);
+  const filtered = useMemo(() => filterDocs(unpinned, query, filter), [unpinned, query, filter]);
 
   const folderIds = useMemo(() => new Set(folders.map(f => f.id)), [folders]);
 
-  // Visible rows grouped by section. Docs pointing at a folder we don't have
-  // (partial/failed folders load) fall back to Unfiled so nothing vanishes.
-  const docsByFolder = useMemo(() => {
-    const m = new Map<number | null, Doc[]>();
-    for (const d of filtered) {
-      const key = d.folderId != null && folderIds.has(d.folderId) ? d.folderId : null;
-      const arr = m.get(key);
-      if (arr) arr.push(d); else m.set(key, [d]);
-    }
-    return m;
-  }, [filtered, folderIds]);
+  const docsByFolder = useMemo(() => groupByFolder(filtered, folderIds), [filtered, folderIds]);
 
   // Which row shows the "will drop before me" line for the section a drag is
   // hovering. We DON'T reorder the DOM mid-drag: moving the dragged source node
@@ -611,65 +522,22 @@ export default function DocsPage() {
     return typeof overDocId === "number" ? overDocId : null;
   }
 
-  // Section order: pinned folders first (most-recently pinned), then hand-ordered
-  // folders (position set) in their order, then the rest by name.
-  const sortedFolders = useMemo(() => {
-    return [...folders].sort((a, b) => {
-      if (a.pinnedAt && b.pinnedAt) return b.pinnedAt.localeCompare(a.pinnedAt);
-      if (a.pinnedAt) return -1;
-      if (b.pinnedAt) return 1;
-      const ap = a.position, bp = b.position;
-      if (ap != null && bp != null) return ap - bp || a.id - b.id;
-      if (ap != null) return -1;
-      if (bp != null) return 1;
-      return a.name.localeCompare(b.name) || a.id - b.id;
-    });
-  }, [folders]);
-
+  const sortedFolders = useMemo(() => sortFolders(folders), [folders]);
   // "N docs" badges count what the ledger shows: unpinned docs, unfiltered.
-  const folderCounts = useMemo(() => {
-    const m = new Map<number, number>();
-    for (const d of docs) {
-      if (d.pinnedAt == null && d.folderId != null) m.set(d.folderId, (m.get(d.folderId) ?? 0) + 1);
-    }
-    return m;
-  }, [docs]);
-
-  // Folder-delete confirm counts everything the backend will release — pinned
-  // docs included — so the copy never understates.
-  const folderTotals = useMemo(() => {
-    const m = new Map<number, number>();
-    for (const d of docs) if (d.folderId != null) m.set(d.folderId, (m.get(d.folderId) ?? 0) + 1);
-    return m;
-  }, [docs]);
-
-  // Unfiled renders whenever unpinned root (or orphaned) docs exist at all —
-  // if the filter hides them it shows its none-match line like any folder.
-  const unfiledCount = useMemo(
-    () => docs.filter(d => d.pinnedAt == null && (d.folderId == null || !folderIds.has(d.folderId))).length,
-    [docs, folderIds],
-  );
-
+  const folderCounts = useMemo(() => folderCountsOf(docs), [docs]);
+  // Folder-delete confirm counts everything the backend will release.
+  const folderTotals = useMemo(() => folderTotalsOf(docs), [docs]);
+  const unfiledCount = useMemo(() => unfiledCountOf(docs, folderIds), [docs, folderIds]);
   // Meta-line measures, all derived from the live library.
-  const glance = useMemo(() => {
-    const kinds = new Set(newestFirst.map(d => {
-      const k = kindOf(d.url);
-      return k === "drive" || k === "link" ? "link" : k;
-    }));
-    const contributors = new Set(newestFirst.map(d => d.createdById).filter((x): x is number => x != null));
-    const newest = newestFirst[0]?.createdAt ? relDays(newestFirst[0].createdAt) : "—";
-    return { total: newestFirst.length, kinds: kinds.size, contributors: contributors.size, newest };
-  }, [newestFirst]);
+  const glance = useMemo(() => glanceOf(newestFirst, new Date()), [newestFirst]);
 
   const orgName = currentUser?.org?.name ?? "ChaptOS";
-  const hasDocs = docs.length > 0;
-  // Nothing filed and no folders yet: the page explains itself instead of
-  // showing an empty library (see DayOne.tsx).
-  const dayOne = !loading && !loadError && !hasDocs && folders.length === 0;
-  const queryActive = query.trim() !== "" || filter !== "all";
-  // Search/filter matched nothing anywhere — skip the shelf and sections and
-  // show one global empty state instead of a page of none-match lines.
-  const nothingMatches = queryActive && hasDocs && filtered.length === 0 && pinnedDocs.length === 0;
+  // Day one: nothing filed and no folders yet (see DayOne.tsx). nothingMatches: the
+  // search/filter matched nothing anywhere, so one global empty state shows instead.
+  const { hasDocs, dayOne, queryActive, nothingMatches } = pageState({
+    loading, loadError: loadError != null, docs: docs.length, folders: folders.length, query, filter,
+    filtered: filtered.length, pinned: pinnedDocs.length,
+  });
   // Drag-reorder is an admin gesture, available under any sort as long as no
   // search/filter is narrowing the sections (otherwise "before this row" is
   // ambiguous against a hidden neighbor). It isn't gated to Manual sort: dropping
@@ -726,7 +594,7 @@ export default function DocsPage() {
                   <h1>The chapter&rsquo;s <em>reading room</em>.</h1>
                   <div className="dx-digest">
                     <span className="ai"><span><PaperIcon name="spark" />Digest</span></span>
-                    <p>{digestLine(sorted, orgName)}</p>
+                    <p>{digestLine(sorted, orgName, new Date())}</p>
                   </div>
                 </>}
                 {hasDocs && (
@@ -1013,7 +881,7 @@ export default function DocsPage() {
         <ConfirmDialog
           tone="dusk"
           title="Delete this doc?"
-          message={`"${deleteTarget.title}" will be removed from the docs page.`}
+          message={docDeleteMessage(deleteTarget.title)}
           confirmLabel="Delete"
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
@@ -1071,47 +939,4 @@ export default function DocsPage() {
       )}
     </div>
   );
-}
-
-/** "2d", "Today", "3w" — compact relative age for the newest measure. */
-function relDays(iso: string): string {
-  try {
-    const then = new Date(iso).getTime();
-    const days = Math.floor((Date.now() - then) / 86_400_000);
-    if (days <= 0) return "Today";
-    if (days === 1) return "1d";
-    if (days < 14) return `${days}d`;
-    if (days < 60) return `${Math.round(days / 7)}w`;
-    return `${Math.round(days / 30)}mo`;
-  } catch {
-    return "—";
-  }
-}
-
-/** A one-line AI-style digest, derived from what's actually in the library. */
-function digestLine(docs: Doc[], orgName: string): string {
-  if (docs.length === 0) {
-    return `${orgName}'s reference library is empty — pin the documents the chapter reaches for most.`;
-  }
-  const recent = docs.filter(d => {
-    try { return (Date.now() - new Date(d.createdAt).getTime()) < 7 * 86_400_000; } catch { return false; }
-  }).length;
-  const noun = docs.length === 1 ? "reference is" : "references are";
-  const tail = recent > 0
-    ? ` ${recent === 1 ? "One was" : `${recent} were`} added this week.`
-    : "";
-  return `${cap(numWord(docs.length))} ${noun} pinned for the chapter to reach for.${tail}`;
-}
-
-/** Folder-delete confirm copy, with the live doc count it will release. */
-function folderDeleteMessage(name: string, count: number): string {
-  if (count === 0) return `"${name}" will be deleted. It has no docs.`;
-  const docs = count === 1 ? "Its 1 doc returns" : `Its ${count} docs return`;
-  return `"${name}" will be deleted. ${docs} to Unfiled — they aren't deleted.`;
-}
-
-function cap(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
-function numWord(n: number): string {
-  const w = ["zero","one","two","three","four","five","six","seven","eight","nine","ten"];
-  return n <= 10 ? w[n] : String(n);
 }

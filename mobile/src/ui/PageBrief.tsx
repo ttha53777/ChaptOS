@@ -17,12 +17,14 @@ import { StyleSheet, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from "react-native-reanimated";
 import type { Tone } from "~/theme/palette";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
+import { Icon } from "~/icons/Icon";
 import { T } from "./T";
 
 export interface BriefPart { text: string; bold?: boolean }
 
-export function PageBrief({ pill, kicker, lead, mark, tail = ".", markTone = "sky", sub, digest, quiet, kickerSep = true }: {
-  pill: string;
+export function PageBrief({ pill, kicker, lead, mark, tail = ".", markTone = "sky", sub, digest, quiet, kickerSep = true, spark }: {
+  /** The date pill; omitted on pages whose web brief has none (Docs). */
+  pill?: string | null;
   kicker?: string | null;
   /** The "·" before the kicker (Treasury's web brief has none). */
   kickerSep?: boolean;
@@ -34,6 +36,8 @@ export function PageBrief({ pill, kicker, lead, mark, tail = ".", markTone = "sk
   digest?: BriefPart[] | ReactNode | null;
   /** Shown instead of a digest, in the quiet ink, without the chip. */
   quiet?: string | null;
+  /** The ✦ before DIGEST (Docs). */
+  spark?: boolean;
 }) {
   const { c } = useTheme();
   const m = useMotion();
@@ -49,10 +53,13 @@ export function PageBrief({ pill, kicker, lead, mark, tail = ".", markTone = "sk
   return (
     <View accessibilityRole="summary">
       <View style={styles.kicker}>
-        <View style={[styles.pill, { backgroundColor: c.card, borderColor: c.line2 }]}>
-          <T v="kicker" size={11.5} color={c.ink2}>{pill.toUpperCase()}</T>
-        </View>
-        {kicker ? <T v="kicker" size={11.5} color={c.ink3}>{`${kickerSep ? "·  " : ""}${kicker.toUpperCase()}`}</T> : null}
+        {pill ? (
+          <View style={[styles.pill, { backgroundColor: c.card, borderColor: c.line2 }]}>
+            <T v="kicker" size={11.5} color={c.ink2}>{pill.toUpperCase()}</T>
+          </View>
+        ) : null}
+        {kicker && pill ? <T v="kicker" size={11.5} color={c.ink3}>{`${kickerSep ? "·  " : ""}${kicker.toUpperCase()}`}</T> : null}
+        {kicker && !pill ? <T v="label" size={11} ls={0.1} color={c.ink3} style={{ fontWeight: "600" }}>{kicker}</T> : null}
       </View>
 
       <View style={styles.greet} accessibilityRole="header" accessibilityLabel={`${lead}${mark}${tail}`}>
@@ -73,6 +80,7 @@ export function PageBrief({ pill, kicker, lead, mark, tail = ".", markTone = "sk
       {parts || (digest && !Array.isArray(digest)) ? (
         <View style={styles.digest}>
           <View style={[styles.chip, { backgroundColor: c.pastel.lilac.soft, borderColor: c.pastel.lilac.border }]}>
+            {spark ? <Icon name="spark" size={9} color={c.pastel.lilac.ink} /> : null}
             <T v="label" size={10.2} color={c.pastel.lilac.ink}>Digest</T>
           </View>
           <T v="body" size={15.2} lh={1.5} color={c.ink2} style={{ flex: 1 }}>
@@ -92,5 +100,5 @@ const styles = StyleSheet.create({
   greet: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-end", marginTop: 12 },
   mark: { position: "absolute", left: -3, right: -3, bottom: 2, height: "46%", borderTopLeftRadius: 12, borderTopRightRadius: 16, borderBottomLeftRadius: 11, borderBottomRightRadius: 18, transformOrigin: "left center" },
   digest: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginTop: 12 },
-  chip: { paddingVertical: 2, paddingHorizontal: 9, marginTop: 3, borderRadius: 999, borderWidth: 1 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 2, paddingHorizontal: 9, marginTop: 3, borderRadius: 999, borderWidth: 1 },
 });

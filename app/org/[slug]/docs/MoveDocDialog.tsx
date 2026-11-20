@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Folder } from "./lib";
+import { moveTargets } from "@/lib/docs/library";
 import { FolderForm } from "./FolderForm";
 
 /**
@@ -24,7 +25,7 @@ export function MoveDocDialog({
   onClose: () => void;
 }) {
   const [creating, setCreating] = useState(false);
-  const sorted = [...folders].sort((a, b) => a.name.localeCompare(b.name));
+  const sorted = moveTargets(folders);
 
   return (
     <div className="dx-move">

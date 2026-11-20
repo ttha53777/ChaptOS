@@ -103,6 +103,16 @@
  *   GET    /api/fundraisers/[id]               Fundraiser
  *   GET    /api/docs                           Doc[]                   (read-only for members)
  *   GET    /api/docs/folders                   DocFolder[]
+ *   POST   /api/docs                           DocSaved                (201; MANAGE_DOCS; body createDocInput)
+ *   PATCH  /api/docs/[id]                      DocSaved                (MANAGE_DOCS; body updateDocInput)
+ *   DELETE /api/docs/[id]                      204                     (MANAGE_DOCS)
+ *   PATCH  /api/docs/[id]/move                 DocSaved                (MANAGE_DOCS; body moveDocInput, null = Unfiled)
+ *   PATCH  /api/docs/[id]/pin                  DocSaved                (MANAGE_DOCS; body pinInput)
+ *   POST   /api/docs/refresh-metadata          DocSaved                (MANAGE_DOCS; body { id })
+ *   POST   /api/docs/folders                   DocFolder               (201; MANAGE_DOCS; body createFolderInput)
+ *   PATCH  /api/docs/folders/[id]              DocFolder               (MANAGE_DOCS; body renameFolderInput)
+ *   DELETE /api/docs/folders/[id]              204                     (MANAGE_DOCS; its docs return to Unfiled)
+ *   PATCH  /api/docs/folders/[id]/pin          DocFolder               (MANAGE_DOCS; body pinInput)
  *   GET    /api/activity                       ActivityEntry[]
  *   GET    /api/announcement                   Announcement            (null = no pinned note)
  *   PUT    /api/announcement                   Announcement            (MANAGE_ANNOUNCEMENTS; body upsertAnnouncementInput)

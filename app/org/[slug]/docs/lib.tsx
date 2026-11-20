@@ -31,33 +31,8 @@ export interface Folder {
   position: number | null;
 }
 
-/** A small, recognizable "source" type inferred from the URL. We lead with this
- *  instead of a live iframe thumbnail — faster, calmer, and never broken. */
-export type Kind = "doc" | "sheet" | "form" | "drive" | "link";
-
-export function kindOf(url: string): Kind {
-  let host = "";
-  let path = "";
-  try {
-    const u = new URL(url);
-    host = u.hostname.replace(/^www\./, "");
-    path = u.pathname;
-  } catch {
-    return "link";
-  }
-  if (host === "forms.gle" || /\/forms\//.test(path) || /forms\.google/.test(host)) return "form";
-  if (/\/spreadsheets\//.test(path) || host.includes("sheets.google")) return "sheet";
-  if (host.includes("drive.google")) return "drive";
-  if (/\/document\//.test(path) || host.includes("docs.google")) return "doc";
-  return "link";
-}
-
-export function hostOf(url: string): string {
-  try { return new URL(url).hostname.replace(/^www\./, ""); }
-  catch { return url; }
-}
-
-export const KIND_LABEL: Record<Kind, string> = { doc: "Doc", sheet: "Sheet", form: "Form", drive: "Drive", link: "Link" };
+export { kindOf, hostOf, KIND_LABEL, FOLDER_HUES, folderHue, type Kind, type FolderHue } from "@/lib/docs/library";
+import { fmtDate as fmtDateAt, type Kind } from "@/lib/docs/library";
 
 export const KIND_ICON: Record<Kind, ReactElement> = {
   doc: <path strokeLinecap="round" strokeLinejoin="round" d="M14 3v4a1 1 0 001 1h4M5 3h9l5 5v11a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />,
@@ -68,20 +43,4 @@ export const KIND_ICON: Record<Kind, ReactElement> = {
 };
 
 /** "Jun 27" — with the year appended once the date falls outside the current year. */
-export function fmtDate(iso: string): string {
-  try {
-    const d = new Date(iso);
-    const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-    if (d.getFullYear() !== new Date().getFullYear()) opts.year = "numeric";
-    return d.toLocaleDateString("en-US", opts);
-  } catch {
-    return "";
-  }
-}
-
-/** Paper folder colours, assigned by section order (pinned first, then the hand
- *  order). The Add sheet's folder picker uses the same index, so a folder's tab
- *  there wears the colour of its section on the page. */
-export const FOLDER_HUES = ["lilac", "rose", "mint", "peach", "sky", "butter"] as const;
-export type FolderHue = (typeof FOLDER_HUES)[number];
-export const folderHue = (index: number): FolderHue => FOLDER_HUES[index % FOLDER_HUES.length];
+export const fmtDate = (iso: string): string => fmtDateAt(iso, new Date());

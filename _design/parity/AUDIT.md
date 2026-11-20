@@ -37,7 +37,7 @@ Legend: ✅ matches the web phone · 🟡 built, but from the paper mocks rather
 | Members | `(tabs)/members` | 🟡 | Uses the register list and Member Spotlight card. Web has the join-request band, filters, and By role. |
 | Chapter (meetings) | `more/meetings`, `more/meeting/[id]` | 🟡 | Web has the ledger with date stubs, On deck, and the minutes editor (phone sheet). |
 | Tasks | `more/tasks` | ✅ | Phase 6: the web's Overdue/Upcoming list, spotlight, ballot, task/poll sheets with the who-picker. |
-| Docs | `more/docs` | 🟡 | Web has the index-card shelf, folders, drag to file, and the day-one pictures. |
+| Docs | `more/docs` | ✅ | Phase 8a: brief and meta line, toolbar, pinned shelf, manila sections, every doc/folder write, day one. See "Docs (Phase 8a)" below. |
 | Media | `more/media` | 🟡 | Web Instagram is the paper page (full and day one). |
 | Programming | `more/programming` | 🟡 | Lanes and wrap-ups exist. Web has the gated lanes and day-one steps. |
 | Service | `more/service` | 🟡 | Web has PaperService, wide modal forms, and day one. |
@@ -235,4 +235,53 @@ Built 2026-11-19.
   - Sheet subtitles sit above the title (the app's Sheet kicker).
 - **Not exercised:** the open-books write itself (only the gate was rendered), Mark Paid, receipt attach, Take off a line, the export share sheet, and the live bearer smoke (it needs a Supabase token, as in earlier phases).
 - **Kept:** the app-only Dues and Reimbursements pages in Yours, sharing `data/money.ts` and `money/RequestSheet.tsx`. `money/TxForm.tsx` stays for the Create sheet's Log expense / Log revenue.
+
+## Docs (Phase 8a), what landed
+
+Built 2026-11-20.
+
+- **Shared rules:** `lib/docs/library.ts` (SHARED now whitelists `@/lib/docs/`).
+  - Kinds and words: `kindOf`, `hostOf`, `KIND_LABEL`, `bucketOf`, `fmtDate`, the folder hues.
+  - The library: `FILTERS` / `SORTS`, `newestFirstOf`, `sortDocs`, `pinnedShelf`, `kindCounts`, `filterDocs`, `groupByFolder`, `sortFolders`, `folderCounts` / `folderTotals` / `unfiledCount`, `moveTargets`, `pageState`, `shownUnder`.
+  - The brief: `relDays`, `glanceOf`, `digestLine`. Menus and copy: `docMenu`, `folderMenu`, `folderDeleteMessage`, `docDeleteMessage`, `landsIn`, `sectionNone`, `docCountLabel`, and every toast in `SAY`.
+  - "Now" is injected (`now: Date`); nothing reads the clock.
+  - The web Docs page, DocMenu, FolderSection, FolderPicker and MoveDocDialog render from it. `lib.tsx` re-exports the kind helpers.
+  - Pixdiff before/after was IDENTICAL on all 74 docs frames, including the new scenes (fold, add, folder, menu, pin-menu, edit, move, delete, folder-menu, folder-delete, rename, filter, filter-none, nomatch, collapsed).
+  - The first "before" run caught 6 frames while :3100 was still compiling ("Couldn't load the library"). Those were re-taken with the old code and are IDENTICAL. One modal frame (day-one night add) differed from its open animation and was IDENTICAL on rerun.
+- **Wire (additive):**
+  - `DocSaved` (`Omit<Doc, "createdByName">`, what the writes return).
+  - Route-map lines for POST `/api/docs` (201), PATCH/DELETE `/api/docs/[id]`, PATCH `/api/docs/[id]/move`, PATCH `/api/docs/[id]/pin`, POST `/api/docs/refresh-metadata`, POST `/api/docs/folders` (201), PATCH/DELETE `/api/docs/folders/[id]` and PATCH `/api/docs/folders/[id]/pin`.
+  - Contract entries `docCreated` / `docUpdated` / `docPinned` / `docRefreshed` / `docMoved` / `docFolderCreated` / `docFolderRenamed` / `docFolderPinned`, plus smoke probes.
+  - The bearer static test passes on all 118 routes (figurints_t6).
+- **Page** (`more/docs.tsx`, in the web phone's order):
+  - Brief: REFERENCE LIBRARY, "The chapter’s reading room.", ✦ DIGEST line, then the meta line (references · kinds · contributors · newest).
+  - Actions: Add doc and New folder (MANAGE_DOCS), then Ask where a doc lives (opens Ask Chapt with "Where do we keep ").
+  - Toolbar: search, All/Docs/Sheets/Forms/Links with counts, Sort (Manual/Newest/Name/Kind, remembered), "N of M".
+  - Pinned shelf: the taped index cards, with "stays put while you filter".
+  - Sections: manila tabs in section order with the hue shadow, then dashed Unfiled. Each folds onto the striped lip (remembered); a search or filter holds them open. The none-match lines, and "Add to {folder}…" for officers.
+  - Nothing matches (Clear filters), Couldn't load the library, and day one (three pictures, Add your first doc / the member line).
+- **Sheets:**
+  - The ⋯ menus as sheets with the web's items: Copy link for everyone; Pin to top/Unpin, Edit, Move to folder…, Refresh preview, Delete for officers. Folder: Pin to top/Unpin, Rename, Delete.
+  - Add doc / Edit doc: Title *, URL *, Description. Add also has File in (Unfiled, the folders in their hues with counts, inline New folder) and the "Lands in …" line.
+  - New folder / Rename folder. Move "…": Library (root), folders by name, Here, New folder → Create & move, Done.
+  - The two delete confirms, with the web's words.
+- **Verified on :3100** (after `/api/auth/me` returned ok-today; a data-only dump of figurints_dev was taken first and restored in one transaction afterwards; a fresh dump differed only in the `\restrict` tokens):
+  - Add a doc filed in Formal, then edit it.
+  - Pin it, then Unpin from the shelf card. Copy link. Refresh preview.
+  - Move it to Rush, then New folder → Create & move.
+  - New folder → rename → pin → unpin → delete (empty).
+  - Delete a folder holding a doc (confirm: "Its 1 doc returns to Unfiled…"), then delete the doc.
+  - Add a doc via the picker's inline New folder ("Lands in Inline F, its first doc.").
+  - Search with no match, the Forms filter (none-match lines), and folding.
+  - Gated off: with `docs` removed from ok-today's `enabledWorkflows`, More shows no Docs tile. The restore put it back.
+  - Read-only text matches the web word for word for admin 2, member 12, day-one admin 14 and day-one member 16, and for the filtered state.
+- **Seed drift:** Docs is ON in both ok-today and dl-today now. This file's Phase 0 note said off. The gated-off state was tested by switching it off inside the restore window.
+- **Deviations:**
+  - The web's drag to file and reorder is an HTML5 desktop drag that doesn't run on a phone. Filing is Move to folder…, which is what the web phone offers.
+  - The ⋯ popovers are sheets. Sort is a pill that opens a sheet of the four sorts, with ✓ on the current one, instead of a `<select>`.
+  - Sort and fold state persist in AsyncStorage under the web's localStorage keys.
+  - A deep link to Docs with the workflow off goes back to More. On the web, the sidebar hides the page but its URL still renders.
+  - Sheet field labels are the app's caps labels. The primary button is the app's lilac Button.
+- **Not exercised:** the deep-link redirect (the preview serves Home for deep URLs), a load error, favicons (the seed has none), and the live bearer smoke (it needs a Supabase token, as in earlier phases).
+- **Removed:** the old mock-styled Docs screen (search-first, horizontal shelf, butter folders). Nothing in `lab/` used it.
 

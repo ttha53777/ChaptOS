@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { docMenu, type DocAction } from "@/lib/docs/library";
 
 export interface MenuItem {
   label: string;
@@ -20,17 +21,10 @@ export function docMenuItems(opts: {
   onRefresh: () => void;
   onDelete: () => void;
 }): MenuItem[] {
-  const items: MenuItem[] = [{ label: "Copy link", onClick: opts.onCopy }];
-  if (opts.canManage) {
-    items.push(
-      { label: opts.pinned ? "Unpin" : "Pin to top", onClick: opts.onPin },
-      { label: "Edit", onClick: opts.onEdit },
-      { label: "Move to folder…", onClick: opts.onMove },
-      { label: "Refresh preview", onClick: opts.onRefresh },
-      { label: "Delete", onClick: opts.onDelete, danger: true },
-    );
-  }
-  return items;
+  const run: Record<DocAction, () => void> = {
+    copy: opts.onCopy, pin: opts.onPin, edit: opts.onEdit, move: opts.onMove, refresh: opts.onRefresh, delete: opts.onDelete,
+  };
+  return docMenu(opts.pinned, opts.canManage).map(i => ({ label: i.label, onClick: run[i.id], danger: i.danger }));
 }
 
 /**

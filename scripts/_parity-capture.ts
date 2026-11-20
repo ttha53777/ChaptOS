@@ -1,7 +1,7 @@
 // Phase 0 of docs/mobile-web-parity-plan.md: the web phone render of every org page,
 // captured as the golden reference the app is compared against.
 //
-//   tsx --env-file=.env.local scripts/_parity-capture.ts      (ONLY=page,page  VIEWER=admin|member  THEME=night|day  ORG=busy|dayone)
+//   tsx --env-file=.env.local scripts/_parity-capture.ts      (ONLY=page,page  VIEWER=admin|member  THEME=night|day  ORG=busy|dayone  SCENE=full,add)
 //
 // Runs ONLY against the isolated :3100 server and the throwaway :54331 database (see the
 // isolated-dev-server memory): it refuses anything else, and aborts every non-GET /api call
@@ -21,12 +21,12 @@ const DB = "postgresql://figurints_test@localhost:54331/figurints_dev";
 const ENGINE = process.env.ENGINE ?? "webkit";
 const OUT = "_design/parity/web";
 const pick = (k: string) => process.env[k]?.split(",");
-const ONLY = pick("ONLY"), VIEWERS = pick("VIEWER"), THEMES = pick("THEME"), ORGS = pick("ORG");
+const ONLY = pick("ONLY"), VIEWERS = pick("VIEWER"), THEMES = pick("THEME"), ORGS = pick("ORG"), SCENES = pick("SCENE");
 
 type Viewer = "admin" | "member";
 type Theme = "night" | "day";
 type OrgKey = "busy" | "dayone";
-type Scene = { name: string; tall?: boolean; act?: (p: Page) => Promise<void> };
+type Scene = { name: string; tall?: boolean; act?: (p: Page) => Promise<void>; adminOnly?: boolean };
 type PageSpec = { id: string; path: string; ready: string; scenes: Scene[]; adminOnly?: boolean };
 
 const wait = (ms: number) => (p: Page) => p.waitForTimeout(ms);
@@ -74,7 +74,23 @@ const PAGES: PageSpec[] = [
     { name: "new-task-all", act: async p => { await tap(".tks-head-btns .tks-btn:not(.soft)", 1200)(p); await tap('.tsh-modes .mode[data-m="all"]')(p); } },
     { name: "new-poll", act: tap(".tks-head-btns .tks-btn.soft", 1200) },
   ] },
-  { id: "docs", path: "/docs", ready: ".mtb", scenes: [full] },
+  { id: "docs", path: "/docs", ready: ".mtb", scenes: [full, fold,
+    // GET only: the forms open but never submit.
+    { name: "add", adminOnly: true, act: tap(".dx-actions .dx-add:not(.ghost)", 1200) },
+    { name: "folder", adminOnly: true, act: tap(".dx-actions .dx-add.ghost", 1200) },
+    { name: "menu", act: tap(".dx-row:not(.ghost-add) .dx-menu-btn") },
+    { name: "pin-menu", act: tap(".dx-pinned-card .dx-menu-btn") },
+    { name: "edit", adminOnly: true, act: async p => { await tap(".dx-row:not(.ghost-add) .dx-menu-btn")(p); await tap('.dx-menu button:has-text("Edit")', 1200)(p); } },
+    { name: "move", adminOnly: true, act: async p => { await tap(".dx-row:not(.ghost-add) .dx-menu-btn")(p); await tap('.dx-menu button:has-text("Move to folder")', 1200)(p); } },
+    { name: "delete", adminOnly: true, act: async p => { await tap(".dx-row:not(.ghost-add) .dx-menu-btn")(p); await tap('.dx-menu button.del', 1200)(p); } },
+    { name: "folder-menu", adminOnly: true, act: tap(".dx-sec-head .dx-menu-btn") },
+    { name: "folder-delete", adminOnly: true, act: async p => { await tap(".dx-sec-head .dx-menu-btn")(p); await tap('.dx-menu button.del', 1200)(p); } },
+    { name: "rename", adminOnly: true, act: async p => { await tap(".dx-sec-head .dx-menu-btn")(p); await tap('.dx-menu button:has-text("Rename")', 1200)(p); } },
+    { name: "filter", tall: true, act: tap(".dx-seg button:nth-child(5)") },
+    { name: "filter-none", tall: true, act: tap(".dx-seg button:nth-child(2)") },
+    { name: "nomatch", tall: true, act: async p => { await p.locator(".dx-search input").fill("zzzz"); await p.waitForTimeout(600); } },
+    { name: "collapsed", tall: true, act: tap(".dx-section .dx-sec-head") },
+  ] },
   { id: "media", path: "/media", ready: ".mtb", scenes: [full] },
   { id: "programming", path: "/events", ready: ".mtb", scenes: [full] },
   { id: "service", path: "/service", ready: ".mtb", scenes: [full] },
@@ -156,6 +172,8 @@ async function guard(p: Page) {
           if (orgKey === "dayone" && theme === "day" && spec.id.startsWith("settings-")) continue;
           mkdirSync(`${OUT}/${spec.id}`, { recursive: true });
           for (const scene of spec.scenes) {
+            if (scene.adminOnly && viewer !== "admin") continue;
+            if (SCENES && !SCENES.includes(scene.name)) continue;
             const file = `${OUT}/${spec.id}/${orgKey}-${viewer}-${theme}-${scene.name}.png`;
             const ctx = await browser.newContext({
               ...devices["iPhone 14"],

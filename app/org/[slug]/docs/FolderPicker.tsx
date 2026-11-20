@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FieldLabel } from "../../../components/dashboard/primitives";
 import { folderHue, type Folder } from "./lib";
+import { landsIn } from "@/lib/docs/library";
 
 const FOLDER_PATH = "M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z";
 
@@ -45,6 +46,7 @@ export function FolderPicker({
 
   const dest = value == null ? null : folders.find(f => f.id === value) ?? null;
   const destCount = dest ? counts.get(dest.id) ?? 0 : 0;
+  const lands = landsIn(dest, destCount);
 
   return (
     <div className="dx-fp">
@@ -98,9 +100,7 @@ export function FolderPicker({
         )}
       </div>
       <p className="dx-fp-lands">
-        {dest
-          ? <>Lands in <b>{dest.name}</b>{destCount > 0 ? <> with {destCount} other{destCount === 1 ? "" : "s"}</> : <>, its first doc</>}.</>
-          : <>Lands in <b>Unfiled</b>. You can move it any time.</>}
+        Lands in <b>{lands.name}</b>{lands.tail}
       </p>
     </div>
   );
