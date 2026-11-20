@@ -21,9 +21,11 @@ import { T } from "./T";
 
 export interface BriefPart { text: string; bold?: boolean }
 
-export function PageBrief({ pill, kicker, lead, mark, tail = ".", markTone = "sky", sub, digest, quiet }: {
+export function PageBrief({ pill, kicker, lead, mark, tail = ".", markTone = "sky", sub, digest, quiet, kickerSep = true }: {
   pill: string;
   kicker?: string | null;
+  /** The "·" before the kicker (Treasury's web brief has none). */
+  kickerSep?: boolean;
   /** Greeting text before the highlighted words, the highlighted words, and after. */
   lead: string; mark: string; tail?: string;
   markTone?: Tone;
@@ -50,7 +52,7 @@ export function PageBrief({ pill, kicker, lead, mark, tail = ".", markTone = "sk
         <View style={[styles.pill, { backgroundColor: c.card, borderColor: c.line2 }]}>
           <T v="kicker" size={11.5} color={c.ink2}>{pill.toUpperCase()}</T>
         </View>
-        {kicker ? <T v="kicker" size={11.5} color={c.ink3}>{`·  ${kicker.toUpperCase()}`}</T> : null}
+        {kicker ? <T v="kicker" size={11.5} color={c.ink3}>{`${kickerSep ? "·  " : ""}${kicker.toUpperCase()}`}</T> : null}
       </View>
 
       <View style={styles.greet} accessibilityRole="header" accessibilityLabel={`${lead}${mark}${tail}`}>

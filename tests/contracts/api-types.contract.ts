@@ -22,7 +22,7 @@
  */
 import type {
   ActivityEntry, Brother, DashboardResponse, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
-  MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, TaskDetail, Transaction, TransactionCategory,
+  MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, SemesterRow, Task, TaskDetail, Transaction, TransactionCategory, TreasurySettings,
   ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView, CalendarFeedLive,
   HomeResponse, MemberUpdated, MobileConfig, JoinRequestPage, JoinRequestApproved,
   AttendanceSummaryRow, ExcuseListItem, ExcuseDecided, EventDeletePreview, AgendaTemplate, MeetingSummarized, MinutesSaved,
@@ -50,6 +50,8 @@ import type { listRecentActivity } from "@/lib/services/activity-service";
 import type { listOwnJoinRequests } from "@/lib/auth/own-join-status";
 import type { createTransaction, listTransactions, updateTransaction } from "@/lib/services/transaction-service";
 import type { createReimbursement, listReimbursements, updateReimbursement } from "@/lib/services/reimbursement-service";
+import type { setOpeningBalance } from "@/lib/services/treasury-settings-service";
+import type { listSemesters } from "@/lib/services/semester-service";
 import type { listTransactionCategories } from "@/lib/services/transaction-category-service";
 import type { listServiceEvents } from "@/lib/services/service-event-service";
 import type { listParticipationForOrg, listParticipationForEvent, logMyParticipation, removeMyParticipation } from "@/lib/services/service-participation-service";
@@ -141,6 +143,8 @@ export const transactionUpdated: Widen<Transaction> = served<Served<typeof updat
 export const reimbursements: Widen<Reimbursement[]> = served<Served<typeof listReimbursements>>();
 export const reimbursementCreated: Widen<Reimbursement> = served<Served<typeof createReimbursement>>();
 export const reimbursementUpdated: Widen<Reimbursement> = served<Served<typeof updateReimbursement>>();
+export const treasurySettings: Widen<TreasurySettings> = served<Served<typeof setOpeningBalance>>();
+export const semesters: Widen<SemesterRow[]> = served<Served<typeof listSemesters>>();
 export const categories: Widen<TransactionCategory[]> = served<Served<typeof listTransactionCategories>>();
 
 export const duesBoard: Widen<DuesBoard> = served<Served<typeof getDuesBoard>>();

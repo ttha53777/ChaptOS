@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-11-19T21:32:47.088Z",
+  "capturedAt": "2026-11-19T22:55:43.988Z",
   "who": {
     "busy": {
       "org": {
@@ -61,33 +61,80 @@
       "dayone-admin-day-full.png",
       "dayone-member-day-fold.png",
       "dayone-member-day-full.png"
+    ],
+    "treasury-overview": [
+      "busy-admin-day-full.png",
+      "busy-member-day-full.png"
+    ],
+    "treasury-transactions": [
+      "busy-admin-day-full.png",
+      "busy-member-day-full.png"
+    ],
+    "treasury-dues": [
+      "busy-admin-day-drawer.png",
+      "busy-admin-day-edit-charge.png",
+      "busy-admin-day-full.png",
+      "busy-admin-day-handout.png",
+      "busy-member-day-drawer.png",
+      "busy-member-day-full.png"
+    ],
+    "treasury-reports": [
+      "busy-admin-day-full.png",
+      "busy-member-day-full.png"
+    ],
+    "treasury-reimbursements": [
+      "busy-admin-day-approve.png",
+      "busy-admin-day-decline.png",
+      "busy-admin-day-full.png",
+      "busy-admin-day-resolved.png",
+      "busy-member-day-full.png",
+      "busy-member-day-resolved.png"
+    ],
+    "treasury": [
+      "busy-admin-day-fold.png",
+      "busy-admin-day-full.png",
+      "busy-admin-day-log.png",
+      "busy-admin-day-reimb.png",
+      "busy-member-day-fold.png",
+      "busy-member-day-full.png",
+      "busy-member-day-reimb.png",
+      "dayone-admin-day-fold.png",
+      "dayone-admin-day-full.png",
+      "dayone-member-day-fold.png",
+      "dayone-member-day-full.png"
     ]
   },
   "problems": [
-    "_design/parity/web/tasks/busy-admin-day-spot-each.png: locator.click: Timeout 30000ms exceeded.",
-    "_design/parity/web/tasks/busy-member-day-new-task.png: missing .tks-head-btns .tks-btn:not(.soft)",
-    "_design/parity/web/tasks/busy-member-day-new-task-roles.png: missing .tks-head-btns .tks-btn:not(.soft)",
-    "_design/parity/web/tasks/busy-member-day-new-task-all.png: missing .tks-head-btns .tks-btn:not(.soft)",
-    "_design/parity/web/tasks/busy-member-day-new-poll.png: missing .tks-head-btns .tks-btn.soft",
-    "_design/parity/web/tasks/dayone-admin-day-mine.png: missing .tks-ctl .tks-seg button:nth-child(2)",
-    "_design/parity/web/tasks/dayone-admin-day-done.png: missing .tks-col-side .tks-done-bar",
-    "_design/parity/web/tasks/dayone-admin-day-spot.png: missing .tks-pile.over .tks-t",
-    "_design/parity/web/tasks/dayone-admin-day-spot-each.png: locator.click: Timeout 30000ms exceeded.",
-    "_design/parity/web/tasks/dayone-admin-day-spot-hist.png: missing .tks-pile.up .tks-t",
-    "_design/parity/web/tasks/dayone-admin-day-ballot.png: missing .tks-col-side .tks-vote-h .q",
-    "_design/parity/web/tasks/dayone-admin-day-new-task.png: missing .tks-head-btns .tks-btn:not(.soft)",
-    "_design/parity/web/tasks/dayone-admin-day-new-task-roles.png: missing .tks-head-btns .tks-btn:not(.soft)",
-    "_design/parity/web/tasks/dayone-admin-day-new-task-all.png: missing .tks-head-btns .tks-btn:not(.soft)",
-    "_design/parity/web/tasks/dayone-admin-day-new-poll.png: missing .tks-head-btns .tks-btn.soft",
-    "_design/parity/web/tasks/dayone-member-day-mine.png: missing .tks-ctl .tks-seg button:nth-child(2)",
-    "_design/parity/web/tasks/dayone-member-day-done.png: missing .tks-col-side .tks-done-bar",
-    "_design/parity/web/tasks/dayone-member-day-spot.png: missing .tks-pile.over .tks-t",
-    "_design/parity/web/tasks/dayone-member-day-spot-each.png: locator.click: Timeout 30000ms exceeded.",
-    "_design/parity/web/tasks/dayone-member-day-spot-hist.png: missing .tks-pile.up .tks-t",
-    "_design/parity/web/tasks/dayone-member-day-ballot.png: missing .tks-col-side .tks-vote-h .q",
-    "_design/parity/web/tasks/dayone-member-day-new-task.png: missing .tks-head-btns .tks-btn:not(.soft)",
-    "_design/parity/web/tasks/dayone-member-day-new-task-roles.png: missing .tks-head-btns .tks-btn:not(.soft)",
-    "_design/parity/web/tasks/dayone-member-day-new-task-all.png: missing .tks-head-btns .tks-btn:not(.soft)",
-    "_design/parity/web/tasks/dayone-member-day-new-poll.png: missing .tks-head-btns .tks-btn.soft"
+    "_design/parity/web/treasury/busy-member-day-log.png: missing .dash-treasury .tr-head-actions .tr-add:not(.tr-add-reimb)",
+    "_design/parity/web/treasury-dues/busy-member-day-handout.png: missing .du-cta .du-btn:not(.du-ghost)",
+    "_design/parity/web/treasury-dues/busy-member-day-edit-charge.png: missing .du-stub-more",
+    "_design/parity/web/treasury-reimbursements/busy-member-day-approve.png: missing .tr-reimb-act-approve",
+    "_design/parity/web/treasury-reimbursements/busy-member-day-decline.png: missing .tr-reimb-act-reject",
+    "_design/parity/web/treasury/dayone-admin-day-log.png: missing .dash-treasury .tr-head-actions .tr-add:not(.tr-add-reimb)",
+    "_design/parity/web/treasury/dayone-admin-day-reimb.png: missing .dash-treasury .tr-add-reimb",
+    "_design/parity/web/treasury-overview/dayone-admin-day-full.png: no Overview tab",
+    "_design/parity/web/treasury-transactions/dayone-admin-day-full.png: no Transactions tab",
+    "_design/parity/web/treasury-dues/dayone-admin-day-full.png: no Dues tab",
+    "_design/parity/web/treasury-dues/dayone-admin-day-drawer.png: no Dues tab",
+    "_design/parity/web/treasury-dues/dayone-admin-day-handout.png: no Dues tab",
+    "_design/parity/web/treasury-dues/dayone-admin-day-edit-charge.png: no Dues tab",
+    "_design/parity/web/treasury-reports/dayone-admin-day-full.png: no Reports tab",
+    "_design/parity/web/treasury-reimbursements/dayone-admin-day-full.png: no Reimbursements tab",
+    "_design/parity/web/treasury-reimbursements/dayone-admin-day-approve.png: no Reimbursements tab",
+    "_design/parity/web/treasury-reimbursements/dayone-admin-day-decline.png: no Reimbursements tab",
+    "_design/parity/web/treasury-reimbursements/dayone-admin-day-resolved.png: no Reimbursements tab",
+    "_design/parity/web/treasury/dayone-member-day-log.png: missing .dash-treasury .tr-head-actions .tr-add:not(.tr-add-reimb)",
+    "_design/parity/web/treasury/dayone-member-day-reimb.png: missing .dash-treasury .tr-add-reimb",
+    "_design/parity/web/treasury-overview/dayone-member-day-full.png: no Overview tab",
+    "_design/parity/web/treasury-transactions/dayone-member-day-full.png: no Transactions tab",
+    "_design/parity/web/treasury-dues/dayone-member-day-full.png: no Dues tab",
+    "_design/parity/web/treasury-dues/dayone-member-day-drawer.png: no Dues tab",
+    "_design/parity/web/treasury-dues/dayone-member-day-handout.png: no Dues tab",
+    "_design/parity/web/treasury-dues/dayone-member-day-edit-charge.png: no Dues tab",
+    "_design/parity/web/treasury-reports/dayone-member-day-full.png: no Reports tab",
+    "_design/parity/web/treasury-reimbursements/dayone-member-day-full.png: no Reimbursements tab",
+    "_design/parity/web/treasury-reimbursements/dayone-member-day-approve.png: no Reimbursements tab",
+    "_design/parity/web/treasury-reimbursements/dayone-member-day-decline.png: no Reimbursements tab",
+    "_design/parity/web/treasury-reimbursements/dayone-member-day-resolved.png: no Reimbursements tab"
   ]
 }

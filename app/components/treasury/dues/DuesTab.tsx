@@ -16,9 +16,8 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DuesBoard, DuesChargeSummary, DuesStanding, MemberDuesStanding } from "@/lib/api-types/dues";
-import { daysBetween } from "@/lib/dues-ledger";
 import type { Brother } from "../../../data";
-import { roleTitle } from "../../../data";
+import { personFor, rowFor, toPeople, type DuesFilter, type DuesPerson, type DuesRow as Row } from "@/lib/treasury/dues";
 import { BrotherAvatar } from "../../BrotherAvatar";
 import { PaperIcon } from "../../paper/PaperIcon";
 import { apiErrorMessage } from "../../../lib/api";
@@ -30,7 +29,8 @@ import {
   STANDING, STANDING_ORDER, STRIP_ORDER, chargeAmounts, chargeTone, dueLine, fmtDay, money, plural, standingLine,
 } from "./dues-ui";
 
-export type DuesFilter = "all" | DuesStanding;
+export { toPeople };
+export type { DuesFilter, DuesPerson };
 
 /** Where the tab opens when something hands you through its door (a deep link, the Overview card). */
 export interface DuesJump {
@@ -40,64 +40,6 @@ export interface DuesJump {
   sheet?: boolean;
 }
 
-export interface DuesPerson {
-  id: number;
-  name: string;
-  title: string;
-  avatarUrl: string | null;
-  /** Highest-ranked role, for the Role grouping; null = holds none. */
-  topRole: { id: number; name: string; rank: number } | null;
-  /** Every role they hold — what a by-role charge bills them for. */
-  roleIds: number[];
-}
-
-/** One member's position in the current view (the whole term, or one charge). */
-interface Row {
-  p: DuesPerson;
-  s: DuesStanding;
-  billed: number;
-  paid: number;
-  owes: number;
-  lateDays: number;
-  nextDueDate: string | null;
-}
-
-/** Roster rows → what the Dues tab shows for a person. Anyone the board names but the roster doesn't (archived) still gets a row. */
-export function toPeople(roster: readonly Brother[]): Map<number, DuesPerson> {
-  const out = new Map<number, DuesPerson>();
-  for (const b of roster) {
-    const top = [...(b.roles ?? [])].sort((x, y) => y.rank - x.rank)[0] ?? null;
-    out.set(b.id, {
-      id: b.id, name: b.name, title: roleTitle(b), avatarUrl: b.avatarUrl ?? null,
-      topRole: top ? { id: top.id, name: top.name, rank: top.rank } : null,
-      roleIds: (b.roles ?? []).map(r => r.id),
-    });
-  }
-  return out;
-}
-
-function personFor(people: Map<number, DuesPerson>, id: number): DuesPerson {
-  return people.get(id) ?? { id, name: "Former member", title: "No longer on the roster", avatarUrl: null, topRole: null, roleIds: [] };
-}
-
-/** A member's row, either over every charge in view or scoped to one charge. */
-function rowFor(m: MemberDuesStanding, p: DuesPerson, scope: DuesChargeSummary | null, today: string): Row | null {
-  if (!scope) {
-    return { p, s: m.standing, billed: m.billed, paid: m.paid, owes: m.owes, lateDays: m.lateDays, nextDueDate: m.nextDueDate };
-  }
-  const line = m.lines.find(l => l.chargeId === scope.id);
-  if (!line) return null;
-  const late = line.rest > 0 && scope.dueDate !== null && scope.dueDate < today;
-  return {
-    p,
-    s: line.rest === 0 ? "paid" : late ? "overdue" : "due",
-    billed: line.amount,
-    paid: Math.round((line.amount - line.rest) * 100) / 100,
-    owes: line.rest,
-    lateDays: late ? daysBetween(scope.dueDate!, today) : 0,
-    nextDueDate: line.rest > 0 ? scope.dueDate : null,
-  };
-}
 
 export function DuesTab({
   board, error, loading, roster, selfId, avatarRevision, canTreasury, duesWord, jump, onChanged,

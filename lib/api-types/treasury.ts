@@ -89,3 +89,20 @@ export interface TransactionCategory {
   hidden: boolean;
   displayOrder: number;
 }
+
+/** GET /api/semesters: the org's terms, newest first. Treasury files rows by them (lib/treasury-term). */
+export interface SemesterRow {
+  id: number;
+  organizationId: number;
+  label: string;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+}
+
+/** PATCH /api/treasury/settings: the opening balance, once a treasurer answers. */
+export interface TreasurySettings {
+  openingBalance: number | null;
+  /** Whether anyone has answered. `openingBalance === 0` is an answer; null isn't. */
+  configured: boolean;
+}

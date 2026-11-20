@@ -11,74 +11,16 @@ import { PaperIcon } from "../paper/PaperIcon";
  * Styles: app/paper-treasury.css (`.tz-*`).
  */
 
-const DAY = 864e5;
-const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+import {
+  balanceModel as buildModel, dn, dowOf, fmtD, isoOfDay as isoOf, kfmt, m0, m2, plusDays as plus,
+  type BalanceModel as Model, type ChartRange as PaperRange,
+} from "@/lib/treasury/chart";
+import type { ChartEntry as PaperEntry } from "@/lib/treasury/ledger";
 
-const dn = (iso: string) => { const [y, m, d] = iso.split("-").map(Number); return Math.round(Date.UTC(y, m - 1, d) / DAY); };
-const isoOf = (n: number) => new Date(n * DAY).toISOString().slice(0, 10);
-const plus = (iso: string, k: number) => isoOf(dn(iso) + k);
-const fmtD = (iso: string) => { const [, m, d] = iso.split("-").map(Number); return `${MON[m - 1]} ${d}`; };
-const dowOf = (iso: string) => DOW[new Date(dn(iso) * DAY).getUTCDay()];
+export { m0 };
+export type { PaperEntry, PaperRange };
 const r2 = (v: number) => Math.round(v * 100) / 100;
-export const m0 = (v: number) => (v < 0 ? "−$" : "$") + Math.round(Math.abs(v)).toLocaleString("en-US");
-const m2 = (v: number) => (v < 0 ? "−$" : "$") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const kfmt = (v: number) => (v < 0 ? "−" : "") + "$" + (Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(Math.abs(v) % 1000 ? 1 : 0) + "k" : Math.round(Math.abs(v)));
-
-/** One movement of money. `amount` is signed: + in, − out. */
-export interface PaperEntry { date: string; amount: number; label: string }
-export type PaperRange = "2w" | "1m" | "term";
-
-interface Model {
-  st: string; x0: string; end: string; span: number; lo: number; hi: number; asOf: string;
-  pts: [string, number][]; fut: [string, number][];
-  balAt: (iso: string) => number; projAt: (iso: string) => number;
-  X: (iso: string) => number; Y: (v: number) => number;
-  posted: PaperEntry[]; scheduled: PaperEntry[];
-}
-
-/**
- * The running balance, as the mock models it. Posted money dated after `asOf`
- * is pulled back onto it and scheduled money dated before it is pushed forward
- * onto it, so the solid line ends exactly on the balance the hero prints and
- * the dashed line only ever runs forward.
- */
-function buildModel(opening: number, postedIn: PaperEntry[], schedIn: PaperEntry[], termStart: string, asOf: string, range: PaperRange): Model {
-  const posted = postedIn.map(e => ({ ...e, date: e.date > asOf ? asOf : e.date })).sort((a, b) => a.date.localeCompare(b.date));
-  const scheduled = schedIn.map(e => ({ ...e, date: e.date < asOf ? asOf : e.date })).sort((a, b) => a.date.localeCompare(b.date));
-  const balAt = (iso: string) => r2(opening + posted.reduce((s, e) => (e.date <= iso ? s + e.amount : s), 0));
-  const bal = balAt(asOf);
-  const projAt = (iso: string) => r2(bal + scheduled.reduce((s, e) => (e.date <= iso ? s + e.amount : s), 0));
-
-  let st = range === "2w" ? plus(asOf, -14) : range === "1m" ? plus(asOf, -30) : termStart;
-  if (st < termStart) st = termStart;
-  if (st > asOf) st = asOf;
-  const lastSched = scheduled.length ? scheduled[scheduled.length - 1].date : null;
-  let end = range === "term" ? plus(lastSched && lastSched > asOf ? lastSched : asOf, 4) : plus(asOf, range === "2w" ? 8 : 18);
-  const x0 = plus(st, -2);
-  if (dn(end) - dn(x0) < 21) end = plus(x0, 21);
-  const span = dn(end) - dn(x0);
-
-  const pts: [string, number][] = [[st, balAt(plus(st, -1))]];
-  [...new Set(posted.filter(e => e.date >= st && e.date <= asOf).map(e => e.date))].sort().forEach(d => pts.push([d, balAt(d)]));
-  const fut: [string, number][] = [[asOf, bal]];
-  [...new Set(scheduled.filter(e => e.date <= end).map(e => e.date))].sort().forEach(d => { if (d > asOf) fut.push([d, projAt(d)]); else fut[0] = [asOf, projAt(asOf)]; });
-  // A scheduled entry clamped onto asOf would bend the solid line's end; start
-  // the dashed run from the real balance and drop to it on the next step instead.
-  if (fut[0][1] !== bal) fut.splice(0, 1, [asOf, bal], [plus(asOf, 1), fut[0][1]]);
-
-  const vals = [...pts, ...fut].map(p => p[1]);
-  let lo = Math.min(...vals), hi = Math.max(...vals);
-  const pad = Math.max((hi - lo) * 0.18, 400);
-  // Never pad the axis below zero for a balance that never went there — a
-  // "−$1.5k" gridline on a chapter that was never in the red reads as debt.
-  const floor0 = lo >= 0;
-  lo = Math.floor((lo - pad) / 500) * 500; hi = Math.ceil((hi + pad) / 500) * 500;
-  if (floor0 && lo < 0) lo = 0;
-  const X = (iso: string) => ((dn(iso) - dn(x0)) / span) * 1000;
-  const Y = (v: number) => 200 - ((v - lo) / (hi - lo)) * 200;
-  return { st, x0, end, span, lo, hi, asOf, pts, fut, balAt, projAt, X, Y, posted, scheduled };
-}
+const DAY = 864e5;
 
 /** Delta pill + scheduled projection + the step line. */
 export function PaperBalanceChart({

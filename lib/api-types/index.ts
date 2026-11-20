@@ -119,6 +119,9 @@
  *   PATCH  /api/transactions/[id]              Transaction             (MANAGE_TREASURY; body updateTransactionInput)
  *   DELETE /api/transactions/[id]              204                     (MANAGE_TREASURY; soft delete)
  *   GET    /api/treasury/categories            TransactionCategory[]   (every member; hidden ones included)
+ *   PATCH  /api/treasury/settings              TreasurySettings        (MANAGE_TREASURY; body { openingBalance }: opens the books)
+ *   GET    /api/transactions/export            text/csv                (MANAGE_TREASURY; ?semester=<label>; the app shares the text)
+ *   GET    /api/semesters                      SemesterRow[]           (every member; newest first)
  *   GET    /api/reimbursements                 Reimbursement[]
  *   POST   /api/reimbursements                 Reimbursement           (201; body createReimbursementInput; your own, or anyone's with treasury)
  *   PATCH  /api/reimbursements/[id]            Reimbursement           (MANAGE_TREASURY; body updateReimbursementInput, the app sends { status: "approved" | "rejected" })

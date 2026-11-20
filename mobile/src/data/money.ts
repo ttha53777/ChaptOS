@@ -12,11 +12,15 @@
  *   POST   /api/transactions                   Transaction     (MANAGE_TREASURY; Log expense / Log revenue)
  *   PATCH  /api/transactions/[id]              Transaction     (MANAGE_TREASURY; edit, Mark paid = status "posted")
  *   DELETE /api/transactions/[id]              204             (MANAGE_TREASURY; a soft delete)
+ *   PATCH  /api/treasury/settings              TreasurySettings (MANAGE_TREASURY; opens the books)
+ *   GET    /api/transactions/export            text/csv        (MANAGE_TREASURY; ?semester=)
+ *   GET    /api/semesters                      SemesterRow[]   (the terms ledger rows are filed under)
+ *   GET    /api/dues?semester=                 DuesBoard       (the Treasury's Dues tab, by term)
  *
  * A receipt photo is shrunk on the phone first (long edge 1600px, JPEG): the server takes
  * up to 4 MB and sniffs the bytes (JPEG, PNG, WebP, HEIC or PDF).
  */
-import type { MeResponse, Reimbursement, Transaction, TransactionCategory, TreasuryData } from "@/lib/api-types";
+import type { DuesBoard, MeResponse, Reimbursement, SemesterRow, Transaction, TransactionCategory, TreasuryData, TreasurySettings } from "@/lib/api-types";
 import type { createReimbursementInput } from "@/lib/validation/reimbursement";
 import type { createTransactionInput, updateTransactionInput } from "@/lib/validation/transaction";
 import { useQuery } from "@tanstack/react-query";
@@ -31,6 +35,9 @@ export const moneyKeys = {
   categories: (slug: string | null) => ["txCategories", slug] as const,
   treasury: (slug: string | null) => ["treasury", slug] as const,
   transactions: (slug: string | null) => ["transactions", slug] as const,
+  semesters: (slug: string | null) => ["semesters", slug] as const,
+  /** Under "dues-board" so every dues write (refreshDuesBoard) refreshes it too. */
+  duesTerm: (slug: string | null, term: string | null) => ["dues-board", slug, "term", term] as const,
 };
 
 const TREASURY_BIT = 1 << 1; // MANAGE_TREASURY
@@ -71,6 +78,37 @@ export function useTreasury(enabled = true) {
 export function useTransactions(enabled = true) {
   const slug = useSlug();
   return useQuery({ queryKey: moneyKeys.transactions(slug), queryFn: () => api<Transaction[]>("/api/transactions", { org: slug }), enabled });
+}
+
+export function useSemesters(enabled = true) {
+  const slug = useSlug();
+  return useQuery({ queryKey: moneyKeys.semesters(slug), queryFn: () => api<SemesterRow[]>("/api/semesters", { org: slug }), enabled, staleTime: 10 * 60_000 });
+}
+
+/** The Dues board for one term (a legacy label with no Semester row shows every charge, as on the web). */
+export function useTermDues(term: string | null, enabled: boolean) {
+  const slug = useSlug();
+  return useQuery({
+    queryKey: moneyKeys.duesTerm(slug, term),
+    queryFn: () => api<DuesBoard>("/api/dues", { org: slug, query: { semester: term } }),
+    enabled,
+  });
+}
+
+/** Day one: what's in the account today. Opens the books. */
+export async function openBooks(openingBalance: number): Promise<TreasurySettings> {
+  const body = { openingBalance };
+  const r = await api<TreasurySettings>("/api/treasury/settings", { method: "PATCH", body });
+  queryClient.setQueryData<TreasuryData>(moneyKeys.treasury(activeOrg.get().slug), prev => prev
+    ? { ...prev, openingBalance: r.openingBalance, balance: prev.balance + (r.openingBalance ?? 0) }
+    : prev);
+  ledgerWritten();
+  return r;
+}
+
+/** The term's ledger as CSV text (the same file the web downloads). */
+export function exportCsv(term: string | null): Promise<string> {
+  return api<string>("/api/transactions/export", { query: { semester: term || undefined } });
 }
 
 /* ── writes ───────────────────────────────────────────────────────────────────── */
@@ -152,9 +190,15 @@ export function putReimbursement(r: Reimbursement) {
   });
 }
 
-/** An officer's call on a pending request (PATCH /api/reimbursements/[id]; MANAGE_TREASURY). Approving records the expense. */
-export async function reviewReimbursement(id: number, status: "approved" | "rejected"): Promise<Reimbursement> {
-  const r = await api<Reimbursement>(`/api/reimbursements/${id}`, { method: "PATCH", body: { status }, org: activeOrg.get().slug });
+/**
+ * An officer's call on a pending request (PATCH /api/reimbursements/[id]; MANAGE_TREASURY).
+ * Approving posts the expense under `category` (the web's approve step); declining may carry
+ * a note shown to the submitter. Either way the ledger is re-read when a row was minted.
+ */
+export async function reviewReimbursement(id: number, status: "approved" | "rejected", opts: { note?: string | null; category?: string } = {}): Promise<Reimbursement> {
+  const body = { status, rejectionNote: opts.note ?? null, ...(opts.category ? { category: opts.category } : {}) };
+  const r = await api<Reimbursement>(`/api/reimbursements/${id}`, { method: "PATCH", body, org: activeOrg.get().slug });
   putReimbursement(r);
+  if (r.transactionId != null) ledgerWritten();
   return r;
 }

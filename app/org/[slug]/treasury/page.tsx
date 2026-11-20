@@ -16,7 +16,6 @@ import {
   fmt$, fmtDate, round2,
 } from "../../../data";
 import { useTransactionCategories } from "../../../hooks/useTransactionCategories";
-import { netBalance } from "../../../../lib/treasury-balance";
 import { TxForm, type TxFormEvent } from "../../../components/treasury/TxForm";
 import { TreasuryLocked } from "../../../components/treasury/TreasuryLocked";
 import { REIMBURSE_EVENT } from "../../../components/dashboard/QuickActionsMenu";
@@ -24,7 +23,6 @@ import { PaperIcon, PaperTile, type PaperIconName } from "../../../components/pa
 import { PaperBalanceChart, PaperBreakdown, type PaperEntry, type PaperRange } from "../../../components/treasury/PaperTreasury";
 import { TreasuryOpenBooks } from "../../../components/treasury/TreasuryOpenBooks";
 import { useSemesters } from "../../../hooks/useActiveSemester";
-import { termOfTx, inTerm } from "../../../../lib/treasury-term";
 import { DuesTab, toPeople, type DuesFilter, type DuesJump } from "../../../components/treasury/dues/DuesTab";
 import { DuesQuickCard } from "../../../components/treasury/dues/DuesQuickCard";
 import { useDuesBoard } from "../../../hooks/useDuesBoard";
@@ -54,6 +52,11 @@ import { apiErrorMessage, requestJson } from "../../../lib/api";
 import { RECEIPT_ACCEPT, receiptHref, uploadReceipt } from "../../../components/treasury/receipt-upload";
 import { todayStr } from "../../../lib/dates";
 import { orgHref } from "@/lib/org-paths";
+import {
+  booksOf, booksState, breakdownOf, categoryOptions as ledgerCategoryOptions, chartEntries, chartWindow, comingUp,
+  dateLabelOf, digestOf, duesRollup, fmtReimb, ppDay, reimbEmpty, reimbQueue, relativeAge, tabRows, tabTotal,
+  termOnScreen, termsOf, withRunning,
+} from "@/lib/treasury/ledger";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -129,36 +132,11 @@ function sparkPoints(data: { balance: number }[]): string | null {
 const ICON_CHECK = "M5 13l4 4L19 7";
 const ICON_X_SM  = "M6 18L18 6M6 6l12 12";
 
-// Reimbursements always read as money — cents are filled in even when the request
-// was a round number ($210 → $210.00). Unlike the rounded whole-dollar figures in
-// the overview, a reimbursement is an exact amount someone is owed.
-function fmtReimb(n: number): string {
-  return `$${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-// "submitted 3 days ago" cue — gives the treasurer a sense of how stale a request is.
-/** "2026-10-14" → the paper look's date block: day, month, weekday. */
-const PP_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-function ppDay(s: string): { d: number; m: string; w: string } {
-  const [y, m, d] = s.split("-").map(Number);
-  const w = new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short" });
-  return { d, m: PP_MONTHS[m - 1] ?? "", w };
-}
+// fmtReimb / ppDay / relativeAge / reimbQueue: lib/treasury/ledger.ts, shared with the app.
 const PP_TAB_ICON: Record<string, PaperIconName> = {
   Overview: "home", Transactions: "receipt", Dues: "jar", Reports: "bars", Reimbursements: "hand", Budget: "wallet",
 };
 
-function relativeAge(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "";
-  const days = Math.floor((Date.now() - then) / 86_400_000);
-  if (days <= 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 7)   return `${days} days ago`;
-  if (days < 14)  return "last week";
-  if (days < 30)  return `${Math.floor(days / 7)} weeks ago`;
-  return `${Math.floor(days / 30)}mo ago`;
-}
 
 function ReimbursementsView({
   reimbursements,
@@ -191,9 +169,7 @@ function ReimbursementsView({
   const catalog = useTransactionCategories();
   const expenseCats = catalog.options("expense");
 
-  const pending  = reimbursements.filter(r => r.status === "pending");
-  const archived = reimbursements.filter(r => r.status !== "pending");
-  const pendingTotal = pending.reduce((sum, r) => sum + r.amount, 0);
+  const { pending, archived, pendingTotal } = reimbQueue(reimbursements);
 
   function confirmReject(id: number) {
     onAction(id, "rejected", rejectNote.trim() || undefined);
@@ -247,7 +223,7 @@ function ReimbursementsView({
               own styled span, so render just the number (always 2-decimal). */}
           <div className="tr-reimb-amount"><span className="tr-reimb-cur">$</span>{fmtReimb(r.amount).slice(1)}</div>
           <p className="tr-reimb-desc">{r.description}</p>
-          <span className="tr-reimb-age">submitted {relativeAge(r.createdAt)}</span>
+          <span className="tr-reimb-age">submitted {relativeAge(r.createdAt, Date.now())}</span>
           {/* Receipts carry card digits and addresses: only the requester and the
               treasurer get the link (the server enforces the same rule). */}
           {r.hasReceipt && (isMine || canTreasury) && (
@@ -384,12 +360,10 @@ function ReimbursementsView({
         <div className="tz-reimb-empty">
           <PpCalm
             icon="receipt" tone="peach"
-            title={canTreasury ? (archived.length ? "Nothing waiting on you." : "No requests yet.") : "No open requests."}
+            title={reimbEmpty(canTreasury, archived.length > 0).title}
             action={<button className="tz-calm-btn" onClick={onRequest}><PaperIcon name="receipt" />Request reimbursement</button>}
           >
-            {canTreasury
-              ? "When someone asks to be paid back, their receipt lands here for you to approve or decline."
-              : "Paid for something out of pocket? Send a request with the receipt and it shows up here until the treasurer settles it."}
+            {reimbEmpty(canTreasury, archived.length > 0).body}
           </PpCalm>
         </div>
       </>) : (
@@ -728,19 +702,11 @@ export default function TreasuryPage() {
   // SPR26 too. termOfTx files those legacy rows by date instead of by the bogus
   // label (see lib/treasury-term.ts).
   const { semesters: termRows, active: activeTerm } = useSemesters();
-  const txTerm = useCallback((t: Transaction) => termOfTx(t, termRows), [termRows]);
 
-  const semesters = useMemo(() => {
-    const seen = new Set<string>();
-    transactionList.forEach(t => { if (!t.deletedAt) { const k = txTerm(t); if (k) seen.add(k); } });
-    if (activeTerm) seen.add(activeTerm.label);
-    // Chronological where we know the term's dates; unknown legacy labels first.
-    const start = (l: string) => termRows.find(r => r.label === l)?.startDate ?? "";
-    return Array.from(seen).sort((a, b) => start(a).localeCompare(start(b)) || a.localeCompare(b));
-  }, [transactionList, txTerm, activeTerm, termRows]);
+  const semesters = useMemo(() => termsOf(transactionList, termRows, activeTerm?.label ?? null), [transactionList, termRows, activeTerm]);
 
   // Active term, else the newest term anything is filed under, else everything.
-  const semester = pickedTerm ?? activeTerm?.label ?? semesters[semesters.length - 1] ?? "";
+  const semester = termOnScreen(pickedTerm, activeTerm?.label ?? null, semesters);
   const termRow = termRows.find(r => r.label === semester) ?? null;
 
   // Dues follow the same term pill. A legacy label with no Semester row behind it
@@ -772,73 +738,22 @@ export default function TreasuryPage() {
   }, []);
   const duesPeople = useMemo(() => toPeople(brotherList), [brotherList]);
 
-  const activeTxns = useMemo(() =>
-    transactionList.filter(t => !t.deletedAt && (!semester || txTerm(t) === semester))
-      .sort((a, b) => b.date.localeCompare(a.date)),
-    [transactionList, semester, txTerm]
-  );
+  // The term's books, live from local state so they move right after add/edit/delete
+  // (lib/treasury/ledger.ts, shared with the app).
+  const books = useMemo(() => booksOf({
+    transactions: transactionList, parties: partyList, termRows, term: semester, openingBalance: treasuryData?.openingBalance ?? null,
+  }), [transactionList, partyList, termRows, semester, treasuryData?.openingBalance]);
+  const { activeTxns, incomeTxns, expenseTxns, totalIncome, totalExpenses, parties: filteredParties } = books;
 
-  const incomeTxns  = useMemo(() => activeTxns.filter(t => t.type === "income"),  [activeTxns]);
-  const expenseTxns = useMemo(() => activeTxns.filter(t => t.type === "expense"), [activeTxns]);
-
-  const totalIncome   = useMemo(() => incomeTxns.reduce((s, t)  => s + t.amount, 0), [incomeTxns]);
-  const totalExpenses = useMemo(() => expenseTxns.reduce((s, t) => s + t.amount, 0), [expenseTxns]);
-
-  const baseVisibleTxns = txTab === "income" ? incomeTxns : txTab === "expense" ? expenseTxns : activeTxns;
-  const visibleTxns = txCategory === "all" ? baseVisibleTxns : baseVisibleTxns.filter(t => t.category === txCategory);
+  const baseVisibleTxns = tabRows(books, txTab, "all");
+  const visibleTxns = tabRows(books, txTab, txCategory);
 
   // The filter offers the org's configured categories UNION every category the
-  // visible rows are actually filed under. Without the second half, a transaction
-  // under a since-deleted category would be unreachable from this dropdown — the
-  // filter's whole job is finding rows, so it follows the data, not the config.
-  const categoryOptions = useMemo(() => {
-    const kinds: ("income" | "expense")[] =
-      txTab === "income" ? ["income"] : txTab === "expense" ? ["expense"] : ["income", "expense"];
+  // visible rows are actually filed under, so a row under a deleted category stays reachable.
+  const categoryOptions = useMemo(() => ledgerCategoryOptions(txTab, catalog, baseVisibleTxns), [txTab, catalog, baseVisibleTxns]);
 
-    const seen = new Set<string>();
-    const out: { slug: string; label: string }[] = [];
-    for (const kind of kinds) {
-      for (const c of catalog.options(kind)) {
-        if (seen.has(c.slug)) continue;
-        seen.add(c.slug);
-        out.push({ slug: c.slug, label: c.label });
-      }
-    }
-    for (const t of baseVisibleTxns) {
-      if (seen.has(t.category)) continue;
-      seen.add(t.category);
-      out.push({ slug: t.category, label: catalog.labelFor(t.type, t.category) });
-    }
-    return out;
-  }, [txTab, catalog, baseVisibleTxns]);
-
-  const txnsWithRunning = useMemo(() => {
-    // Build running balance from ALL active txns so filtered views show the real balance at each date
-    const sorted = [...activeTxns].sort((a, b) => a.date.localeCompare(b.date));
-    let running = 0;
-    const balanceMap = new Map<number, number>();
-    sorted.forEach(t => {
-      running += t.type === "income" ? t.amount : -t.amount;
-      balanceMap.set(t.id, running);
-    });
-    const needle = txSearch.trim().toLowerCase();
-    const filtered = needle
-      ? visibleTxns.filter(t =>
-          t.description?.toLowerCase().includes(needle) ||
-          t.category.toLowerCase().includes(needle)
-        )
-      : visibleTxns;
-    return filtered
-      .map(t => ({ ...t, running: balanceMap.get(t.id) ?? 0 }))
-      .sort((a, b) => b.date.localeCompare(a.date));
-  }, [activeTxns, visibleTxns, txSearch]);
-
-  // PartyEvent has no term column, so parties are placed by date: inside the
-  // term's own range when it's a real Semester, else by year.
-  const filteredParties = useMemo(() => {
-    if (!semester) return partyList;
-    return partyList.filter(p => inTerm(p.date, semester, termRows));
-  }, [partyList, semester, termRows]);
+  // Running balance over ALL the term's rows, so filtered views show the real balance at each date.
+  const txnsWithRunning = useMemo(() => withRunning(activeTxns, visibleTxns, txSearch), [activeTxns, visibleTxns, txSearch]);
 
   // Running cumulative balance chart
   const runningData = useMemo(
@@ -867,8 +782,9 @@ export default function TreasuryPage() {
   // entries, so "unopened" also needs an empty ledger in every term.
   const treasuryLoaded    = loadedSections.has("treasury") && loadedSections.has("transactions") && loadedSections.has("parties");
   const hasOpeningBalance = treasuryData?.openingBalance != null;
-  const everLogged        = transactionList.some(t => !t.deletedAt) || partyList.length > 0;
-  const booksUnopened     = treasuryLoaded && !hasOpeningBalance && !everLogged;
+  const { booksUnopened, statedUnstarted } = booksState({
+    loaded: treasuryLoaded, openingBalance: treasuryData?.openingBalance, transactions: transactionList, parties: partyList, books,
+  });
 
   // A member who can't open the books has nothing to look at; the officer who
   // can gets the one question that opens them (TreasuryOpenBooks).
@@ -876,76 +792,34 @@ export default function TreasuryPage() {
   const openingForOfficer = booksUnopened && canTreasury;
 
   // ── The second kind of nothing ───────────────────────────────────────────────
-  //
-  // The books ARE open — a human typed a balance — but nothing has moved. This is
-  // the state the page could not previously tell apart from "broke": it printed a
-  // real $0 income, $0 expenses and a rising sparkline, which reads as a chapter
-  // that lost its money rather than one that hasn't started.
-  //
-  // Party door revenue counts as movement even though it isn't a Transaction —
-  // it's money in the balance, so a chapter that logged a party and nothing else
-  // is started, not unstarted.
-  const hasEntries = activeTxns.length > 0 || filteredParties.length > 0;
-
-  // Deliberately NOT gated on canTreasury: an officer and a member both see the
-  // real opening balance and honest em-dashes. Only the banner's call to action
-  // is permission-gated, below.
-  const statedUnstarted = treasuryLoaded && hasOpeningBalance && !hasEntries;
+  // The books ARE open but nothing has moved this term (statedUnstarted, above). Not
+  // gated on canTreasury: officer and member both see the real opening balance; only
+  // the banner's call to action is permission-gated, below.
 
   // Dues are assigned on the roster, not in the ledger, so they're unset on their
   // own schedule — a chapter can assign dues before logging a single transaction,
   // and `$0 outstanding` would otherwise claim "all settled" when the truth is
   // nobody has been billed yet.
-  const duesUnassigned = brotherList.length > 0 && brotherList.every(b => b.duesOwed === 0);
+  const duesUnassigned = duesRollup(brotherList, []).unassigned;
 
-  // Paper lists every category (no "Other" bucket) because each row is a door
-  // into that category's entries — a merged bucket has nowhere to go.
-  const ppCats = useMemo(() => {
-    const by = new Map<string, number>();
-    for (const t of donutMode === "expense" ? expenseTxns : incomeTxns) by.set(t.category, (by.get(t.category) ?? 0) + t.amount);
-    return [...by.entries()].filter(([, val]) => val > 0).sort((a, b) => b[1] - a[1])
-      .map(([slug, val]) => ({ slug, label: catalog.labelFor(donutMode, slug), value: round2(val), color: catalog.colorFor(donutMode, slug) }));
-  }, [donutMode, expenseTxns, incomeTxns, catalog]);
+  // Paper lists every category (no "Other" bucket): each row is a door into its entries.
+  const ppCats = useMemo(() => breakdownOf(books, donutMode, catalog), [books, donutMode, catalog]);
   const orgSlug = currentUser?.org?.slug ?? null;
 
-  const totalDoorRev  = filteredParties.reduce((s, p) => s + p.doorRevenue, 0);
+  const totalDoorRev = books.totalDoorRev;
 
-  // Latest 5 non-deleted transactions
-  const latest5 = useMemo(
-    () => transactionList.filter(t => !t.deletedAt).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
-    [transactionList]
-  );
 
 
   // Editorial kicker date (e.g. "Sat · Jun 13") — matches sibling ledger pages.
-  const dateLabel = useMemo(() => {
-    const d = new Date();
-    const wk = d.toLocaleDateString("en-US", { weekday: "short" });
-    const md = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    return `${wk} · ${md}`;
-  }, []);
+  const dateLabel = useMemo(() => dateLabelOf(new Date()), []);
 
   // Upcoming: future-dated transactions + upcoming party events
   const today = todayStr();
-  const upcomingParties = [...partyList]
-    .filter(p => p.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 4);
-  // Charges still collecting, by due date: what Coming up owes the treasurer a nudge about.
-  const upcomingDues = (duesOn ? dues.board?.charges ?? [] : [])
-    .filter(c => c.dueDate !== null && c.dueDate >= (dues.board?.today ?? today) && c.outstanding > 0)
-    .sort((a, b) => a.dueDate!.localeCompare(b.dueDate!))
-    .slice(0, 3);
-  const upcomingTxns = transactionList
-    .filter(t => !t.deletedAt && t.date > today)
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 4);
+  const { parties: upcomingParties, dues: upcomingDues, txns: upcomingTxns } = comingUp({
+    transactions: transactionList, parties: partyList, charges: duesOn ? dues.board?.charges ?? [] : [], today, chargesToday: dues.board?.today,
+  });
 
-  const tabTotals: Record<TxTab, number> = {
-    all:     activeTxns.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0),
-    income:  totalIncome,
-    expense: totalExpenses,
-  };
+  const tabTotals: Record<TxTab, number> = { all: tabTotal(books, "all"), income: totalIncome, expense: totalExpenses };
 
   // Fetch calendar events once for the TxForm event picker.
   React.useEffect(() => {
@@ -1148,72 +1022,36 @@ export default function TreasuryPage() {
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
-  // Compute balance live from local state so it updates immediately after add/edit/delete
-  const postedExpenses  = useMemo(() => expenseTxns.filter(t => t.status !== "scheduled").reduce((s, t) => s + t.amount, 0), [expenseTxns]);
-  const scheduledDrain  = useMemo(() => expenseTxns.filter(t => t.status === "scheduled").reduce((s, t) => s + t.amount, 0), [expenseTxns]);
-  const balance   = netBalance({
-    openingBalance: treasuryData?.openingBalance ?? null,
-    doorRevenue:    totalDoorRev,
-    income:         totalIncome,
-    expense:        postedExpenses,
-  });
-  const projected = Math.round((balance - scheduledDrain) * 1.3);
+  const { postedExpenses, scheduledDrain, balance, projected } = books;
 
-  // Dues outstanding — surfaced in the glance strip and the AI digest.
-  const duesTotal   = useMemo(() => brotherList.reduce((s, b) => s + b.duesOwed, 0), [brotherList]);
-  const owingCount  = useMemo(() => brotherList.filter(b => b.duesOwed > 0).length, [brotherList]);
+  // Dues outstanding (roster duesOwed) and who's past a due date (only the Dues board knows when).
+  const duesRoll = useMemo(() => duesRollup(brotherList, dues.board?.members.filter(m => m.standing === "overdue") ?? []), [brotherList, dues.board]);
+  const { duesTotal, owingCount } = duesRoll;
 
   // ── Paper chart inputs ──────────────────────────────────────────────────────
-  // Split the same way `balance` is summed: scheduled EXPENSES are the only
-  // money not yet in the account (income counts whatever its status), so the
-  // solid line ends exactly on the balance the hero prints.
-  const ppPosted = useMemo<PaperEntry[]>(() => [
-    ...activeTxns.filter(t => !(t.type === "expense" && t.status === "scheduled"))
-      .map(t => ({ date: t.date, amount: t.type === "income" ? t.amount : -t.amount, label: t.description || catalog.labelFor(t.type, t.category) })),
-    ...filteredParties.filter(p => p.doorRevenue > 0)
-      .map(p => ({ date: p.date, amount: p.doorRevenue, label: `${p.name} — door` })),
-  ], [activeTxns, filteredParties, catalog]);
-  const ppScheduled = useMemo<PaperEntry[]>(() =>
-    activeTxns.filter(t => t.type === "expense" && t.status === "scheduled")
-      .map(t => ({ date: t.date, amount: -t.amount, label: t.description || catalog.labelFor(t.type, t.category) })),
-  [activeTxns, catalog]);
-  // A past term's line closes on its last day, not today.
-  const ppAsOf = termRow && termRow.endDate < today ? termRow.endDate : today;
-  const ppTermStart = termRow?.startDate
-    ?? [...ppPosted.map(e => e.date)].sort()[0]
-    ?? ppAsOf;
+  // Split the way `balance` is summed, so the solid line ends on the balance the hero prints.
+  const { posted: ppPosted, scheduled: ppScheduled } = useMemo(() => chartEntries(books, catalog), [books, catalog]);
+  const { asOf: ppAsOf, termStart: ppTermStart } = chartWindow(termRow, today, ppPosted);
 
-  // Who's past a due date, from the Dues board (the roster's duesOwed can't say when).
-  const duesOverdue = useMemo(() => {
-    const late = dues.board?.members.filter(m => m.standing === "overdue") ?? [];
-    return { n: late.length, amt: late.reduce((s, m) => s + m.overdue, 0) };
-  }, [dues.board]);
-
-  // Paper's digest reads like the mock's: the balance and how far it moved this
-  // term, who still owes, whose reimbursement is waiting (only to someone who
-  // can settle it), and the next scheduled payment out. Every clause is a live
-  // figure; dues are phrased as an amount out, not a % collected, because the
-  // ledger has no billed-vs-collected total to divide by.
-  const termNet = balance - (treasuryData?.openingBalance ?? 0);
-  const pendingReimbs = reimbursements.filter(r => r.status === "pending");
-  const nextOut = upcomingTxns.find(t => t.type === "expense");
-  const firstName = (n: string) => n.trim().split(/\s+/)[0];
-  const memberWord = (n: number) => v("Member", n !== 1).toLowerCase();
-  const reimbWaiting = canTreasury && pendingReimbs.length > 0 && (
-    <><b>{pendingReimbs.length === 1
-      ? `${firstName(pendingReimbs[0].brother.name)}’s ${fmt$(pendingReimbs[0].amount)}`
-      : `${pendingReimbs.length} requests`}</b>{" "}{pendingReimbs.length === 1 ? "reimbursement is" : "reimbursements are"} waiting on you</>
-  );
-  const duesClause = !duesOn ? null : owingCount > 0
-    ? <><b>{owingCount} {memberWord(owingCount)}</b>{" "}still {owingCount === 1 ? "owes" : "owe"}{" "}<b>{fmt$(Math.round(duesTotal))}</b>{" "}in {v("Dues").toLowerCase()}
-        {duesOverdue.n > 0 && <>,{" "}<b>{duesOverdue.n} overdue · {fmt$(Math.round(duesOverdue.amt))}</b></>}</>
-    : duesUnassigned ? null : <>Every {memberWord(1)} is paid up</>;
+  // Paper's digest: the balance and how far it moved this term, who still owes, whose
+  // reimbursement is waiting (only to someone who can settle it), and the next payment
+  // out. Every clause is a live figure (lib/treasury/ledger.ts digestOf).
+  const dg = digestOf({
+    books, openingBalance: treasuryData?.openingBalance ?? null, duesOn, dues: duesRoll,
+    pending: reimbursements.filter(r => r.status === "pending"), canTreasury, upcomingTxns,
+    memberWord: pl => v("Member", pl), duesWord: v("Dues"),
+  });
+  const reimbWaiting = dg.reimb && <><b>{dg.reimb.bold}</b>{" "}{dg.reimb.rest} waiting on you</>;
+  const duesClause = !dg.dues ? null : dg.dues.kind === "owe"
+    ? <><b>{dg.dues.who}</b>{" "}still {dg.dues.verb}{" "}<b>{dg.dues.amount}</b>{" "}in {dg.dues.word}
+        {dg.dues.overdue && <>,{" "}<b>{dg.dues.overdue}</b></>}</>
+    : <>{dg.dues.text}</>;
   const paperDigest = (
     <>
-      <b>{fmt$(Math.round(balance))}</b>{" "}in the account
-      {Math.round(termNet) !== 0 && `, ${termNet > 0 ? "up" : "down"} ${fmt$(Math.round(Math.abs(termNet)))} since the term opened`}.
+      <b>{dg.balance}</b>{" "}in the account
+      {dg.moved}.
       {(duesClause || reimbWaiting) && <>{" "}{duesClause}{duesClause && reimbWaiting ? ", and " : ""}{reimbWaiting}.</>}
-      {nextOut && <>{" "}Next out:{" "}<b>{nextOut.description.split(" — ")[0].toLowerCase()}, {fmt$(Math.round(nextOut.amount))}</b>{" "}on {ppDay(nextOut.date).m} {ppDay(nextOut.date).d}.</>}
+      {dg.nextOut && <>{" "}Next out:{" "}<b>{dg.nextOut.what}</b>{" "}on {dg.nextOut.on}.</>}
     </>
   );
 

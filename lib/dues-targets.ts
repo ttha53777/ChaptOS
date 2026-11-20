@@ -124,7 +124,7 @@ export function resolveTargets(
 
   if (spec.kind !== "role" && spec.amount.mode === "split") {
     const shares = splitCents(spec.amount.totalCents, lines.length);
-    lines = lines.map((l, i) => ({ ...l, amountCents: shares[i] }));
+    lines = lines.map((l, i) => ({ ...l, amountCents: shares[i]! }));
   }
   lines = lines.filter(l => l.amountCents > 0);
 
@@ -151,7 +151,7 @@ export function audienceLabel(
   if (spec.kind === "all") return spec.exclude.length ? `Everyone but ${spec.exclude.length}` : "Everyone";
   if (spec.kind === "pick") return billed === 1 ? "1 person" : `${billed} people`;
   if (spec.rates.length === 1) {
-    const k = spec.rates[0].key;
+    const k = spec.rates[0]!.key;
     return k === "base" ? "Everyone" : k === "none" ? "Members with no role" : roleName(k) ?? "By role";
   }
   return "By role";

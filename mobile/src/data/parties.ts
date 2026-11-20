@@ -60,6 +60,11 @@ export interface NewPartyBody {
   partyType: "Open" | "Closed";
   theme?: string;
   collabOrg?: string;
+  /** Treasury's Add Party Event sends the door take with the party. */
+  doorRevenue?: number;
+  attendance?: number;
+  expenses?: number;
+  notes?: string;
 }
 
 export interface PartyPatch {
@@ -69,6 +74,11 @@ export interface PartyPatch {
   partyType?: "Open" | "Closed";
   theme?: string;
   collabOrg?: string;
+  doorRevenue?: number;
+  attendance?: number;
+  expenses?: number;
+  notes?: string;
+  completed?: boolean;
 }
 
 export interface WrapUpBody {

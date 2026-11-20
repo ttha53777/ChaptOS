@@ -65,8 +65,4 @@ export function recordPayment(p: { brotherId: number; name: string; amount: numb
   });
 }
 
-/** "12.5" → 12.5; anything that isn't a positive amount → 0. Rounded to the cent. */
-export function parseDollars(s: string): number {
-  const n = parseFloat(String(s).replace(/[^0-9.]/g, ""));
-  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0;
-}
+export { parseDollars } from "@/lib/treasury/dues";

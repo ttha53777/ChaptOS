@@ -3,6 +3,7 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { PaperIcon } from "../paper/PaperIcon";
 import { apiErrorMessage, requestJson } from "../../lib/api";
+import { caretAfter, formatAmount, parseOpening } from "@/lib/treasury/ledger";
 
 /**
  * Day one for whoever holds MANAGE_TREASURY: one question, the opening balance.
@@ -15,28 +16,6 @@ import { apiErrorMessage, requestJson } from "../../lib/api";
  * Reuses `.tr-locked` for the card so both looks frame it the same way as the
  * member's locked state; `.tr-open` adds the form.
  */
-
-/** Digits and one decimal point only, cents capped at two, thousands grouped. */
-function formatAmount(input: string): string {
-  const clean = input.replace(/[^0-9.]/g, "");
-  const dot = clean.indexOf(".");
-  let int = (dot === -1 ? clean : clean.slice(0, dot)).replace(/^0+(?=\d)/, "").slice(0, 9);
-  if (dot === -1) return int.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  if (!int) int = "0";
-  const cents = clean.slice(dot + 1).replace(/\./g, "").slice(0, 2);
-  return `${int.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${cents}`;
-}
-
-/** Index in `formatted` just past the `n`th non-comma character. */
-function caretAfter(formatted: string, n: number): number {
-  if (n <= 0) return 0;
-  let seen = 0;
-  for (let i = 0; i < formatted.length; i++) {
-    if (formatted[i] !== ",") seen++;
-    if (seen === n) return i + 1;
-  }
-  return formatted.length;
-}
 
 export function TreasuryOpenBooks({ onOpened }: { onOpened: (openingBalance: number) => void }) {
   const [raw, setRaw] = useState("");
@@ -63,15 +42,15 @@ export function TreasuryOpenBooks({ onOpened }: { onOpened: (openingBalance: num
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const v = parseFloat(raw.replace(/,/g, ""));
-    if (!Number.isFinite(v)) { setErr("Enter what’s in the account today — $0 is fine."); return; }
+    const v = parseOpening(raw);
+    if (v === null) { setErr("Enter what’s in the account today — $0 is fine."); return; }
     setSaving(true);
     setErr(null);
     try {
       const res = await requestJson<{ openingBalance: number | null }>("/api/treasury/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ openingBalance: Math.round(v * 100) / 100 }),
+        body: JSON.stringify({ openingBalance: v }),
       });
       onOpened(res.openingBalance ?? v);
     } catch (e2) {

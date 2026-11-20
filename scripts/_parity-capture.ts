@@ -80,10 +80,23 @@ const PAGES: PageSpec[] = [
   { id: "service", path: "/service", ready: ".mtb", scenes: [full] },
   { id: "parties", path: "/parties", ready: ".mtb", scenes: [full] },
   { id: "fundraisers", path: "/fundraisers", ready: ".mtb", scenes: [full] },
-  ...["Overview", "Transactions", "Dues", "Reports", "Reimbursements"].map((t): PageSpec => ({
-    id: `treasury-${t.toLowerCase()}`, path: "/treasury", ready: ".mtb",
-    scenes: [{ name: "full", tall: true, act: async p => { const b = p.locator(`[data-tab="${t}"]`).first(); if (await b.count()) { await b.click(); await p.waitForTimeout(1500); } else throw new Error(`no ${t} tab`); } }],
-  })),
+  // The page as it opens (day one has no tabs: the open-books question or the member lock),
+  // and its two forms.
+  { id: "treasury", path: "/treasury", ready: ".mtb", scenes: [
+    full, fold,
+    { name: "log", act: tap(".dash-treasury .tr-head-actions .tr-add:not(.tr-add-reimb)", 1200) },
+    { name: "reimb", act: tap(".dash-treasury .tr-add-reimb", 1200) },
+  ] },
+  ...["Overview", "Transactions", "Dues", "Reports", "Reimbursements"].map((t): PageSpec => {
+    const open = async (p: Page) => { const b = p.locator(`[data-tab="${t}"]`).first(); if (await b.count()) { await b.click(); await p.waitForTimeout(1500); } else throw new Error(`no ${t} tab`); };
+    const then = (name: string, sel: string, tall = false): Scene => ({ name, tall, act: async p => { await open(p); await tap(sel, 1200)(p); } });
+    const extra: Scene[] = t === "Reimbursements" ? [
+      then("approve", ".tr-reimb-act-approve"), then("decline", ".tr-reimb-act-reject"), then("resolved", ".tr-reimb-archive-toggle", true),
+    ] : t === "Dues" ? [
+      then("drawer", ".du-tag"), then("handout", ".du-cta .du-btn:not(.du-ghost)"), then("edit-charge", ".du-stub-more"),
+    ] : [];
+    return { id: `treasury-${t.toLowerCase()}`, path: "/treasury", ready: ".mtb", scenes: [{ name: "full", tall: true, act: open }, ...extra] };
+  }),
   ...["identity", "accounts", "invitations", "roles", "member-fields", "thresholds", "semesters", "custom-metrics", "event-types", "event-fields", "calendar", "opening-balance", "money-categories", "workflows", "activity-log"]
     .map((s): PageSpec => ({ id: `settings-${s}`, path: `/settings?section=${s}`, ready: ".mtb", scenes: [full], adminOnly: true })),
 ];

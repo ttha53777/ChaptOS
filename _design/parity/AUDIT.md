@@ -43,7 +43,7 @@ Legend: ✅ matches the web phone · 🟡 built, but from the paper mocks rather
 | Service | `more/service` | 🟡 | Web has PaperService, wide modal forms, and day one. |
 | Parties | `more/parties` | 🟡 | The ledger and wrap-ups exist. Diff the roll and wrap-up door. |
 | Fundraisers | `more/fundraisers` | 🟡 | Web has jars over the ledger and the wrap-up total. |
-| Treasury (Overview, Transactions, Dues, Reports, Reimbursements) | `more/treasury` | 🟡 | App has one page. Web has 5 tabs plus sheets and the setup gate. Reimbursement review is now in the app (dashboard plate). |
+| Treasury (Overview, Transactions, Dues, Reports, Reimbursements) | `more/treasury` | ✅ | Phase 7: the five tabs, the open-books gate and member lock, every sheet, Dues with its drawer, Hand out and charge editor. See "Treasury (Phase 7)" below. |
 | Settings (15 sections) | — | ⬜ | Phase 9. |
 | Sidebar profile menu | More → You block, toolbar stamp | ✅ Phase 1 | — |
 | Billing | — | ⬜ by decision | Not in the app. |
@@ -190,4 +190,49 @@ Built 2026-11-19.
   - A refused row tick has no return motion.
 - **Not exercised:** the swipe gesture itself (the preview has no touch pan; the circle and spotlight share its write path) and the live bearer smoke (it needs a Supabase token, as in earlier phases).
 - **Kept for the Lab:** `tasks/Deck.tsx` and `tasks/Ballot.tsx` stay only because `lab/tasks.tsx` demos them. `Board.tsx` and `TaskSheet.tsx` are deleted.
+
+## Treasury (Phase 7), what landed
+
+Built 2026-11-19.
+
+- **Shared rules** (SHARED now whitelists `@/lib/treasury/`, `@/lib/treasury-term`, `@/lib/treasury-balance`, `@/lib/dues-ledger`, `@/lib/dues-targets`):
+  - `lib/treasury/ledger.ts`: money and date words, the category catalog (`catalogOf`, which replaced the logic in `useTransactionCategories`), terms (`termsOf` / `termOnScreen`), the term's books (`booksOf` / `booksState`), the log (`tabRows` / `withRunning` / `tabTotal` / `categoryOptions`), breakdown and chart inputs, the statement, Coming up, the digest, the reimbursement queue, and the opening-balance field.
+  - `lib/treasury/chart.ts`: the balance model and its marks (step line, projection, flags, scrub), the breakdown lede, and `liftHex`.
+  - `lib/treasury/dues.ts`: standing words and order, people and rows (term or one charge), the hero, the lanes and list order, the Overview card (`quickCardOf`), the Hand out sheet's dates/hint/split, the drawer's pay methods and status, and `chargeChanges`.
+  - The web treasury page, `TreasuryOpenBooks`, `PaperTreasury` and the Dues tab render from these. Pixdiff before/after was IDENTICAL on every treasury and treasury-dues capture, including the new log/reimb/approve/decline/drawer/handout/edit-charge scenes. One frame (the reimbursement modal) differed on the first run from its open animation and was IDENTICAL on rerun.
+  - `lib/dues-targets.ts` gained two non-null assertions (`shares[i]!`, `spec.rates[0]!`) so it compiles under the app's `noUncheckedIndexedAccess`. No runtime change.
+- **Wire (additive):** `SemesterRow` and `TreasurySettings` in `lib/api-types/treasury.ts`. Route-map lines for `PATCH /api/treasury/settings`, `GET /api/transactions/export` (text/csv) and `GET /api/semesters`, plus contract entries `treasurySettings` / `semesters` and smoke probes. The dues writes were already mapped. The bearer static test passes on all 108 routes.
+- **Page** (`more/treasury.tsx`, in the web phone's order):
+  - Brief: date pill, TREASURY · term, "The ledger.", the digest (or the No entries chip). Then Log money (MANAGE_TREASURY), Request reimbursement, and Ask about the books (opens Ask Chapt with "How are the books looking this term?").
+  - Gates: a member on unopened books gets "The books aren't open yet." plus their own requests. A treasurer gets "Let’s open the books." (`PATCH /api/treasury/settings`).
+  - Tabs: Overview · Transactions · Dues (only when dues are tracked; NEW / owing badge) · Reimbursements (pending badge) · Reports (last, as the web's `order: 1`). Then the term pills, Export CSV (treasury) and Add Party Event.
+  - Overview: first-entry banner, balance card (2W/1M/Term, scrubbable step line, money in vs out), breakdown ring (In/Out, rows jump to the filtered log; "Categories are yours to name · Edit" opens the web's Money categories settings), the Dues card, Coming up, "{term} so far", Recent entries, At the door tickets.
+  - Transaction Log: All/Income/Expense, category filter, search, total, and the ruled table (scrolls sideways). Row actions: Mark Paid / Edit / Delete (treasury) and "see in Dues".
+  - Reports: the statement and the five-cell grid.
+  - Reimbursements: the queue with receipt view/attach, inline approve (category + balance after, Approve & post) and decline (note, Confirm decline), and Show resolved.
+- **Sheets:** Add/Edit Transaction (Type, Category, Amount ($), Date, the Scheduled switch, Description, Payment Method, Period with "(current)", Linked Events). Add/Edit Party Event (Event Name, Date, Door Revenue ($), Attendance, Notes). Delete Transaction / Delete Party Event confirms with the web's words.
+- **Dues tab:**
+  - Day one, the three ways. Your tab for members. Hero (money bar, legend filter, 13-a-row punch strip, Hand out / Record a payment). Charges stubs (scope, ⋯ edit). The wall (search, Standing/Role, Tags/List, filter chips, lanes with Bill <role>).
+  - Member drawer (Record payment, Waive some with Undo, Bill <name>, line by line, Take off).
+  - Hand out sheet: Everyone + leave out / By role rates / Pick people; name suggestions, duplicate warning, each/split; due choices; note. The footer total comes from `resolveTargets`.
+  - Charge editor: name, due, note, take back. Carry-over is refused.
+- **Verified on :3100** (after `/api/auth/me` returned ok-today; a full data-only dump of figurints_dev was taken first and restored afterwards, then checked row by row):
+  - Add → edit → delete a transaction.
+  - Add → edit → delete a party.
+  - Approve a reimbursement with a category (minted transaction 7) and decline one with a note.
+  - Record a cash payment for Cyrus Pak; waive $10 → Undo.
+  - Hand out "Chapter shirt" to everyone → Undo.
+  - Edit a charge's note. Take back on a charge with payments shows the server's 409 copy verbatim.
+  - Read-only text matches the web word for word for admin 2, member 12, day-one admin 14 (open-books gate) and day-one member 16 (lock + requests).
+  - The four reimbursements I seeded for the queue were deleted and `Reimbursement_id_seq` reset (next id 1).
+- **Seed note (not app code):** the seed's charge ledger bills all 13 members, but `Membership.duesOwed` is set for only 3. So the server refuses a payment for anyone else ("more than … owes ($0.00)"), on the web as well. This is also why the digest says "3 members still owe $420".
+- **Deviations:**
+  - Dates use the app's day stepper (as on Tasks and Meetings), not a native date input.
+  - Each `<select>` is a row of chips (Type, Category, Payment Method, Period, Linked Events, the log's category filter).
+  - Export CSV hands the CSV text to the share sheet instead of downloading a file.
+  - "Record a payment" sets the filter and shows the toast, but doesn't scroll to the wall.
+  - The money bar's diagonal stripes are drawn with skewed bars.
+  - Sheet subtitles sit above the title (the app's Sheet kicker).
+- **Not exercised:** the open-books write itself (only the gate was rendered), Mark Paid, receipt attach, Take off a line, the export share sheet, and the live bearer smoke (it needs a Supabase token, as in earlier phases).
+- **Kept:** the app-only Dues and Reimbursements pages in Yours, sharing `data/money.ts` and `money/RequestSheet.tsx`. `money/TxForm.tsx` stays for the Create sheet's Log expense / Log revenue.
 
