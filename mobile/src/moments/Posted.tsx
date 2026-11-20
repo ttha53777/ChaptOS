@@ -65,7 +65,8 @@ export function PostedPrint({ type, phase, onImpact }: { type: string; phase: Po
         <Animated.View style={dev}><Snap type={type} developing size="lg" /></Animated.View>
         <Animated.View style={[StyleSheet.absoluteFill, inked]}><Snap type={type} size="lg" /></Animated.View>
       </View>
-      <Stamp label="Posted" tone="mint" size="lg" rotate={-12} state={stamp} onImpact={landed} style={styles.stamp} />
+      {/* Mounted once it lands (a planned post has no stamp on the web, nothing to read out). */}
+      {stamp !== "hidden" ? <Stamp label="Posted" tone="mint" size="lg" rotate={-12} state={stamp} onImpact={landed} style={styles.stamp} /> : null}
       {!m.reduced && phase === "posted" ? <Confetti burst={burst} at={{ x: 0.72, y: 0.78 }} /> : null}
     </View>
   );

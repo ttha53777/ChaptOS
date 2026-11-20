@@ -2,8 +2,7 @@
 import { useEffect, useRef } from "react";
 import type { InstagramTask } from "../../../data";
 import { PaperIcon } from "../../../components/paper/PaperIcon";
-import { instagramDate, instagramDays, postedOn } from "@/lib/instagram-planner";
-import { duePill } from "./InstagramPostCard";
+import { duePill, instagramDate, postedOn, timingLine } from "@/lib/media/calendar";
 import { FORMAT_HINTS, formatKey, InstagramSnapshot } from "./InstagramSnapshot";
 import { InstagramPostForm, type PostDraft, type PostFormEvent } from "./InstagramPostForm";
 
@@ -20,9 +19,9 @@ export function InstagramPostDetail({ task, today, canManage, editing, stamped, 
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { const dialog = ref.current!; dialog.showModal(); return () => dialog.close(); }, []);
   useEffect(() => { if (editing) ref.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus(); }, [editing]);
-  const pill = duePill(task, today), posted = task.status === "posted", days = instagramDays(task.dueDate, today);
+  const pill = duePill(task, today), posted = task.status === "posted";
   const dismiss = () => { if (!busy) (editing ? onCancelEdit : onClose)(); };
-  const timing = posted ? "Posted to the feed" : days < 0 ? `${-days} day${days < -1 ? "s" : ""} overdue` : days === 0 ? "Due today" : days === 1 ? "Due tomorrow" : `Due in ${days} days`;
+  const timing = timingLine(task, today);
   return <dialog ref={ref} className={`igp-scope igp-rail igp-ty-${formatKey(task.type)}`} aria-label={`${editing ? "Edit" : "Post detail:"} ${task.title}`} onCancel={e => { e.preventDefault(); dismiss(); }} onClick={e => {
     if (e.target !== e.currentTarget) return;
     const r = e.currentTarget.getBoundingClientRect();

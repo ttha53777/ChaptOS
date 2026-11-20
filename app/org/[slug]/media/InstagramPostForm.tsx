@@ -1,7 +1,6 @@
 "use client";
 import { useId, useState } from "react";
-import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
-import { instagramDate, instagramDays } from "@/lib/instagram-planner";
+import { eventOption, INSTAGRAM_TYPES, promotable } from "@/lib/media/calendar";
 import { FORMAT_HINTS, formatKey, InstagramSnapshot } from "./InstagramSnapshot";
 
 export type PostDraft = { title: string; dueDate: string; postedDate: string | null; type: string; calendarEventId: number | null };
@@ -15,7 +14,7 @@ export function InstagramPostForm({ initial, submitLabel, onSubmit, onClose, var
   const [form, setForm] = useState(initial);
   const id = useId();
   const legacy = !(INSTAGRAM_TYPES as readonly string[]).includes(initial.type);
-  const choices = events.filter(e => e.id === form.calendarEventId || (e.category !== "deadline" && instagramDays(e.date, today) >= -14));
+  const choices = promotable(events, today, form.calendarEventId);
   const fields = <fieldset disabled={busy} className="igp-fields">
     <label className="igp-fld" htmlFor={`${id}-title`}><span>Post title</span><input id={`${id}-title`} className="igp-inp" required maxLength={200} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Meet the brothers reel" data-autofocus /></label>
     <fieldset className="igp-format-field"><legend>Format</legend>
@@ -32,7 +31,7 @@ export function InstagramPostForm({ initial, submitLabel, onSubmit, onClose, var
       <select className="igp-inp" value={form.calendarEventId ?? ""} onChange={e => setForm(f => ({ ...f, calendarEventId: e.target.value ? Number(e.target.value) : null }))} disabled={eventsLoading}>
         <option value="">— None —</option>
         {form.calendarEventId != null && !choices.some(e => e.id === form.calendarEventId) && <option value={form.calendarEventId}>Current linked event</option>}
-        {choices.map(e => <option key={e.id} value={e.id}>{e.title} · {instagramDate(e.date)}</option>)}
+        {choices.map(e => <option key={e.id} value={e.id}>{eventOption(e)}</option>)}
       </select>
     </label>
     {eventsError && <p className="igp-error" role="alert">Couldn&apos;t load events. <button type="button" onClick={onRetryEvents}>Try again</button></p>}

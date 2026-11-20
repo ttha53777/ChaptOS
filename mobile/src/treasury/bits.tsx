@@ -18,11 +18,13 @@ import { useTheme } from "~/theme/PaperProvider";
 import { hard } from "~/theme/shadow";
 import { T } from "~/ui/T";
 
-export function TrBtn({ label, icon, kind = "ink", tone = "lilac", onPress, small, disabled, kbd, hint }: {
+export function TrBtn({ label, icon, kind = "ink", tone = "lilac", onPress, small, disabled, kbd, hint, block }: {
   label: string; icon?: IconName;
   /** ink: .tr-add · card: .tr-add-reimb · ask: .tr-ask · ghost: .tz-calm-btn.ghost */
   kind?: "ink" | "card" | "ask" | "ghost";
   tone?: Tone; onPress: () => void; small?: boolean; disabled?: boolean; kbd?: string; hint?: string;
+  /** Full width: the label centred, or (with a kbd) the key pushed to the far edge. */
+  block?: boolean;
 }) {
   const { c } = useTheme();
   const ink = kind === "ink";
@@ -30,7 +32,7 @@ export function TrBtn({ label, icon, kind = "ink", tone = "lilac", onPress, smal
   return (
     <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityHint={hint} accessibilityState={{ disabled }}
       style={({ pressed }) => [
-        styles.btn, small && styles.btnSm,
+        styles.btn, small && styles.btnSm, block && { alignSelf: "stretch", justifyContent: kbd ? "flex-start" : "center" },
         ink ? { backgroundColor: c.ink, borderColor: c.ink } : kind === "card" ? { backgroundColor: c.card, borderColor: c.ink }
           : { backgroundColor: kind === "ask" && pressed ? c.pastel.lilac.soft : "transparent", borderColor: c.line2, borderStyle: "dashed" },
         (ink || kind === "card") && !pressed && hard(c.pastel[tone].fill, small ? 2 : 2.5),
@@ -39,6 +41,7 @@ export function TrBtn({ label, icon, kind = "ink", tone = "lilac", onPress, smal
       ]}>
       {icon ? <Icon name={icon} size={small ? 14 : kind === "ask" ? 13 : 15} color={kind === "ask" ? c.pastel.lilac.ink : fg} /> : null}
       <T v={kind === "ask" ? "callout" : "button"} size={small ? 13 : 14} color={fg} numberOfLines={1}>{label}</T>
+      {kbd && block ? <View style={{ flex: 1 }} /> : null}
       {kbd ? <View style={[styles.kbd, { borderColor: c.line2, backgroundColor: c.paper2 }]}><T v="mono" size={10.5} color={c.ink3}>{kbd}</T></View> : null}
     </Pressable>
   );

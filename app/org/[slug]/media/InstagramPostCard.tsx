@@ -1,16 +1,12 @@
 "use client";
 
 import type { InstagramTask } from "../../../data";
-import { instagramDate, instagramDays, postedOn, type InstagramLane } from "@/lib/instagram-planner";
+import { duePill, rowDate, type InstagramLane } from "@/lib/media/calendar";
 import { PaperIcon } from "../../../components/paper/PaperIcon";
 import { formatKey, InstagramSnapshot } from "./InstagramSnapshot";
 export type Lane = InstagramLane;
 
-export function duePill(task: InstagramTask, today: string): { cls: string; label: string } {
-  if (task.status === "posted") return { cls: "ok", label: "posted" };
-  const diff = instagramDays(task.dueDate, today);
-  return diff < 0 ? { cls: "late", label: `${-diff}d late` } : diff === 0 ? { cls: "soon", label: "today" } : { cls: diff <= 7 ? "soon" : "cool", label: `in ${diff}d` };
-}
+export { duePill } from "@/lib/media/calendar";
 export function InstagramPostCard({ task, lane, today, canManage, selected, fresh, busy, linkedEventTitle, onSelect, onEdit, onDelete, onComplete }: {
   task: InstagramTask; lane: Lane; today: string; canManage: boolean; selected?: boolean; fresh?: boolean; busy?: boolean; linkedEventTitle?: string;
   onSelect: (t: InstagramTask) => void; onEdit: (t: InstagramTask) => void; onDelete: (t: InstagramTask) => void; onComplete: (t: InstagramTask, from: HTMLElement) => void;
@@ -21,7 +17,7 @@ export function InstagramPostCard({ task, lane, today, canManage, selected, fres
       <span className="sn"><InstagramSnapshot type={task.type} developing={!posted} /></span>
       <span className="igp-row-text"><span className="t">{task.title}</span><span className="m">
         <span className="igp-chip"><i />{task.type}</span>
-        <span>{posted ? `Posted ${instagramDate(postedOn(task))}` : `Due ${new Date(task.dueDate + "T12:00:00Z").toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short" })}, ${instagramDate(task.dueDate)}`}</span>
+        <span>{rowDate(task)}</span>
         {linkedEventTitle && <span className="igp-ev"><PaperIcon name="cal" />{linkedEventTitle}</span>}
       </span></span>
       <span className={`igp-due ${pill.cls}`}>{pill.label}</span>

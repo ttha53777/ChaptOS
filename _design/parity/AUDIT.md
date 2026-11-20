@@ -38,7 +38,7 @@ Legend: ✅ matches the web phone · 🟡 built, but from the paper mocks rather
 | Chapter (meetings) | `more/meetings`, `more/meeting/[id]` | 🟡 | Web has the ledger with date stubs, On deck, and the minutes editor (phone sheet). |
 | Tasks | `more/tasks` | ✅ | Phase 6: the web's Overdue/Upcoming list, spotlight, ballot, task/poll sheets with the who-picker. |
 | Docs | `more/docs` | ✅ | Phase 8a: brief and meta line, toolbar, pinned shelf, manila sections, every doc/folder write, day one. See "Docs (Phase 8a)" below. |
-| Media | `more/media` | 🟡 | Web Instagram is the paper page (full and day one). |
+| Media | `more/media` | ✅ | Phase 8b: brief, Add post / Ask, measures that jump, lanes, month, detail with in-place dates, form, delete, day one. See "Media (Phase 8b)" below. |
 | Programming | `more/programming` | 🟡 | Lanes and wrap-ups exist. Web has the gated lanes and day-one steps. |
 | Service | `more/service` | 🟡 | Web has PaperService, wide modal forms, and day one. |
 | Parties | `more/parties` | 🟡 | The ledger and wrap-ups exist. Diff the roll and wrap-up door. |
@@ -284,4 +284,64 @@ Built 2026-11-20.
   - Sheet field labels are the app's caps labels. The primary button is the app's lilac Button.
 - **Not exercised:** the deep-link redirect (the preview serves Home for deep URLs), a load error, favicons (the seed has none), and the live bearer smoke (it needs a Supabase token, as in earlier phases).
 - **Removed:** the old mock-styled Docs screen (search-first, horizontal shelf, butter folders). Nothing in `lab/` used it.
+
+## Media (Phase 8b), what landed
+
+Built 2026-11-20.
+
+- **Shared rules:** `lib/media/calendar.ts` (SHARED now whitelists `@/lib/media/`).
+  - The planner arithmetic moved here, safe under noUncheckedIndexedAccess. `todayIn(tz, now)` takes the clock as an argument.
+    - `lib/instagram-planner.ts` is now a re-export, and its `instagramToday` keeps the `now = new Date()` default for the server and the web.
+    - `INSTAGRAM_TYPES` lives here; `lib/validation/instagram` re-exports it.
+  - Page rules and words:
+    - Formats: `formatKey`, `FORMAT_HINTS`.
+    - Lanes: `LANES`, `IDEAS`, `ASK_NEXT`, `filterPosts`, `lanePosts`, `postCount`, `duePill`, `rowDate`, `timingLine`.
+    - The brief: `digestParts` (as the web's own text runs, so its DOM didn't change), `kickerChip`, `metrics`, `metricTarget` (jump to a lane, open the month, or the empty line).
+    - The month: `DOW`, `moveMonth`, `monthGrid`, `dayKey`, `quietNote`, `markerLabel`.
+    - The form: `promotable`, `newDraft`, `eventOption`.
+    - Words: every toast in `SAY`, and `deleteMessage`.
+  - The web page, card, detail, form and month render from it.
+  - Pixdiff before/after was IDENTICAL on all 42 media frames: full, fold, add, detail, detail-posted, edit, delete, month, nomatch and idea, for busy and day one, admin and member, day and night.
+  - Two passes needed fixes:
+    - Joining the digest into one string shifted WebKit's shaping by a few pixels on 17 frames. Returning the original text runs made them identical.
+    - Three frames differed only by animation timing (a modal opening, two scroll frames) and were IDENTICAL on rerun.
+  - The edit and delete scenes go through the detail rail, because the phone CSS hides the row actions (`.igp-row .igp-acts{display:none}`).
+- **Wire:** nothing new. GET/POST `/api/instagram` and PATCH/DELETE `/api/instagram/[id]` already had route-map lines, contract entries and smoke probes. The bearer static test passes (118 routes) and the planner tests pass (9).
+- **Page** (`more/media.tsx`, in the web phone's order):
+  - Brief: the "FRI · NOV 20" chip, CONTENT CALENDAR (· @handle), "What’s going out." on the rose mark. Then ✦ DIGEST with the bold overdue clause, or the plain line on day one.
+  - Actions: Add post (MANAGE_INSTAGRAM), and the full-width Ask what to post next ⌘K (Ask Chapt with the web's question).
+  - Measures: Queued / Overdue / This week / Cadence. A tap clears the search and scrolls to its lane, or toasts the web's "Nothing is overdue" / "The queue is clear" / "Nothing due this week". Cadence opens this month.
+  - Tools: Search posts…, and Lanes | Month with their icons.
+  - Lanes: Overdue / This week / Upcoming / Posted, as the web sorts them. Rows show the mono caps format chip, the date, the dashed event chip and the due pill.
+  - Month: the web phone's grid, with one pill per post (dashed once posted, tap opens it), today inked, quiet stretches of 5+ days hatched, and "Longest quiet stretch this month". Linked events and the legend stay off the phone, as on the web.
+  - No posts match “…” (Clear search), and the linked-events error line.
+  - Day one: the three snapshots, "No posts on the calendar.", the web's paragraph. Officers get Plan the first post and "A first week of posts" with the four ideas; members get "Ask an officer to plan the first post."
+  - A new post flashes and is scrolled to (or its month opens).
+- **Sheets:**
+  - Post detail:
+    - The taped stage (POSTED is stamped only once the post is up), the format chip, title, due pill, then Timing, Posted on, Scheduled for / Due date, Format · hint, and Promoting (opens the Timeline's event sheet).
+    - Officers tap a date to change it: the day strip opens and the pick saves at once, as the web's date input does ("Moved to Tue, Nov 24" / "Posting date changed").
+    - Footer: Mark posted, Edit, and the trash button. Members see the detail without a footer.
+  - Add post / Edit post (kicker INSTAGRAM):
+    - Fields: Post title (placeholder "Meet the brothers reel"), the three format cards ("Keep X" for a retired format), Due date, Posting date once posted, and Linked event — optional (— None —, Current linked event, the feed's events as "Title · Nov 21").
+    - Footer: "Lands in its lane by date — and on the month view.", Cancel, Add post / Save changes (Saving…).
+  - Delete post: "Delete “…” (due Nov 24)? This can’t be undone." with Cancel and Delete (Deleting…).
+  - Toasts are the web's (`SAY`). A refusal shows the server's words inline and in a toast, with an error haptic. Success haptics fire after the server confirms.
+- **Signature moment:** Mark posted keeps `~/moments/Posted`: the print develops and the stamp thuds after the PATCH returns, with confetti and a success haptic on impact. The stamp is now mounted only once it lands, so a planned post no longer carries a hidden "POSTED".
+- **Verified on :3100** (after `/api/auth/me` returned ok-today; a data-only dump was taken first and restored in one transaction afterwards; a fresh dump differed only in the `\restrict` tokens):
+  - Add a Reel linked to Winter Formal ("Added — lands this week"), then edit it ("Post saved").
+  - Move its date from the detail ("Moved to Tue, Nov 24"). Mark posted (the stamp lands). Change the posting date ("Posting date changed"). Delete it.
+  - In day-one dl-today: add from the "Rush week is coming" idea, then delete it; the page returns to day one.
+  - Measures: This week scrolls to its lane, and Cadence opens November.
+  - Member: Post detail has no actions.
+  - Gated off: with `communications` removed from ok-today's workflows, More shows no Media tile (restored after).
+  - Read-only text matches the web word for word for admin 2, member 12, day-one admin 14 and day-one member 16, and for the detail, posted detail and Add post sheets.
+- **Deviations:**
+  - Edit opens its own sheet over the detail; on the web the rail swaps to the form in place.
+  - The date inputs are the app's day strip. Linked event is an expanding list instead of a `<select>`.
+  - Sheet field labels are the app's caps labels.
+  - The web's confetti burst from the button is the app's Posted moment on the stage.
+  - Adding scrolls to the new post's row from measured layout. The web uses `scrollIntoView`.
+- **Not exercised:** a server refusal (the routes validate what the form already enforces), the events-load error, and a retired-format post ("Keep X"; the seed's "Story + Feed" post was not edited). Also the live bearer smoke (it needs a Supabase token).
+- **Removed:** the mock-styled briefing, the large title with the + button, the "Showing X" narrowing, the month legend's "event promoted" caption (not on the web), DayPosts (a day now has one pill per post), and the app-only words ("No event / A post of its own", "(retired format)", "Promoting (optional)"). `lab/media.tsx` still imports Snap, MeasureTile, LaneHead, PostRow, Month and the older model names, so those stay.
 
