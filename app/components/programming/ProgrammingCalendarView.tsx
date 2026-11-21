@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import type { ProgrammingTask } from "../../data";
 import { typeVisual, type TypeVisual } from "./typeColor";
 import { todayStr } from "../../lib/dates";
-import { needsWrapUp } from "@/lib/programming";
+import { CALENDAR, needsWrapUp } from "@/lib/programme/board";
 
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
@@ -111,12 +111,12 @@ export function ProgrammingCalendarView({
           <p className="mo">{MONTH_NAMES[month - 1]} {year}</p>
           <div className="ev-cal-nav">
             <button onClick={() => shift(-1)} aria-label="Previous month">‹</button>
-            <button onClick={() => setYm(TODAY.slice(0, 7))}>Today</button>
+            <button onClick={() => setYm(TODAY.slice(0, 7))}>{CALENDAR.today}</button>
             <button onClick={() => shift(1)} aria-label="Next month">›</button>
           </div>
           <span className="ev-cal-key" aria-hidden>
-            <span><i className="d" />not on the Timeline</span>
-            <span><i />on the Timeline</span>
+            <span><i className="d" />{CALENDAR.notOn}</span>
+            <span><i />{CALENDAR.on}</span>
           </span>
         </div>
         <div className="ev-cal-dow">

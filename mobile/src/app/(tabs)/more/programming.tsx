@@ -1,251 +1,284 @@
 /**
- * Programming (the web's events page), reached from More → Programming:
+ * Programming (the web's events page at phone width), reached from More, in the
+ * web's order:
  *
- *   status line   what's next, then the counts you can go and change: wrap-ups due,
- *                 ready to confirm, ideas nobody's on. Each count jumps to its lane
- *   the glance    On the slate · Next 14 days · Unowned ideas · Average stars
- *   the board     one lane at a time (Idea · Planning · Confirmed · Done) under tabs
- *                 whose ink marker slides; type chips filter; a find line when it's long
- *   day one       nothing yet: three pictures and Add your first idea (officers)
+ *   briefing   the date pill · the term; "The programme." (day one: "Events, one
+ *              step at a time"); the status line: what's next, then the counts you can
+ *              go and change (each a link; the wrap-up count only for officers)
+ *   actions    New idea · New event (officers; New event waits for day two) · ? (the
+ *              help, for everyone, after day one)
+ *   measures   On the slate · Next 14 days · Unowned ideas · Average stars
+ *   toolbar    Board | Calendar, the type chips (any number), Search events…
+ *   the view   the four lanes stacked, or the undated rail and the month; "No events
+ *              match." when the filters hide everything
+ *   timeline   what the chapter actually sees
+ *   day one    no events: the four figures, then Write your first idea (officers)
  *
- * Cards open the event sheet. Officers (MANAGE_EVENTS) add ideas from the header +.
+ * A card opens the event sheet; moves route through the gates as the web's do.
+ * Writes are MANAGE_EVENTS; members read it all.
  */
-import type { ProgrammingEvent, ProgrammingStage } from "@/lib/api-types";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import type { CalendarEvent, ProgrammingEvent } from "@/lib/api-types";
+import { catalogOf } from "@/lib/treasury/ledger";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, TextInput, View, type ScrollViewInstance } from "react-native";
+import { useEventTypes } from "~/data/calendar";
 import { localDay } from "~/data/home";
-import { useProgramming } from "~/data/programming";
+import { useCategories, useSemesters } from "~/data/money";
+import { eventTxnsMoved, useProgramming, useRoles } from "~/data/programming";
+import { useRoster } from "~/data/tasks";
 import { useEntryOf } from "~/entry/EntryContext";
 import { Icon } from "~/icons/Icon";
 import { navLabel } from "~/more/model";
-import { EASE } from "~/motion/motion";
 import { haptics } from "~/motion/haptics";
-import { EventCard } from "~/programming/Card";
-import { EventSheet } from "~/programming/EventSheet";
-import { canManage, needsWrapUp, readyToConfirm, STAGE, STAGES, stats, statusLine, type Clause } from "~/programming/model";
-import { NewIdea } from "~/programming/steps";
-import { Screen } from "~/shell/Screen";
-import { EmptyState, ErrorState, SkeletonCard, SkeletonList } from "~/shell/states";
-import { useMotion, useTheme } from "~/theme/PaperProvider";
-import { toneOf } from "~/timeline/model";
-import { T } from "~/ui/T";
 import { pressedDim } from "~/motion/press";
+import { CalendarView, DayOne, Lanes, TimelineStrip, type DayOneSample } from "~/programming/Board";
+import { EventSheet } from "~/programming/EventSheet";
+import {
+  DAY_ONE, NO_MATCH, PAGE, canEnter, canManage, eventsTermStats, filterEvents, filterTypes, leadTail, longDate, managedTypes, measures,
+  needsWrapUp, nextOnDeckEvent, noMatchBits, noMatchLine, readyToConfirmCount, starterIdeas, statusBits, termLabel, type StatusBit,
+  typeCat,
+} from "~/programming/model";
+import { DeleteEvent, EventForm, FixStep, HelpSheet, NewIdea, WrapUp, type Opened } from "~/programming/steps";
+import { Screen } from "~/shell/Screen";
+import { ErrorState, SkeletonCard } from "~/shell/states";
+import { useFontScale, useTheme } from "~/theme/PaperProvider";
+import { hard } from "~/theme/shadow";
+import { resolveType } from "~/theme/type";
+import { LedgerTxForm } from "~/treasury/Sheets";
+import { PageBrief, type BriefPart } from "~/ui/PageBrief";
+import { Segmented } from "~/ui/Segmented";
+import { T } from "~/ui/T";
 
-const LANE_EMPTY: Record<ProgrammingStage, string> = {
-  idea: "No ideas waiting. Anything the chapter might do starts here.",
-  planning: "Nothing being planned. Pick up an idea to start one.",
-  confirmed: "Nothing confirmed. A plan with a day, a place and an owner can be.",
-  done: "Nothing wrapped yet. Confirmed events land here once they've happened.",
-};
+type View_ = "board" | "calendar";
+const EMPTY: never[] = [];
 
 export default function Programming() {
   const { c } = useTheme();
-  const m = useMotion();
+  const scale = useFontScale();
   const me = useEntryOf("ready")?.me ?? null;
-  const q = useProgramming();
   const officer = !!me && canManage(me);
+  const q = useProgramming();
+  const typesQ = useEventTypes();
+  const roster = useRoster(officer);
+  const roles = useRoles(officer);
+  const catq = useCategories(officer);
+  const semq = useSemesters(officer);
   const today = localDay();
-  const [lane, setLane] = useState<ProgrammingStage | null>(null);
-  const [types, setTypes] = useState<Set<string>>(new Set());
-  const [find, setFind] = useState("");
+  const scroll = useRef<ScrollViewInstance | null>(null);
+  const viewY = useRef(0);
+
+  const [view, setView] = useState<View_>("board");
+  const [typeSet, setTypeSet] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
   const [open, setOpen] = useState<number | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [idea, setIdea] = useState(false);
+  const [form, setForm] = useState<{ editing: ProgrammingEvent | null } | null>(null);
+  const [doomed, setDoomed] = useState<ProgrammingEvent | null>(null);
+  const [help, setHelp] = useState(false);
+  const [step, setStep] = useState<Opened | null>(null);
+  const [logFor, setLogFor] = useState<ProgrammingEvent | null>(null);
 
-  const all = q.data ?? null;
-  // land on the lane that needs someone: wrap-ups, then plans, then ideas
-  useEffect(() => {
-    if (!all || lane) return;
-    setLane(all.some(e => needsWrapUp(e, today)) && officer ? "confirmed"
-      : all.some(e => e.stage === "planning") ? "planning"
-        : all.some(e => e.stage === "idea") ? "idea" : all.some(e => e.stage === "confirmed") ? "confirmed" : "idea");
-  }, [all]); // eslint-disable-line react-hooks/exhaustive-deps
+  const events = q.data ?? EMPTY;
+  const types = typesQ.data;
+  const workflows = me?.org?.enabledWorkflows ?? EMPTY;
+  const formTypes = useMemo(() => managedTypes(types, workflows), [types, workflows]);
+  const chipTypes = useMemo(() => filterTypes(types), [types]);
+  const filtered = useMemo(() => filterEvents(events, search, typeSet), [events, search, typeSet]);
+  const stats = useMemo(() => eventsTermStats(events, today), [events, today]);
+  const onDeck = useMemo(() => nextOnDeckEvent(events, today), [events, today]);
+  const ready = useMemo(() => readyToConfirmCount(events), [events]);
+  const toWrap = useMemo(() => (officer ? events.filter(e => needsWrapUp(e, today)).length : 0), [events, today, officer]);
+  const status = useMemo(() => statusBits(onDeck, ready, stats.unownedIdeas, today, toWrap), [onDeck, ready, stats.unownedIdeas, today, toWrap]);
+  const sample = useMemo<DayOneSample | null>(() => {
+    if (!types) return null;
+    const st = starterIdeas(formTypes.map(t => ({ slug: t.slug, label: t.label })))[0];
+    const opt = formTypes.find(t => t.slug === st?.category) ?? formTypes[0];
+    return { title: st?.title ?? DAY_ONE.fallbackTitle, label: opt?.label ?? null, slug: opt?.slug ?? null };
+  }, [types, formTypes]);
+  const catalog = useMemo(() => catalogOf(catq.data ?? EMPTY), [catq.data]);
 
-  const usedTypes = useMemo(() => {
-    const n = new Map<string, string>();
-    for (const e of all ?? []) n.set(e.category, e.type);
-    return [...n.entries()].map(([slug, label]) => ({ slug, label }));
-  }, [all]);
-
-  const shown = useMemo(() => {
-    let l = all ?? [];
-    if (types.size) l = l.filter(e => types.has(e.category));
-    const s = find.trim().toLowerCase();
-    if (s) l = l.filter(e => [e.title, e.location, e.collab ?? "", e.type].some(x => x.toLowerCase().includes(s)));
-    return l;
-  }, [all, types, find]);
+  const act = useCallback((kind: StatusBit["kind"]) => {
+    if (kind === "wrap") {
+      const next = events.filter(e => needsWrapUp(e, today)).sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""))[0];
+      if (next) { setOpen(next.id); setStep({ kind: "wrap", e: next }); }
+      return;
+    }
+    setView("board");
+    if (kind === "ready") {
+      const next = events.find(e => e.stage === "planning" && canEnter(e, "confirmed"));
+      if (next) setOpen(next.id);
+      return;
+    }
+    // the Idea lane is the first on the board
+    requestAnimationFrame(() => scroll.current?.scrollTo({ y: Math.max(0, viewY.current - 12), animated: true }));
+  }, [events, today]);
 
   if (!me) return null;
-  const title = navLabel(me, "Programming");
-  const counts = Object.fromEntries(STAGES.map(s => [s, shown.filter(e => e.stage === s).length])) as Record<ProgrammingStage, number>;
-  const cur = lane ?? "idea";
-  const inLane = sortLane(shown.filter(e => e.stage === cur), cur, today);
+  const loading = !q.data;
+  const dayOne = !loading && events.length === 0;
+  const pill = longDate(today);
+  const kicker = termLabel(me.org?.activeTerm?.label, me.org?.name);
 
-  const right = officer ? (
-    <Pressable onPress={() => setAdding(true)} accessibilityRole="button" accessibilityLabel="New idea" hitSlop={8}
-      style={({ pressed }) => [styles.plus, { backgroundColor: c.ink, boxShadow: `${pressed ? 1 : 2}px ${pressed ? 1 : 2}px 0 ${c.note.fill.butter}` }, pressed && { transform: [{ translateX: 1 }, { translateY: 1 }] }]}>
-      <Icon name="plus" size={16} color={c.paper} />
-    </Pressable>
+  const statusLine: React.ReactNode = loading ? (
+    <T v="body" size={15.2} lh={1.5} color={c.ink3}>{PAGE.loading}</T>
+  ) : status.lead || status.bits.length ? (
+    <T v="body" size={15.2} lh={1.5} color={c.ink2}>
+      {status.lead ? <><T v="bodyStrong" size={15.2} lh={1.5} color={c.ink}>{status.lead.title}</T>{leadTail(status.lead.when)}</> : null}
+      {status.bits.map(b => (
+        <T key={b.text} v="body" size={15.2} lh={1.5} color={c.ink2}>
+          {" "}
+          {b.kind !== "wrap" || officer ? (
+            <T v="body" size={15.2} lh={1.5} color={c.pastel.butter.ink} style={styles.act} onPress={() => act(b.kind)} accessibilityRole="link">{b.text}</T>
+          ) : <T v="body" size={15.2} lh={1.5} color={c.pastel.butter.ink} style={{ fontWeight: "600" }}>{b.text}</T>}
+        </T>
+      ))}
+    </T>
   ) : null;
 
+  const toggleType = (slug: string) => {
+    haptics.select();
+    setTypeSet(s => { const n = new Set(s); if (n.has(slug)) n.delete(slug); else n.add(slug); return n; });
+  };
+
   let body: React.ReactNode;
-  if (!all) {
-    body = q.isError ? <ErrorState title="Couldn't load the board." error={q.error} onRetry={() => void q.refetch()} /> : <><SkeletonCard height={90} /><SkeletonList count={4} /></>;
-  } else if (!all.length) {
-    body = (
-      <EmptyState
-        pictures={[{ icon: "spark", tone: "butter", label: "Jot the idea" }, { icon: "people", tone: "peach", label: "Someone picks it up" }, { icon: "cal", tone: "sky", label: "Confirm: it's on the Timeline" }]}
-        title="Nothing on the board."
-        line={officer ? "Start with an idea. It needs only a name and a kind; the rest comes as it firms up." : "When officers start planning events, you'll see them here before they hit the calendar."}
-        action={officer ? { label: "Add your first idea", icon: "plus", onPress: () => setAdding(true) } : undefined} />
-    );
+  if (loading) {
+    body = q.isError
+      ? <ErrorState title="Could not load programming events." error={q.error} onRetry={() => void q.refetch()} />
+      : <><SkeletonCard height={180} /><SkeletonCard height={320} /></>;
+  } else if (dayOne) {
+    body = sample ? (
+      <DayOne sample={sample} owner={officer ? me.name ?? "You" : DAY_ONE.memberOwner} today={today} officer={officer} types={types} onNew={() => setIdea(true)} />
+    ) : null;
   } else {
-    const st = stats(all, today);
-    const line = statusLine(all, today, officer);
-    const jump = (k: Clause["kind"]) => {
-      haptics.select();
-      setTypes(new Set()); setFind("");
-      setLane(k === "wrap" ? "confirmed" : k === "ready" ? "planning" : "idea");
-    };
-    const layout = LinearTransition.duration(m.t(m.reduced ? 0 : 260)).easing(EASE.standard).reduceMotion(ReduceMotion.Never);
+    const labels = chipTypes.filter(t => typeSet.has(t.slug)).map(t => t.label);
     body = (
       <>
-        <T v="body" color={c.ink2} style={{ lineHeight: 23 }}>
-          {line.lead ? <T v="body" color={c.ink2}>{"Next up: "}<T v="body" color={c.ink} style={{ fontWeight: "700" }}>{line.lead.title}</T>{` ${line.lead.when}. `}</T> : <T v="body" color={c.ink2}>{"Nothing dated coming up. "}</T>}
-          {line.bits.map(b => (
-            <T key={b.kind} v="body" color={b.kind === "wrap" ? c.pastel.rose.ink : c.pastel.butter.ink} style={styles.clause} onPress={() => jump(b.kind)} accessibilityRole="link">{b.text}</T>
-          ))}
-          {!line.bits.length ? <T v="body" color={c.ink2}>Every plan has someone on it.</T> : null}
-        </T>
-
-        <View style={styles.glance}>
-          <Measure label="On the slate" value={String(st.slate)} />
-          <Measure label="Next 14 days" value={String(st.next14)} sub={st.next14Unready ? `${st.next14Unready} not ready` : undefined} warn={st.next14Unready > 0} />
-          <Measure label="Unowned" value={String(st.unowned)} warn={st.unowned > 0} />
-          <Measure label="Average" value={st.avg != null ? `${st.avg.toFixed(1)}★` : "–"} sub={st.rated ? `${st.rated} rated` : undefined} />
-        </View>
-
-        <LaneTabs lane={cur} counts={counts} onPick={s => { if (s !== cur) { haptics.select(); setLane(s); } }} />
-
-        {usedTypes.length > 1 || all.length > 12 ? (
-          <View style={{ gap: 10 }}>
-            {all.length > 12 ? (
-              <View style={[styles.find, { borderColor: c.line2, backgroundColor: c.card }]}>
-                <Icon name="search" size={15} color={c.ink3} />
-                <TextInput value={find} onChangeText={setFind} placeholder="Find an event" placeholderTextColor={c.faint} style={[styles.findIn, { color: c.ink }]} accessibilityLabel="Find an event" />
-              </View>
-            ) : null}
-            {usedTypes.length > 1 ? (
-              <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>
-                {usedTypes.map(t => {
-                  const on = types.has(t.slug);
-                  const p = c.pastel[toneOf(t.slug)];
-                  return (
-                    <Pressable key={t.slug} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={t.label}
-                      onPress={() => { haptics.select(); setTypes(s => { const n = new Set(s); if (n.has(t.slug)) n.delete(t.slug); else n.add(t.slug); return n; }); }}
-                      style={[styles.chip, { borderColor: on ? c.ink : p.border, backgroundColor: on ? p.soft : c.card }]}>
-                      <View style={[styles.dot, { backgroundColor: p.ink }]} />
-                      <T v="pill" color={on ? c.ink : c.ink2}>{t.label}</T>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            ) : null}
-          </View>
-        ) : null}
-
-        <View key={cur} style={{ gap: 12 }}>
-          <T v="meta" color={c.ink3}>{STAGE[cur].meaning}{cur === "confirmed" || cur === "done" ? " On the chapter's Timeline." : " Not on the Timeline yet."}</T>
-          {inLane.map((e, i) => (
-            <Animated.View key={e.id} layout={layout} exiting={FadeOut.duration(m.t(150)).reduceMotion(ReduceMotion.Never)}
-              entering={(m.reduced ? FadeIn.duration(m.t(160)) : FadeInDown.delay(m.t(Math.min(i, 8) * 30)).duration(m.t(260)).springify().damping(18)).reduceMotion(ReduceMotion.Never)}>
-              <EventCard e={e} i={i} today={today} onPress={() => setOpen(e.id)} />
-            </Animated.View>
-          ))}
-          {!inLane.length ? (
-            <View style={[styles.laneEmpty, { borderColor: c.line2 }]}>
-              <T v="body" color={c.ink2}>{types.size || find.trim() ? "Nothing here matches that filter." : LANE_EMPTY[cur]}</T>
-              {officer && cur === "idea" && !types.size && !find.trim() ? <Pressable onPress={() => setAdding(true)} accessibilityRole="button"><T v="callout" color={c.pastel.butter.ink}>+ New idea</T></Pressable> : null}
+        <View style={styles.measures}>
+          {measures(stats).map(m => (
+            <View key={m.label} style={[styles.measure, { borderColor: c.line2, backgroundColor: c.card }]} accessible accessibilityLabel={`${m.label}: ${m.value}${m.unit ?? ""}. ${m.note}`}>
+              <T v="kicker" size={10.5} color={c.ink3} numberOfLines={1}>{m.label}</T>
+              <T v="hero" size={30} ls={-0.03}>{m.value}{m.unit ? <T v="body" size={15} color={c.ink3}>{m.unit}</T> : null}</T>
+              <T v="mono" size={11.5} color={m.warn ? c.pastel.rose.ink : m.good ? c.pastel.mint.ink : c.ink3}>{m.note}</T>
             </View>
-          ) : null}
+          ))}
         </View>
+
+        <View style={styles.toolbar}>
+          <Segmented<View_> value={view} label="View" onChange={v => { if (v !== view) { haptics.select(); setView(v); } }}
+            options={[{ value: "board", label: PAGE.views.board }, { value: "calendar", label: PAGE.views.calendar }]} />
+          {chipTypes.map(t => {
+            const on = typeSet.has(t.slug);
+            const cat = typeCat(t.slug, types, c);
+            return (
+              <Pressable key={t.slug} onPress={() => toggleType(t.slug)} accessibilityRole="checkbox" accessibilityState={{ checked: on }}
+                style={[styles.chip, { borderColor: on ? cat.bd : c.line2, backgroundColor: on ? cat.soft : c.card }]}>
+                <View style={[styles.dot, { backgroundColor: cat.ink }]} />
+                <T v="pill" color={on ? cat.ink : c.ink2}>{t.label}</T>
+              </Pressable>
+            );
+          })}
+          <View style={[styles.search, { borderColor: c.line2, backgroundColor: c.card }]}>
+            <Icon name="search" size={15} color={c.ink3} />
+            <TextInput value={search} onChangeText={setSearch} placeholder={PAGE.search} placeholderTextColor={c.faint} accessibilityLabel={PAGE.search}
+              returnKeyType="search" style={[resolveType("body", scale), { flex: 1, color: c.ink, paddingVertical: 8 }]} />
+          </View>
+        </View>
+
+        <View onLayout={e => { viewY.current = e.nativeEvent.layout.y; }}>
+          {filtered.length === 0 ? (
+            <View style={[styles.nomatch, { borderColor: c.line2 }]}>
+              <T v="subhead">{NO_MATCH.title}</T>
+              <T v="body" color={c.ink2}>{noMatchLine(noMatchBits(labels, search), events.length)}</T>
+              <Pressable onPress={() => { setSearch(""); setTypeSet(new Set()); }} accessibilityRole="button"
+                style={({ pressed }) => [styles.ghost, { borderColor: c.line2 }, pressed && pressedDim]}>
+                <T v="buttonSm" color={c.ink2}>{NO_MATCH.clear}</T>
+              </Pressable>
+            </View>
+          ) : view === "board" ? (
+            <Lanes events={filtered} today={today} types={types} onOpen={setOpen} />
+          ) : (
+            <CalendarView events={filtered} today={today} types={types} officer={officer} onOpen={setOpen} />
+          )}
+        </View>
+
+        <TimelineStrip events={events} today={today} types={types} onOpen={setOpen} />
       </>
     );
   }
 
+  const calEvent = logFor?.calendarEventId
+    ? [{ id: logFor.calendarEventId, title: logFor.title, date: logFor.dueDate ?? today, category: logFor.category } as unknown as CalendarEvent]
+    : EMPTY;
+
   return (
-    <Screen title={title} large back="More" right={right} onRefresh={() => q.refetch()} subtitle={me.org?.activeTerm?.label}>
+    <Screen title={navLabel(me, "Programming")} back="More" scrollRef={scroll} onRefresh={() => Promise.all([q.refetch(), typesQ.refetch()])}>
+      {dayOne ? (
+        <PageBrief pill={pill} kicker={kicker} lead={PAGE.dayOneParts[0]} mark={PAGE.dayOneParts[1]} tail="" markTone="lilac" digest={null}
+          quiet={null} sub={PAGE.dayOneLine} />
+      ) : (
+        <PageBrief pill={pill} kicker={kicker} lead={PAGE.titleParts[0]} mark={PAGE.titleParts[1]} tail={PAGE.titleParts[2]} markTone="lilac"
+          sub={statusLine ? null : PAGE.nothing} />
+      )}
+      {!dayOne && statusLine ? <View style={{ marginTop: -6 }}>{statusLine}</View> : null}
+
+      <View style={styles.acts}>
+        {officer ? (
+          <>
+            <Pressable onPress={() => setIdea(true)} accessibilityRole="button"
+              style={({ pressed }) => [styles.add, { borderColor: c.ink, backgroundColor: c.card }, pressed ? { transform: [{ translateX: 1 }, { translateY: 1 }] } : hard(c.note.fill.butter, 3)]}>
+              <Icon name="plus" size={15} color={c.ink} />
+              <T v="button" size={14} color={c.ink}>{PAGE.newIdea}</T>
+            </Pressable>
+            {!dayOne ? (
+              <Pressable onPress={() => setForm({ editing: null })} accessibilityRole="button"
+                style={({ pressed }) => [styles.add, { borderColor: c.ink, backgroundColor: c.ink }, pressed ? { transform: [{ translateX: 1 }, { translateY: 1 }] } : hard(c.pastel.lilac.fill, 3)]}>
+                <Icon name="plus" size={15} color={c.paper} />
+                <T v="button" size={14} color={c.paper}>{PAGE.newEvent}</T>
+              </Pressable>
+            ) : null}
+          </>
+        ) : null}
+        {!dayOne ? (
+          <Pressable onPress={() => setHelp(true)} accessibilityRole="button" accessibilityLabel={PAGE.help}
+            style={({ pressed }) => [styles.help, { borderColor: c.line2 }, pressed && pressedDim]}>
+            <T v="button" size={15} color={c.ink2}>?</T>
+          </Pressable>
+        ) : null}
+      </View>
+
       {body}
-      <EventSheet id={open} onClose={() => setOpen(null)} />
-      {officer ? <NewIdea open={adding} onClose={() => setAdding(false)} onAdded={e => { setLane("idea"); setOpen(e.id); }} /> : null}
+
+      <EventSheet id={open} roster={roster.data ?? EMPTY} roles={roles.data ?? EMPTY} types={types} onClose={() => setOpen(null)}
+        onEdit={e => setForm({ editing: e })} onDelete={setDoomed} onOpen={setStep} onLogTx={setLogFor} />
+      <HelpSheet open={help} onClose={() => setHelp(false)} />
+      {officer ? (
+        <>
+          <NewIdea open={idea} types={formTypes} onClose={() => setIdea(false)} onAdded={e => setOpen(e.id)} />
+          <EventForm open={form != null} editing={form?.editing ?? null} types={formTypes} onClose={() => setForm(null)}
+            onSaved={e => { if (!form?.editing) setOpen(e.id); }} />
+          <FixStep target={step?.kind === "fix" ? step : null} roster={roster.data ?? EMPTY} roles={roles.data ?? EMPTY} types={formTypes} onClose={() => setStep(null)} />
+          <WrapUp e={step?.kind === "wrap" ? step.e : null} onClose={() => setStep(null)} />
+          <DeleteEvent e={doomed} onClose={() => setDoomed(null)} onDeleted={id => { if (open === id) setOpen(null); }} />
+          <LedgerTxForm open={logFor != null} tx={null} catalog={catalog} terms={semq.data ?? EMPTY} activeTerm={me.org?.activeTerm?.label ?? null}
+            events={calEvent} onClose={() => setLogFor(null)} lockType="expense" lockEventIds={logFor?.calendarEventId ? [logFor.calendarEventId] : []}
+            initialDate={logFor?.dueDate ?? today} onSaved={() => { if (logFor?.calendarEventId) eventTxnsMoved(logFor.calendarEventId); }} />
+        </>
+      ) : null}
     </Screen>
   );
 }
 
-/** Within a lane: what needs someone first, then by date (dateless last); done newest first. */
-function sortLane(l: ProgrammingEvent[], lane: ProgrammingStage, today: string): ProgrammingEvent[] {
-  const rank = (e: ProgrammingEvent) => (needsWrapUp(e, today) ? 0 : readyToConfirm(e) ? 1 : e.stage === "idea" && !e.owner ? 2 : 3);
-  return l.slice().sort((a, b) => {
-    if (lane === "done") return (b.dueDate ?? "").localeCompare(a.dueDate ?? "");
-    return rank(a) - rank(b) || (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999") || a.id - b.id;
-  });
-}
-
-function Measure({ label, value, sub, warn }: { label: string; value: string; sub?: string; warn?: boolean }) {
-  const { c } = useTheme();
-  return (
-    <View style={[styles.measure, { borderColor: c.line, backgroundColor: c.card }]} accessible accessibilityLabel={`${label}: ${value}${sub ? `, ${sub}` : ""}`}>
-      <T v="title" style={{ fontSize: 22, lineHeight: 26 }} color={warn ? c.pastel.rose.ink : c.ink}>{value}</T>
-      <T v="kicker" color={c.ink3} numberOfLines={1} style={{ fontSize: 9 }}>{label}</T>
-      {sub ? <T v="meta" color={warn ? c.pastel.rose.ink : c.ink3} numberOfLines={1} style={{ fontSize: 11 }}>{sub}</T> : null}
-    </View>
-  );
-}
-
-/** Four lane tabs; an ink marker slides under the chosen one (settle spring; reduced: it jumps). */
-function LaneTabs({ lane, counts, onPick }: { lane: ProgrammingStage; counts: Record<ProgrammingStage, number>; onPick: (s: ProgrammingStage) => void }) {
-  const { c } = useTheme();
-  const m = useMotion();
-  const [w, setW] = useState(0);
-  const idx = STAGES.indexOf(lane);
-  const x = useSharedValue(idx);
-  const first = useRef(true);
-  useEffect(() => {
-    if (first.current || m.reduced) { x.value = idx; first.current = false; return; }
-    x.value = withSpring(idx, m.spring("settle"));
-  }, [idx, m]); // eslint-disable-line react-hooks/exhaustive-deps
-  const seg = w / 4;
-  const mark = useAnimatedStyle(() => ({ opacity: w ? 1 : 0, transform: [{ translateX: seg * x.value }] }));
-  return (
-    <View style={[styles.tabs, { borderColor: c.ink, backgroundColor: c.card }]} onLayout={e => setW(e.nativeEvent.layout.width - 3)} accessibilityRole="tablist">
-      <Animated.View style={[styles.tabMark, { width: seg, backgroundColor: c.ink }, mark]} />
-      {STAGES.map(s => {
-        const on = s === lane;
-        return (
-          <Pressable key={s} onPress={() => onPick(s)} style={({ pressed }) => [styles.tab, pressed && pressedDim]} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${STAGE[s].label}, ${counts[s]}`}>
-            <T v="pill" color={on ? c.paper : c.ink2} numberOfLines={1}>{STAGE[s].label}</T>
-            <View style={[styles.count, { backgroundColor: on ? c.note.fill[STAGE[s].tone] : c.paper2 }]}>
-              <T v="mono" color={on ? c.note.ink : c.ink3} style={{ fontSize: 10.5, fontWeight: "700" }}>{counts[s]}</T>
-            </View>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  plus: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-  clause: { fontWeight: "600", textDecorationLine: "underline", textDecorationStyle: "dotted" },
-  glance: { flexDirection: "row", gap: 7 },
-  measure: { flex: 1, gap: 1, paddingVertical: 10, paddingHorizontal: 9, borderRadius: 14, borderWidth: 1.5 },
-  tabs: { flexDirection: "row", borderWidth: 1.5, borderRadius: 14, height: 44, overflow: "hidden" },
-  tabMark: { position: "absolute", top: 0, bottom: 0, left: 0, borderRadius: 12 },
-  tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 2 },
-  count: { minWidth: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
-  find: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 12, minHeight: 44 },
-  findIn: { flex: 1, fontSize: 16, paddingVertical: 8 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 7, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, minHeight: 34 },
+  act: { fontWeight: "600", textDecorationLine: "underline", textDecorationStyle: "dashed" },
+  acts: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10 },
+  add: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 11, paddingHorizontal: 18, borderRadius: 999, borderWidth: 1.5 },
+  help: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  measures: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  measure: { flexBasis: "47%", flexGrow: 1, gap: 6, borderWidth: 1.5, borderRadius: 18, padding: 16 },
+  toolbar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 7, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, minHeight: 38 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  laneEmpty: { gap: 8, padding: 18, borderRadius: 16, borderWidth: 1.5, borderStyle: "dashed", alignItems: "flex-start" },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 14, minHeight: 42, width: "62%" },
+  nomatch: { gap: 10, padding: 20, borderRadius: 18, borderWidth: 1.5, borderStyle: "dashed", alignItems: "flex-start" },
+  ghost: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 14, minHeight: 38, justifyContent: "center" },
 });

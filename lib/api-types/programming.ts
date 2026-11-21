@@ -68,3 +68,18 @@ export interface RoleChip {
 
 /** A link attached to one programming event (GET/POST /api/programming/[id]/docs): a Doc row without the library's author name. */
 export type ProgrammingDoc = Omit<Doc, "createdByName">;
+
+/**
+ * One of the org's optional event fields (GET /api/events/fields): every row,
+ * disabled ones included; the panel collects the enabled ones an event hasn't
+ * detached. `kind` is lib/event-fields FieldKind.
+ */
+export interface EventFieldRow {
+  id: number;
+  slug: string;
+  label: string;
+  kind: "text" | "num" | "money" | "bool" | "date" | "person" | "file";
+  enabled: boolean;
+  builtin: boolean;
+  displayOrder: number;
+}

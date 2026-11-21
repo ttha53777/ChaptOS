@@ -13,7 +13,10 @@ import { TxForm, type TxFormEvent } from "../treasury/TxForm";
 import type { Doc } from "@/app/org/[slug]/docs/lib";
 import { requestJson } from "../../lib/api";
 import { ownerLabel } from "@/lib/event-owner";
-import { fieldsFor, hasRequiredField, missingFor, type RequiredField } from "@/lib/programming";
+import { hasRequiredField, type RequiredField } from "@/lib/programming";
+import {
+  LOCKED_ACTION, PANEL, attendanceText, gateBar, gateTargetOf, hasOptionalAnswer, lockedFieldToast, panelRequired, requiredEmpty, whenLine,
+} from "@/lib/programme/board";
 import { fieldsForEvent, type EventFieldDef } from "@/lib/event-fields";
 import { FieldTogglePills } from "./panel/FieldTogglePills";
 import { useOrgPath } from "../../hooks/useOrgPath";
@@ -111,12 +114,12 @@ export function ProgrammingDetailPanel({
     setRefusedKey(null);
     requestAnimationFrame(() => setRefusedKey(key));
     if (isDone) {
-      toast.info(`${label} is part of the record now — a wrapped event can't be edited.`);
+      toast.info(lockedFieldToast(label, true));
       return;
     }
-    toast.info(`${label} is locked while the chapter can see this event.`, {
+    toast.info(lockedFieldToast(label, false), {
       action: {
-        label: "Move to Planning",
+        label: LOCKED_ACTION,
         onClick: async () => {
           if (!onStage) return;
           setStageLoading(true);
@@ -165,7 +168,7 @@ export function ProgrammingDetailPanel({
    * it is owned, the full confirm set is what's relevant.
    */
   const requiredSet = useMemo(
-    () => fieldsFor(event.stage === "idea" ? "planning" : "confirmed"),
+    () => panelRequired(event.stage),
     [event.stage],
   );
   const requiredGot = requiredSet.filter(f => hasRequiredField(event, f.key)).length;
@@ -174,8 +177,8 @@ export function ProgrammingDetailPanel({
   // The lane the footer offers, and what still stands between here and it. Same
   // boundary the required list is shown for, so the counter above and the gate
   // below can never disagree about what's missing.
-  const gateTarget: ProgrammingStage = event.stage === "idea" ? "planning" : "confirmed";
-  const gateMissing = missingFor(event, gateTarget);
+  const gateTarget: ProgrammingStage = gateTargetOf(event.stage);
+  const gate = gateBar(event);
 
   // Fetch Resources docs once for the / picker.
   useEffect(() => {
@@ -224,16 +227,16 @@ export function ProgrammingDetailPanel({
             {canManage && (
               <>
                 <button onClick={onEdit} className="ev-pn-btn">
-                  Edit
+                  {PANEL.edit}
                 </button>
                 <button onClick={onDelete} className="ev-pn-btn danger">
-                  Delete
+                  {PANEL.delete}
                 </button>
               </>
             )}
             {/* Last in the row, and glyph-only. A member with no manage rights
                 still needs a way out, so this sits outside the canManage gate. */}
-            <button onClick={onClose} className="ev-pn-close" aria-label="Close event details">
+            <button onClick={onClose} className="ev-pn-close" aria-label={PANEL.close}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden>
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
@@ -243,8 +246,7 @@ export function ProgrammingDetailPanel({
 
         <h2 className="ev-pn-title">{event.title}</h2>
         <p className="ev-pn-when">
-          {event.dueDate ? fmtDate(event.dueDate) : "No date set"}{formatEventTime(event.time, event.schedule) ? ` · ${formatEventTime(event.time, event.schedule)}` : ""}{event.location ? ` · ${event.location}` : ""}
-          {event.collab ? ` · w/ ${event.collab}` : ""}
+          {whenLine(event, formatEventTime(event.time, event.schedule))}
         </p>
 
         {/* The owner lives in the Required list as an editable row, so repeating
@@ -253,11 +255,11 @@ export function ProgrammingDetailPanel({
             that same row rather than throwing a modal over the sheet. */}
         {!event.owner && !event.ownerNote && (
           <div className="ev-pn-lead">
-            <span className="pl-k">Unowned</span>
+            <span className="pl-k">{PANEL.unowned}</span>
             <span className="pl-who">
               {canManage && (
                 <button type="button" onClick={() => { setEditingOwner(true); setHuntKey("owner"); }}>
-                  Give it an owner
+                  {PANEL.giveOwner}
                 </button>
               )}
             </span>
@@ -278,7 +280,7 @@ export function ProgrammingDetailPanel({
                 <rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 018 0v3" />
               </svg>
             )}
-            {event.calendarEventId != null ? "On the chapter Timeline" : "Not visible to the Timeline yet"}
+            {event.calendarEventId != null ? PANEL.onTimeline : PANEL.offTimeline}
           </span>
         </div>
       </div>
@@ -316,21 +318,21 @@ export function ProgrammingDetailPanel({
         {isDone && (
           <div className="ev-pn-wrap mx-[22px] mt-[18px]">
             {/* Paper files a wrapped event with a rubber stamp. */}
-            <span className="pw-stamp" aria-hidden>WRAPPED</span>
+            <span className="pw-stamp" aria-hidden>{PANEL.wrapStamp}</span>
             <div className="pw-head">
-              <span className="pw-k">Wrap-up</span>
+              <span className="pw-k">{PANEL.wrapK}</span>
               {event.successRating != null ? (
                 <span className="pw-stars" role="img" aria-label={`Rated ${event.successRating} out of 5`}>
                   {"★".repeat(event.successRating)}
                   <span className="off" aria-hidden>{"☆".repeat(5 - event.successRating)}</span>
                 </span>
               ) : (
-                <span className="pw-none">Not rated</span>
+                <span className="pw-none">{PANEL.notRated}</span>
               )}
             </div>
             {event.wrapUpNotes
               ? <p className="pw-notes">{event.wrapUpNotes}</p>
-              : <p className="pw-nonotes">No review notes.</p>}
+              : <p className="pw-nonotes">{PANEL.noNotes}</p>}
           </div>
         )}
 
@@ -351,8 +353,8 @@ export function ProgrammingDetailPanel({
             fraction the lane gate is computing, shown where you can act on it. */}
         <section className="ev-pn-sec">
           <div className="ps-head">
-            <span className="ps-t">Required</span>
-            <span className="ps-why gates">Gates the board</span>
+            <span className="ps-t">{PANEL.required}</span>
+            <span className="ps-why gates">{PANEL.gates}</span>
             <span className={`ps-n${requiredGot === requiredSet.length ? " ready" : ""}`}>
               {requiredGot}/{requiredSet.length}
             </span>
@@ -386,8 +388,8 @@ export function ProgrammingDetailPanel({
         {(enabledFields.length > 0 || (canManage && fieldDefs.length > 0)) && (
           <section className="ev-pn-sec">
             <div className="ps-head">
-              <span className="ps-t">Optional</span>
-              <span className="ps-why opt">Never blocks</span>
+              <span className="ps-t">{PANEL.optional}</span>
+              <span className="ps-why opt">{PANEL.never}</span>
               <span className="ps-n">{optionalGot}/{enabledFields.length}</span>
             </div>
             <div className="ev-flds">
@@ -408,7 +410,7 @@ export function ProgrammingDetailPanel({
               ))}
               {enabledFields.length === 0 && (
                 <p className="ev-fld-none">
-                  Nothing optional on this event. Attach a field below.
+                  {PANEL.noOptional}
                 </p>
               )}
             </div>
@@ -431,7 +433,7 @@ export function ProgrammingDetailPanel({
         )}
 
         <section className="ev-pn-sec space-y-2">
-          <h3 className="ev-pn-h">Spending</h3>
+          <h3 className="ev-pn-h">{PANEL.spending}</h3>
           {canManage ? (
             <div className="relative max-w-[160px]">
               <span className="ev-pn-dollar">$</span>
@@ -450,20 +452,20 @@ export function ProgrammingDetailPanel({
           ) : (
             <p className="ev-pn-amt">{fmt$(event.spendingCents / 100)}</p>
           )}
-          <p className="ev-pn-note">Manual total — linked transactions are tracked separately below.</p>
+          <p className="ev-pn-note">{PANEL.spendingNote}</p>
         </section>
 
         {/* ── Linked Transactions ─────────────────────────────────────────── */}
         {event.calendarEventId && (
           <section className="ev-pn-sec space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="ev-pn-h">Linked Transactions</h3>
+              <h3 className="ev-pn-h">{PANEL.linked}</h3>
               {canManage && !showTxForm && (
                 <button
                   onClick={() => setShowTxForm(true)}
                   className="ev-pn-link"
                 >
-                  + Log transaction
+                  {PANEL.logTx}
                 </button>
               )}
             </div>
@@ -498,9 +500,9 @@ export function ProgrammingDetailPanel({
             )}
 
             {txLoading ? (
-              <p className="ev-pn-note">Loading…</p>
+              <p className="ev-pn-note">{PANEL.loadingTx}</p>
             ) : linkedTxns.length === 0 && !showTxForm ? (
-              <p className="ev-pn-note">No transactions linked to this event yet.</p>
+              <p className="ev-pn-note">{PANEL.noTx}</p>
             ) : linkedTxns.length > 0 ? (
               <>
                 <div className="space-y-1">
@@ -517,7 +519,7 @@ export function ProgrammingDetailPanel({
                   ))}
                 </div>
                 <div className="flex items-center justify-between rounded-lg border border-[rgba(var(--ink-rgb),0.06)] bg-[rgba(var(--ink-rgb),0.04)] px-3 py-2">
-                  <span className="ev-pn-h">Total expenses</span>
+                  <span className="ev-pn-h">{PANEL.totalExpenses}</span>
                   <span className="ev-pn-tx-amt out total">
                     {fmt$(linkedTxns.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0))}
                   </span>
@@ -535,60 +537,31 @@ export function ProgrammingDetailPanel({
             ends of a scrolling drawer. */}
         {onStage && canManage && (
           <div className="ev-pn-foot">
-            {isDone ? (
-              <div className="ev-pn-gatebar ready">
-                <CheckIcon />
-                Wrapped{event.successRating != null ? ` · rated ${event.successRating}/5` : ""}.
-              </div>
-            ) : event.stage === "confirmed" ? (
-              <div className="ev-pn-gatebar ready">
-                <CheckIcon />
-                Confirmed and published to the chapter.
-              </div>
-            ) : gateMissing.length === 0 ? (
-              <>
-                <div className="ev-pn-gatebar ready">
-                  <CheckIcon />
-                  {event.stage === "idea"
-                    ? "Owned — it can move into Planning."
-                    : "Everything's filled — confirming publishes it."}
-                </div>
-                <button
-                  type="button"
-                  className="ev-pn-go"
-                  disabled={stageLoading}
-                  onClick={async () => {
-                    setStageLoading(true);
-                    try { await onStage(event.id, gateTarget); }
-                    finally { setStageLoading(false); }
-                  }}
-                >
-                  {event.stage === "idea" ? "Start planning" : "Confirm & publish"}
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="ev-pn-gatebar blocked">
-                  <WarnIcon />
-                  Needs {gateMissing.map(f => f.label.toLowerCase()).join(" and ")} to{" "}
-                  {event.stage === "idea" ? "start planning" : "confirm"}.
-                </div>
-                {/* Not the move — the first thing standing in its way. A button
-                    that only ever fails is worse than one that does something. */}
-                <button
-                  type="button"
-                  className="ev-pn-go"
-                  onClick={() => {
-                    const first = gateMissing[0];
-                    if (first.key === "owner") setEditingOwner(true);
-                    setHuntKey(first.key);
-                  }}
-                >
-                  {gateMissing[0].key === "owner"
-                    ? "Add an owner"
-                    : `Add ${gateMissing[0].label.toLowerCase()}`}
-                </button>
-              </>
+            <div className={`ev-pn-gatebar ${gate.ready ? "ready" : "blocked"}`}>
+              {gate.ready ? <CheckIcon /> : <WarnIcon />}
+              {gate.text}
+            </div>
+            {/* When blocked, not the move — the first thing standing in its way.
+                A button that only ever fails is worse than one that does something. */}
+            {gate.go && (
+              <button
+                type="button"
+                className="ev-pn-go"
+                disabled={gate.go.stage ? stageLoading : undefined}
+                onClick={async () => {
+                  const go = gate.go;
+                  if (go?.field) {
+                    if (go.field === "owner") setEditingOwner(true);
+                    setHuntKey(go.field);
+                    return;
+                  }
+                  setStageLoading(true);
+                  try { await onStage(event.id, gateTarget); }
+                  finally { setStageLoading(false); }
+                }}
+              >
+                {gate.go.label}
+              </button>
             )}
           </div>
         )}
@@ -724,11 +697,11 @@ function FieldRowBody({
     return canEdit ? (
       <span className="ev-fld-v">
         <button type="button" onClick={() => commit(!raw)} className={`ev-fld-bool${raw ? " on" : ""}`}>
-          {raw ? "Yes" : "No"}
+          {raw ? PANEL.yes : PANEL.no}
         </button>
       </span>
     ) : (
-      <ReadValue text={raw ? "Yes" : "No"} />
+      <ReadValue text={raw ? PANEL.yes : PANEL.no} />
     );
   }
 
@@ -766,23 +739,6 @@ function FieldRowBody({
   ) : (
     <ReadValue text={asText || null} />
   );
-}
-
-/**
- * Whether an optional field has an answer.
- *
- * Three of the built-ins are backed by real columns rather than fieldValues (see
- * COLUMN_BACKED_FIELDS), so a naive fieldValues lookup reports a filled
- * description as empty and the counter drifts from what the rows show.
- */
-function hasOptionalAnswer(event: ProgrammingTask, def: EventFieldDef): boolean {
-  if (def.slug === "description") return Boolean(event.description?.trim());
-  if (def.slug === "cohost") return Boolean(event.collab?.trim());
-  if (def.slug === "attachment") return Boolean(event.attachmentUrl || event.attachmentDocId != null);
-  const v = event.fieldValues?.[def.slug];
-  if (v == null || v === "") return false;
-  // A boolean is answered by existing; `false` is a value, not an empty.
-  return true;
 }
 
 /**
@@ -836,11 +792,7 @@ function RequiredRow({
   // gate left to satisfy, so it says what's true instead: the answer is simply
   // not on the record. Telling a Done event it "needs an owner to start
   // planning" names a move that no longer exists.
-  const emptyText = event.stage === "done"
-    ? "Never recorded"
-    : `Needed to ${
-        field.gate === "planning" ? "start planning" : field.gate === "confirmed" ? "confirm" : "save"
-      }`;
+  const emptyText = requiredEmpty(event.stage, field);
 
   let value: React.ReactNode = null;
   if (field.key === "title") value = event.title;
@@ -848,7 +800,7 @@ function RequiredRow({
   else if (field.key === "date") value = event.dueDate ? fmtDate(event.dueDate) : null;
   else if (field.key === "location") value = event.location || null;
   else if (field.key === "mandatory") {
-    value = event.mandatory ? "Required of every member" : "Optional — no attendance taken";
+    value = attendanceText(event.mandatory);
   } else if (field.key === "owner") {
     value = event.owner ? (
       <>
@@ -939,7 +891,7 @@ function RequiredRow({
 function ReadValue({ text, mono }: { text: string | null; mono?: boolean }) {
   return text
     ? <span className={`ev-fld-v${mono ? " mono" : ""}`}>{text}</span>
-    : <span className="ev-fld-v empty">Not set</span>;
+    : <span className="ev-fld-v empty">{PANEL.notSet}</span>;
 }
 
 /** Commit-on-blur text input, so a field isn't PATCHed on every keystroke. */

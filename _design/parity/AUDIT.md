@@ -39,7 +39,7 @@ Legend: ✅ matches the web phone · 🟡 built, but from the paper mocks rather
 | Tasks | `more/tasks` | ✅ | Phase 6: the web's Overdue/Upcoming list, spotlight, ballot, task/poll sheets with the who-picker. |
 | Docs | `more/docs` | ✅ | Phase 8a: brief and meta line, toolbar, pinned shelf, manila sections, every doc/folder write, day one. See "Docs (Phase 8a)" below. |
 | Media | `more/media` | ✅ | Phase 8b: brief, Add post / Ask, measures that jump, lanes, month, detail with in-place dates, form, delete, day one. See "Media (Phase 8b)" below. |
-| Programming | `more/programming` | 🟡 | Lanes and wrap-ups exist. Web has the gated lanes and day-one steps. |
+| Programming | `more/programming` | ✅ | Phase 8c: brief with tappable clauses, measures, Board/Calendar, the four gated lanes, timeline strip, the event sheet in panel order, fix step, wrap-up, day one. See "Programming (Phase 8c)" below. |
 | Service | `more/service` | 🟡 | Web has PaperService, wide modal forms, and day one. |
 | Parties | `more/parties` | 🟡 | The ledger and wrap-ups exist. Diff the roll and wrap-up door. |
 | Fundraisers | `more/fundraisers` | 🟡 | Web has jars over the ledger and the wrap-up total. |
@@ -344,4 +344,121 @@ Built 2026-11-20.
   - Adding scrolls to the new post's row from measured layout. The web uses `scrollIntoView`.
 - **Not exercised:** a server refusal (the routes validate what the form already enforces), the events-load error, and a retired-format post ("Keep X"; the seed's "Story + Feed" post was not edited). Also the live bearer smoke (it needs a Supabase token).
 - **Removed:** the mock-styled briefing, the large title with the + button, the "Showing X" narrowing, the month legend's "event promoted" caption (not on the web), DayPosts (a day now has one pill per post), and the app-only words ("No event / A post of its own", "(retired format)", "Promoting (optional)"). `lab/media.tsx` still imports Snap, MeasureTile, LaneHead, PostRow, Month and the older model names, so those stay.
+
+## Programming (Phase 8c), what landed
+
+Built 2026-11-20.
+
+- **Shared rules:** `lib/programme/board.ts`. It is named `programme` because `@/lib/events` is the server's event bus. SHARED now also whitelists `@/lib/state/programming-stage`, `@/lib/event-owner`, `@/lib/event-fields` and `@/lib/calendar-feed/legacy-time`.
+  - The gates moved here from `lib/programming.ts`, which re-exports them for the server: `REQUIRED_FIELDS`, `fieldsFor`, `missingFor`, `canEnter`, `needsConfirmFirst`, `needsWrapUp`, and the term stats and attention list.
+  - Page rules and words, with "today" passed in:
+    - Brief: `PAGE`, `termLabel`, `statusBits`, `leadTail`, `measures`.
+    - Filters: `filterEvents`, `noMatchBits`, `NO_MATCH`.
+    - Board and cards: `BOARD`, `byStage`, `DONE_LIMIT`, `cardWhen`, `cardBlocker`, `cardPlace`, `ideaTilt`.
+    - Calendar and timeline: `CALENDAR`, `undatedOf`, `undatedFoot`, `TIMELINE`, `publishedOf`, `stubLine`.
+    - Day one and help: `DAY_ONE`, `starterIdeas`, `HELP`, `helpRows`.
+    - Panel: `PANEL`, `whenLine`, `panelRequired`, `hasOptionalAnswer`, `lockedFieldToast`, `stageSay`, `stepLocked`, `gateBar`.
+    - Steps: `WRAP`, `RATING_LABELS`, `fixCopy`, `FIX`, `DEMOTE`, `IDEA`, `ideaRemain`.
+    - Every toast in `SAY`.
+  - Two more pure splits for the event form:
+    - `lib/timeline/schedule-length.ts`: `durationLabel` and `suspectLength`, out of ScheduleFields.
+    - `lib/calendar-feed/legacy-time.ts`: `parseLegacyTime`, `timeIsClear` and `UNCLEAR_TIME`, out of the Temporal-backed schedule module, which re-exports them.
+  - The web page, board, card, calendar, undated rail, timeline strip, day one, help, idea composer, wrap-up, fix and demote steps, stage control and detail panel all render from these modules.
+  - Pixel checks:
+    - The first pass over all 62 programming frames was IDENTICAL on 50.
+    - The other 12, and every scene touched by later edits (add, edit, idea, calendar, full, help, filter, nomatch, the four panels), went through a same-session A/B: HEAD's web files against the refactor. All were IDENTICAL.
+    - The only pixels that still move are the pulsing wrap-up dot on the full frames, which differs between runs on HEAD too.
+    - Several frames needed a rerun for dialog-entrance, caret or scroll-offset timing.
+  - `tests/calendar-feed` (90) and `tests/programming` pass on figurints_t6.
+- **Wire (additive):**
+  - `EventFieldRow` in `lib/api-types/programming.ts`.
+  - Route-map lines for `GET /api/events/fields` (every member, disabled rows too) and `POST /api/events/fields` (201, MANAGE_EVENTS).
+  - Contract entries `eventFields` / `eventFieldCreated`, and smoke probes.
+  - The bearer static test passes on all 120 routes.
+- **Page** (`more/programming.tsx`, in the web phone's order):
+  - Brief: the date pill and the term, "The programme." on the mark, then the status line. It leads with "<b>Speaker night</b> is next — Sunday.", then the clauses:
+    - The wrap-up clause opens the oldest wrap-due event and its wrap-up. It is plain text for members.
+    - "N ready to confirm" opens the first one.
+    - "N ideas with no one on it" scrolls to the Idea lane.
+    - Loading reads "Reading the slate…", and an empty status reads "Nothing scheduled."
+  - Actions: New idea and New event for MANAGE_EVENTS (New event is hidden on day one), and "?" (How this board works) for everyone after day one.
+  - Measures: On the slate · Next 14 days · Unowned ideas · Average stars, with the web's notes and warn/good tints.
+  - Toolbar: Board | Calendar, the type chips (multi-select, creatable and not hidden), Search events…
+  - Board: the four lanes stacked as on the phone web, each with dot, name, padlock or eye, and count; "Nothing here" when empty; Done shows 6, then "+N more wrapped" / "Show less". The visibility bracket is hidden under 900px on the web, so it is left out here.
+  - Cards follow the web's DuskCard:
+    - An idea is a type-coloured sticky tilted by its id; a plan is a dashed card; a confirmed event is inked on a hard shadow; a wrapped one is filed.
+    - Each card shows when, place or "w/ collab", REQUIRED and stars, the owner's face ("?" when nobody has it), the blocker or owner, and the eye on confirmed.
+    - A rose dot marks a wrap-up that's due.
+  - Calendar: the undated rail first (count, the drop hint for officers only, rows with STAGE and owner, the foot line), then ‹ month › Today, the legend, SUN…SAT and a dot per event.
+  - "No events match." with the web's sentence and Clear filters.
+  - Timeline strip: "On the chapter timeline · what everyone sees · N published", with the tickets in a swipe row.
+  - Day one: the four figures follow the first starter idea in an org type (fallback "Chapter retreat"). The owner is the viewer, or "An officer" for members. Officers get "Write your first idea"; members get "Nothing planned yet. Your officers will add the first one." Measures, toolbar, timeline and "?" are hidden, as on the web.
+  - Type colours are each type's own hex, mixed as the web's `--tf` / `--ts`, not the Home card's pastel families.
+- **Event sheet** (the web panel's order):
+  - Head: the STAGE and TYPE pills, Edit · Delete (officers) and the close. Then the title, the when line, "UNOWNED · Give it an owner", and the visibility pill.
+  - Ladder: officers tap a step to move. The stage line names the missing fields as links to their rows, with "move it back to Planning" when published.
+  - The wrap-up record on a done event.
+  - Required ("GATES THE BOARD", n/n):
+    - The owner picks inline (Person | Role, Unassign, the roster with titles, roles with "N now" / "nobody holds it now").
+    - Date and location edit inline until the event is published. After that, a tap toasts the lock with "Move to Planning", or "part of the record" once it's done.
+  - Optional ("NEVER BLOCKS"):
+    - The org's fields via `fieldsForEvent`. Text, number, money, yes/no, Description, Co-host, and Attachment (a URL, or "/" to pick a doc: "No docs match — add one in Resources first.").
+    - Officers flip pills for this event. Detaching an answered field asks "Take “X” off this event?" first.
+    - New field (kind cards with the web's examples, the clash line, a 24-field ceiling).
+  - Spending: an input for officers, "$0" for members.
+  - Linked Transactions once the event is published, with "+ Log transaction". It opens the treasury form with the type locked to expense and this event linked, and says "Log Expense".
+  - The gate bar and its button, which either moves the event or jumps to the first field in the way.
+- **Moves** follow the web's `moveStage`:
+  - Backward is free.
+  - Moving an unconfirmed event to Done toasts with "Confirm it", which routes to the confirm step.
+  - A blocked forward move opens the fix step ("One step to start planning" / "One step to confirm", only the missing fields with their hints, "N left" / "All clear").
+  - Done goes through Wrap it up (stars, notes 0/500, Spent).
+  - Success and error haptics follow the server; a refusal toasts `SAY.moveFail` with the server's words.
+- **Forms:**
+  - New idea is the web composer with its preview sticky and "Needs a title + a category".
+  - New event / Edit event follow the web's CalendarEventForm:
+    - Icon rows with sr-only labels, and "Event name".
+    - Date, start → end, and the meta line: "Pick a start time", "Starts 7:00 PM · no end time", "2 hr", " · ends next day", the zone; or "All day · Several days" with a last day.
+    - The same-time and AM/PM-slip warnings, and the schedule errors.
+    - An existing free-text time keeps "As written", with "Calendars show this at…" and "Set a time".
+    - Type chips, where picking a required-by-default type only ever turns Required on.
+    - Required attendance, collab, location, notes.
+    - Create keeps the sheet open and toasts on failure. Edit closes and toasts, as the web does.
+  - Help and Delete use the web's words.
+- **Verified on :3100.** `/api/auth/me` returned ok-today first; a data-only dump was taken before the first write and restored in one transaction after each window. Fresh dumps differed only in the `\restrict` tokens.
+  - New idea (toast) → Give it an owner → Head count, Budget, Attachment URL and Spending (all persisted) → Co-host off → New field "Parity field".
+  - Moves: Idea → Planning. Inline date and location → Confirmed → back to Planning.
+  - Fix step on Food bank shift (date and place), then Confirm & publish.
+  - Wrap-up on Pumpkin carving (4 stars, notes, $30).
+  - The confirm-first toast and its Confirm it.
+  - Edit (Room 202), and Log transaction on Formal (linked, total shown).
+  - New event, then Delete (204).
+  - Detaching an answered Head count (confirm sheet; the server cleared the answer).
+  - The server refused an Edit on a published event, and the app toasted it.
+  - Member 12: no actions anywhere, and the panel is read-only.
+  - Gated off: with `events` removed from ok-today's workflows, More has no Programming tile and the web sidebar has no entry (restored).
+  - Text matches the web word for word: page (admin 2, member 12, day-one 14 and 16), calendar, no-match, the panel at all four stages (officer and member), help, new idea, new event, the fix steps, wrap-up and delete.
+- **Deviations:**
+  - No dragging (lane moves, drag-to-date, the Demote step). The web's touch board can't drag either. The Demote words are shared but unreachable in the app.
+  - Fix, Wrap-up and Delete sheets open on top of the event. On the phone web they render under `.ev-panel` (a web bug, reported, not fixed).
+  - The per-event docs list the app had is replaced by the web's Attachment field.
+  - Date and time use the app's day strip and clock. The web's "change time zone" picker and the DST repeat/gap choosers are not offered; the org's zone is shown as text.
+  - "Add, rename or reorder fields in Settings" is plain text, because the app has no event-fields settings page.
+  - New field, the detach confirm and Log transaction open sheets; the web shows them inline. Log transaction shows the server's refusal under the button, where the web swallows it.
+  - The "ideas with no one on them" clause scrolls to the Idea lane without the web's lane flash.
+  - Type tints mix the hex in sRGB; the web's light theme uses oklch.
+- **Observed on the web (not changed):** a new event's Description is sent on create, and the create schema drops it. The app sends the same wire.
+- **Not exercised:**
+  - A refused create.
+  - Legacy free-text times (no seed rows).
+  - The 24-field ceiling.
+  - "Several days".
+  - The live bearer smoke (it needs a Supabase token).
+- **Removed:**
+  - The lane tabs and their app-only empty lines.
+  - The "Next up:" status line, and the app's own stats, status and ready-to-confirm helpers.
+  - The OffTimeline confirm on backward moves.
+  - The docs attach/detach data calls.
+  - The EmptyState day one.
+  - `lab/programming.tsx` still imports EventCard, Ladder and StarPicker, so those stay.
 

@@ -1,646 +1,792 @@
 /**
- * The sheets Programming opens. Each one is the step a lane asks for, never a bare
- * refusal (the web's EventFixStep / EventWrapUp / EventDemoteStep / NewIdeaComposer):
+ * The sheets Programming opens, each the web's own step (words from lib/programme/board):
  *
- *   OwnerSheet     a person or a role (GET /api/roles); roles show who holds them today
- *   FixStep        a forward move that's missing something: just those fields, then the move
- *   WrapUp         Confirmed → Done: how it went (stars), what it cost, a note; all optional
- *   OffTimeline    a published event going back: says the chapter stops seeing it
- *   NewIdea        a title and a type (or one of the starter ideas)
- *   EditDetails    the rest of an unpublished event's fields
- *   AttachLink     a titled link on the event
+ *   OwnerPicker   Person | Role (+ Unassign): the roster with each member's title, the
+ *                 roles with how many hold them now
+ *   FixStep       a forward move that's missing something: "One step to …", just those
+ *                 fields with their hints, "N left" / "All clear", then the move
+ *   WrapUp        Confirmed → Done: How did it go? (stars), a note, what it cost
+ *   NewIdea       a title and a type; lands in Idea with nobody on it
+ *   EventForm     New event / Edit event: name, date, time, type, attendance, collab,
+ *                 location, notes
+ *   HelpSheet     How this board works, computed from the gates themselves
+ *   DeleteEvent   Delete this event?
  *
- * Every write here is MANAGE_EVENTS. One haptic per result: success when a move or
- * a save lands, error when it's refused (the refusal's words go under the button).
+ * Every write is MANAGE_EVENTS. One haptic per result: success once the server
+ * confirms, error when it refuses (the refusal's words go to a toast or under the
+ * button). Selection chips tap "select".
  */
-import type { Brother, ProgrammingEvent, ProgrammingOwner, ProgrammingStage, RoleChip } from "@/lib/api-types";
+import type { Brother, CalEventType, EventFieldRow, ProgrammingEvent, ProgrammingOwner, ProgrammingStage, RoleChip } from "@/lib/api-types";
+import { roleTitle } from "@/lib/dashboard/roster";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
+import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { errorMessage } from "~/api/errors";
-import { useCalendar, useEventTypes } from "~/data/calendar";
 import { localDay } from "~/data/home";
-import { attachDoc, createProgramming, moveStage, patchProgramming, useRoles, type ProgrammingPatch } from "~/data/programming";
-import { useRoster } from "~/data/tasks";
+import { createProgramming, deleteProgramming, moveStage, patchProgramming, setProgramming, type NewProgrammingBody, type ProgrammingPatch } from "~/data/programming";
 import { useEntryOf } from "~/entry/EntryContext";
-import { Icon } from "~/icons/Icon";
+import { Icon, type IconName } from "~/icons/Icon";
 import { Clock, DayStrip } from "~/meetings/EventForm";
-import { addDays, deviceZone, wallOf, wallToInstant } from "~/meetings/model";
+import { addDays, deviceZone, wallOf, wallToInstant, zoneName } from "~/meetings/model";
+import { durationLabel, suspectLength } from "@/lib/timeline/schedule-length";
+import { parseLegacyTime, timeIsClear } from "@/lib/calendar-feed/legacy-time";
 import { haptics } from "~/motion/haptics";
+import { pressedDim } from "~/motion/press";
 import { Button } from "~/paper/Button";
-import { Avatar } from "~/paper/bits";
 import { Sheet } from "~/shell/sheets";
-import { SkeletonList } from "~/shell/states";
 import { toast } from "~/shell/toast";
-import { alpha, type Tone } from "~/theme/palette";
 import { resolveType } from "~/theme/type";
-import { useFontScale, useMotion, useTheme } from "~/theme/PaperProvider";
-import { toneOf } from "~/timeline/model";
-import { Field } from "~/ui/Field";
-import { Segmented } from "~/ui/Segmented";
+import { useFontScale, useTheme } from "~/theme/PaperProvider";
 import { Switch } from "~/ui/Switch";
 import { T } from "~/ui/T";
-import { FIELD, managedTypes, missingFor, RATING, STAGE, starterIdeas, type FieldKey } from "./model";
+import {
+  FIX, HELP, IDEA, MAX_WRAP_NOTES, RATING_LABELS, SAY, STAGE_LABELS, STAGE_TONE, WRAP, attendanceText, canEnter, fixCopy, helpRows,
+  ideaRemain, initialsOf, isForward, missingFor, needsConfirmFirst, zoneLine, type RequiredField,
+  typeCat,
+} from "./model";
 
-/* ── shared bits ───────────────────────────────────────────────────────────────── */
+/* ── moving lanes (the web's moveStage / commitStage) ─────────────────────────── */
 
-type Owner = { brotherId: number | null; roleId: number | null; label: string | null };
-const ownerOf = (o: ProgrammingOwner): Owner =>
-  !o ? { brotherId: null, roleId: null, label: null } : o.kind === "brother" ? { brotherId: o.id, roleId: null, label: o.name } : { brotherId: null, roleId: o.id, label: o.name };
+export type Opened = { kind: "fix"; e: ProgrammingEvent; stage: ProgrammingStage } | { kind: "wrap"; e: ProgrammingEvent };
 
-/** The when, as the server's schedule: a timed start in the chapter's zone, or the whole day. */
-function scheduleOf(date: string, minutes: number | null, zone: string): ProgrammingPatch["schedule"] {
-  return minutes == null ? { kind: "allDay", start: date, end: addDays(date, 1) } : { kind: "timed", start: wallToInstant(date, minutes, zone), timeZone: zone };
+/** Write a stage change, no questions asked. True when the server took it. */
+export async function commitStage(e: ProgrammingEvent, stage: ProgrammingStage): Promise<boolean> {
+  try {
+    await moveStage(e, stage);
+    haptics.success();
+    return true;
+  } catch (x) {
+    haptics.error();
+    toast.error(SAY.moveFail, { detail: errorMessage(x) });
+    return false;
+  }
 }
 
-function minutesOf(e: ProgrammingEvent, zone: string): number | null {
-  if (e.schedule?.kind === "timed") return wallOf(e.schedule.start, e.schedule.timeZone || zone)?.minutes ?? null;
-  return null;
+/**
+ * Move an event, enforcing the gates the server does. Backward is always free;
+ * a blocked forward move opens the step that fixes it (returned), Done goes through
+ * the wrap-up, and an unconfirmed event can't be wrapped (the toast offers Confirm it).
+ */
+export function routeMove(e: ProgrammingEvent, stage: ProgrammingStage, open: (o: Opened) => void) {
+  if (stage === e.stage) return;
+  if (needsConfirmFirst(e, stage)) {
+    toast.show(SAY.confirmFirst(e.title), { undoLabel: SAY.confirmIt, undo: () => routeMove(e, "confirmed", open) });
+    return;
+  }
+  const fwd = isForward(e.stage, stage);
+  if (fwd && !canEnter(e, stage)) { open({ kind: "fix", e, stage }); return; }
+  if (fwd && stage === "done") { open({ kind: "wrap", e }); return; }
+  void commitStage(e, stage);
 }
+
+/** Save a field edit; a refusal puts the board back and says so. */
+export async function patchEvent(id: number, patch: ProgrammingPatch): Promise<boolean> {
+  try {
+    await patchProgramming(id, patch);
+    return true;
+  } catch (x) {
+    haptics.error();
+    toast.error(SAY.saveFail, { detail: errorMessage(x) });
+    return false;
+  }
+}
+
+/* ── shared bits ──────────────────────────────────────────────────────────────── */
 
 function useOrgBits() {
   const me = useEntryOf("ready")?.me ?? null;
   return { me, term: me?.org?.activeTerm ?? null, zone: me?.org?.timeZone || deviceZone(), today: localDay() };
 }
 
-function Label({ icon, text }: { icon: Parameters<typeof Icon>[0]["name"]; text: string }) {
+function Lab({ children }: { children: string }) {
   const { c } = useTheme();
+  return <T v="label" color={c.ink2}>{children}</T>;
+}
+
+function Foot({ left, cancel, go, busy, ok, onCancel, onGo, danger }: {
+  left?: React.ReactNode; cancel: string; go: string; busy?: boolean; ok: boolean; onCancel: () => void; onGo: () => void; danger?: boolean;
+}) {
   return (
-    <View style={styles.label}>
-      <Icon name={icon} size={14} color={c.ink3} />
-      <T v="label" color={c.ink3}>{text}</T>
+    <View style={styles.foot}>
+      {left ?? null}
+      <View style={{ flex: 1 }} />
+      <Button label={cancel} variant="ghost" onPress={onCancel} disabled={busy} />
+      <Button label={go} tone={danger ? "rose" : "lilac"} onPress={onGo} disabled={!ok || busy} />
     </View>
   );
 }
 
-function Err({ text }: { text: string | null }) {
+function Input({ value, onChange, placeholder, label, multiline, maxLength, keyboardType, prefix }: {
+  value: string; onChange: (t: string) => void; placeholder?: string; label: string; multiline?: boolean; maxLength?: number;
+  keyboardType?: "default" | "decimal-pad"; prefix?: string;
+}) {
   const { c } = useTheme();
-  return text ? <T v="meta" color={c.pastel.rose.ink} accessibilityRole="alert">{text}</T> : null;
+  const scale = useFontScale();
+  return (
+    <View style={[styles.input, multiline && { minHeight: 96, alignItems: "flex-start" }, { borderColor: c.line2, backgroundColor: c.card }]}>
+      {prefix ? <T v="mono" color={c.ink3}>{prefix}</T> : null}
+      <TextInput value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={c.faint} accessibilityLabel={label}
+        multiline={multiline} maxLength={maxLength} keyboardType={keyboardType ?? "default"}
+        style={[resolveType("body", scale), { flex: 1, color: c.ink, paddingVertical: 10 }, multiline && { textAlignVertical: "top" }]} />
+    </View>
+  );
 }
 
-/** "Who's on it": the chosen owner as a row; tap to pick. */
-function OwnerRow({ owner, onPress }: { owner: Owner; onPress: () => void }) {
+/** The type chips (a type's own colour dot), single choice. */
+export function TypeChips({ list, value, onChange, label }: { list: CalEventType[]; value: string; onChange: (s: string) => void; label: string }) {
   const { c } = useTheme();
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={owner.label ? `Owner, ${owner.label}. Change` : "Pick an owner"}
-      style={({ pressed }) => [styles.pickRow, { borderColor: pressed ? c.ink : owner.label ? c.line2 : c.ink, borderStyle: owner.label ? "solid" : "dashed", backgroundColor: c.card }]}>
-      {owner.brotherId ? <Avatar name={owner.label ?? "?"} tone="peach" style={styles.face} />
-        : <View style={[styles.face, styles.roleFace, { borderColor: c.line2 }]}><Icon name={owner.roleId ? "people" : "plus"} size={13} color={c.ink3} /></View>}
-      <T v="callout" color={owner.label ? c.ink : c.ink2} style={{ flex: 1 }} numberOfLines={1}>{owner.label ?? "Pick someone, or a role"}</T>
-      <Icon name="chev-r" size={14} color={c.ink3} />
+    <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={label}>
+      {list.map(t => {
+        const on = t.slug === value;
+        const cat = typeCat(t.slug, list, c);
+        return (
+          <Pressable key={t.slug} onPress={() => { if (!on) { haptics.select(); onChange(t.slug); } }} accessibilityRole="radio" accessibilityState={{ selected: on }}
+            style={[styles.chip, { borderColor: on ? c.ink : c.line2, backgroundColor: on ? cat.soft : c.card }]}>
+            <View style={[styles.dot, { backgroundColor: cat.ink }]} />
+            <T v="pill" color={on ? c.ink : c.ink2}>{t.label}</T>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/* ── OwnerPicker ─────────────────────────────────────────────────────────────── */
+
+export type OwnerPatch = { ownerBrotherId: number | null } | { ownerRoleId: number | null };
+
+export function OwnerPicker({ value, roster, roles, onChange }: {
+  value: ProgrammingOwner; roster: Brother[]; roles: RoleChip[]; onChange: (p: OwnerPatch) => void;
+}) {
+  const { c } = useTheme();
+  const [mode, setMode] = useState<"person" | "role">(value?.kind === "role" ? "role" : "person");
+  const key = value ? `${value.kind}:${value.id}` : "none";
+  useEffect(() => { setMode(value?.kind === "role" ? "role" : "person"); }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <View style={{ gap: 10 }}>
+      <View style={styles.tabsRow}>
+        <View style={[styles.tabs, { backgroundColor: c.paper2, borderColor: c.line }]} accessibilityRole="tablist" accessibilityLabel="Owner kind">
+          {(["person", "role"] as const).map(mk => {
+            const on = mode === mk;
+            return (
+              <Pressable key={mk} onPress={() => { if (!on) { haptics.select(); setMode(mk); } }} accessibilityRole="tab" accessibilityState={{ selected: on }}
+                style={[styles.tab, on && { backgroundColor: c.card }]}>
+                <T v="buttonSm" color={on ? c.ink : c.ink3}>{mk === "person" ? "Person" : "Role"}</T>
+              </Pressable>
+            );
+          })}
+        </View>
+        {value ? (
+          <Pressable onPress={() => onChange(value.kind === "role" ? { ownerRoleId: null } : { ownerBrotherId: null })} accessibilityRole="button"
+            style={({ pressed }) => [styles.unassign, pressed && pressedDim]}>
+            <T v="buttonSm" color={c.ink3}>Unassign</T>
+          </Pressable>
+        ) : null}
+      </View>
+      {mode === "person" ? (
+        <View style={{ gap: 6 }} accessibilityLabel="Roster">
+          {!roster.length ? <T v="meta" color={c.ink3}>Nobody on the roster yet.</T> : null}
+          {roster.map(b => {
+            const on = value?.kind === "brother" && value.id === b.id;
+            return (
+              <PickOpt key={b.id} on={on} initials={initialsOf(b.name)} title={b.name} sub={roleTitle(b)}
+                onPress={() => { haptics.select(); onChange({ ownerBrotherId: on ? null : b.id }); }} />
+            );
+          })}
+        </View>
+      ) : (
+        <View style={{ gap: 6 }} accessibilityLabel="Roles">
+          {!roles.length ? <T v="meta" color={c.ink3}>This chapter has no roles yet.</T> : null}
+          {roles.map(r => {
+            const on = value?.kind === "role" && value.id === r.id;
+            const held = r.memberCount ?? 0;
+            return (
+              <PickOpt key={r.id} on={on} role initials={initialsOf(r.name)} title={r.name} sub={held === 0 ? "nobody holds it now" : `${held} now`}
+                onPress={() => { haptics.select(); onChange({ ownerRoleId: on ? null : r.id }); }} />
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function PickOpt({ on, role, initials, title, sub, onPress }: { on: boolean; role?: boolean; initials: string; title: string; sub: string; onPress: () => void }) {
+  const { c } = useTheme();
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: on }}
+      style={[styles.opt, { borderColor: on ? c.ink : c.line, backgroundColor: on ? c.pastel.butter.soft : c.card }]}>
+      <View style={[styles.av, { borderRadius: role ? 6 : 13, backgroundColor: role ? c.paper2 : c.pastel.butter.soft, borderColor: c.line2 }]}>
+        <T v="mono" size={10} color={c.ink2} style={{ fontWeight: "700" }}>{initials}</T>
+      </View>
+      <View style={{ flex: 1 }}>
+        <T v="callout" numberOfLines={1}>{title}</T>
+        <T v="meta" size={12} color={c.ink3} numberOfLines={1}>{sub}</T>
+      </View>
+      {on ? <Icon name="check" size={14} color={c.ink} /> : null}
     </Pressable>
   );
 }
 
-/** Rooms this chapter has used for events of this kind, most used first. */
-function useRooms(category: string, current: string) {
-  const cal = useCalendar();
-  return useMemo(() => {
-    const n = new Map<string, number>();
-    for (const e of cal.data ?? []) {
-      if (e.category !== category) continue;
-      const r = (e.location ?? "").trim();
-      if (r) n.set(r, (n.get(r) ?? 0) + 1);
-    }
-    return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([r]) => r).filter(r => r !== current.trim()).slice(0, 3);
-  }, [cal.data, category, current]);
+/* ── FixStep ─────────────────────────────────────────────────────────────────── */
+
+type Draft = { title?: string; category?: string; ownerBrotherId?: number | null; ownerRoleId?: number | null; dueDate?: string | null; location?: string; mandatory?: boolean };
+
+function answered(f: RequiredField, d: Draft, e: ProgrammingEvent): boolean {
+  switch (f.key) {
+    case "title": return (d.title ?? e.title).trim().length > 0;
+    case "category": return (d.category ?? e.category).trim().length > 0;
+    case "owner":
+      if (d.ownerBrotherId !== undefined) return d.ownerBrotherId !== null;
+      if (d.ownerRoleId !== undefined) return d.ownerRoleId !== null;
+      return e.owner != null;
+    case "date": return !!(d.dueDate !== undefined ? d.dueDate : e.dueDate);
+    case "location": return (d.location ?? e.location).trim().length > 0;
+    case "mandatory": return true;
+  }
 }
 
-function RoomChips({ rooms, onPick }: { rooms: string[]; onPick: (r: string) => void }) {
+export function FixStep({ target, roster, roles, types, onClose }: {
+  target: { e: ProgrammingEvent; stage: ProgrammingStage } | null; roster: Brother[]; roles: RoleChip[]; types: CalEventType[]; onClose: () => void;
+}) {
   const { c } = useTheme();
-  if (!rooms.length) return null;
+  const { term, today } = useOrgBits();
+  const [d, setD] = useState<Draft>({});
+  const [busy, setBusy] = useState(false);
+  const id = target?.e.id ?? null;
+  useEffect(() => { if (target) { setD({}); setBusy(false); } }, [id, target?.stage]); // eslint-disable-line react-hooks/exhaustive-deps
+  const gaps = useMemo(() => (target ? missingFor(target.e, target.stage) : []), [id, target?.stage]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!target) return <Sheet open={false} onClose={onClose} />;
+  const { e, stage } = target;
+  const copy = fixCopy(stage);
+  const left = gaps.filter(f => !answered(f, d, e)).length;
+  const set = (p: Draft) => setD(x => ({ ...x, ...p }));
+
+  const ownerValue: ProgrammingOwner = (() => {
+    if (d.ownerBrotherId === undefined && d.ownerRoleId === undefined) return e.owner;
+    const b = roster.find(x => x.id === d.ownerBrotherId);
+    if (b) return { kind: "brother", id: b.id, name: b.name, initials: initialsOf(b.name) };
+    const r = roles.find(x => x.id === d.ownerRoleId);
+    return r ? { kind: "role", id: r.id, name: r.name, holders: [] } : null;
+  })();
+
+  const go = async () => {
+    if (left > 0 || busy) return;
+    setBusy(true);
+    const patch: ProgrammingPatch = {};
+    if (d.title !== undefined) patch.title = d.title.trim();
+    if (d.category !== undefined) patch.category = d.category;
+    if (d.ownerBrotherId !== undefined) { patch.ownerBrotherId = d.ownerBrotherId; patch.ownerRoleId = null; }
+    if (d.ownerRoleId !== undefined) { patch.ownerRoleId = d.ownerRoleId; patch.ownerBrotherId = null; }
+    if (d.dueDate !== undefined) patch.dueDate = d.dueDate;
+    if (d.location !== undefined) patch.location = d.location.trim();
+    if (d.mandatory !== undefined) patch.mandatory = d.mandatory;
+    onClose();
+    // Fields first, then the move: the server's gate reads persisted state.
+    if (Object.keys(patch).length && !(await patchEvent(e.id, patch))) return;
+    await commitStage({ ...e, ...ownerValueFields(ownerValue) }, stage);
+  };
+
   return (
-    <View style={styles.rooms}>
-      {rooms.map(r => (
-        <Pressable key={r} onPress={() => { haptics.select(); onPick(r); }} accessibilityRole="button" accessibilityLabel={`Use ${r}`}
-          style={({ pressed }) => [styles.room, { borderColor: pressed ? c.ink : c.line2, backgroundColor: c.card }]}>
-          <Icon name="pin" size={12} color={c.ink3} />
-          <T v="pill" color={c.ink2} numberOfLines={1} style={{ maxWidth: 180 }}>{r}</T>
+    <Sheet open onClose={onClose} locked={busy} size="tall" tone={STAGE_TONE[stage] ?? "butter"} icon="board" title={copy.kicker}
+      footer={<Foot left={<T v="mono" size={12} color={left === 0 ? c.pastel.mint.ink : c.ink3}>{left === 0 ? FIX.allClear : FIX.left(left)}</T>}
+        cancel={copy.cancel} go={busy ? FIX.saving : copy.go} busy={busy} ok={left === 0} onCancel={onClose} onGo={() => void go()} />}>
+      <View style={{ gap: 14 }}>
+        <T v="body" color={c.ink2}>{copy.sub}</T>
+        <T v="callout" numberOfLines={1}><T v="label" color={c.ink3}>{WRAP.eventK}</T>{` ${e.title}`}</T>
+        <View style={[styles.list, { borderColor: c.line }]}>
+          {gaps.map((f, i) => (
+            <View key={f.key} style={[styles.gap, i > 0 && { borderTopWidth: 1, borderTopColor: c.line }]}>
+              <View style={styles.gapHead}>
+                <Lab>{f.label}</Lab>
+                {answered(f, d, e) ? <T v="mono" size={11} color={c.pastel.mint.ink}>{FIX.answered}</T> : null}
+              </View>
+              <T v="meta" color={c.ink3}>{f.hint}</T>
+              {f.kind === "person" ? (
+                <OwnerPicker value={ownerValue} roster={roster} roles={roles}
+                  onChange={p => set("ownerBrotherId" in p ? { ownerBrotherId: p.ownerBrotherId, ownerRoleId: undefined } : { ownerRoleId: p.ownerRoleId, ownerBrotherId: undefined })} />
+              ) : f.kind === "type" ? (
+                <TypeChips list={types} value={d.category ?? e.category} onChange={category => set({ category })} label={FIX.pickType} />
+              ) : f.kind === "date" ? (
+                <DayStrip value={d.dueDate ?? e.dueDate ?? today} onChange={dueDate => set({ dueDate })} today={today} term={term} usualDow={null} taken={new Set()} editing={!!e.dueDate} open />
+              ) : f.kind === "bool" ? (
+                <View style={{ gap: 6 }}>
+                  {[true, false].map(v => {
+                    const on = (d.mandatory ?? e.mandatory) === v;
+                    return (
+                      <Pressable key={String(v)} onPress={() => { haptics.select(); set({ mandatory: v }); }} accessibilityRole="radio" accessibilityState={{ selected: on }}
+                        style={[styles.choice, { borderColor: on ? c.ink : c.line2, backgroundColor: on ? c.pastel.peach.soft : c.card }]}>
+                        <T v="callout" color={on ? c.ink : c.ink2}>{attendanceText(v)}</T>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Input label={f.label} value={f.key === "title" ? d.title ?? e.title : d.location ?? e.location}
+                  onChange={t => set(f.key === "title" ? { title: t } : { location: t })} placeholder={f.key === "title" ? FIX.titlePh : FIX.placePh}
+                  maxLength={f.key === "title" ? 120 : 160} />
+              )}
+            </View>
+          ))}
+        </View>
+      </View>
+    </Sheet>
+  );
+}
+
+const ownerValueFields = (o: ProgrammingOwner): Pick<ProgrammingEvent, "owner"> => ({ owner: o });
+
+/* ── WrapUp ──────────────────────────────────────────────────────────────────── */
+
+export function WrapUp({ e, onClose }: { e: ProgrammingEvent | null; onClose: () => void }) {
+  const { c } = useTheme();
+  const [stars, setStars] = useState<number | null>(null);
+  const [notes, setNotes] = useState("");
+  const [spent, setSpent] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!e) return;
+    setStars(e.successRating ?? null); setNotes(e.wrapUpNotes ?? "");
+    setSpent(e.spendingCents ? (e.spendingCents / 100).toFixed(2) : ""); setBusy(false);
+  }, [e?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!e) return <Sheet open={false} onClose={onClose} />;
+
+  const go = async () => {
+    if (busy) return;
+    setBusy(true);
+    const cents = spent.trim() ? Math.round(parseFloat(spent) * 100) : NaN;
+    const spendingCents = Number.isFinite(cents) && cents !== e.spendingCents ? Math.max(0, cents) : undefined;
+    onClose();
+    // The rating first: it lands on the still-confirmed event, so a refused move keeps it.
+    if (!(await patchEvent(e.id, { successRating: stars, wrapUpNotes: notes.trim() || null, ...(spendingCents !== undefined ? { spendingCents } : {}) }))) return;
+    await commitStage(e, "done");
+  };
+
+  return (
+    <Sheet open onClose={onClose} locked={busy} size="tall" tone="mint" icon="star" title={WRAP.title}
+      footer={<Foot cancel={WRAP.leave(e.stage)} go={busy ? WRAP.saving : WRAP.go} busy={busy} ok onCancel={onClose} onGo={() => void go()} />}>
+      <View style={{ gap: 16 }}>
+        <T v="body" color={c.ink2}>{WRAP.sub}</T>
+        <T v="callout" numberOfLines={1}><T v="label" color={c.ink3}>{WRAP.eventK}</T>{` ${e.title}`}</T>
+        <View style={{ gap: 8 }}>
+          <Lab>{WRAP.how}</Lab>
+          <View style={styles.starsRow}>
+            <StarPicker value={stars} onChange={setStars} />
+            <T v="meta" color={c.ink2}>{stars != null ? RATING_LABELS[stars] ?? "" : WRAP.noRating}</T>
+          </View>
+        </View>
+        <View style={{ gap: 6 }}>
+          <Lab>{WRAP.notes}</Lab>
+          <Input label={WRAP.notes} value={notes} onChange={setNotes} placeholder={WRAP.notesPh} multiline maxLength={MAX_WRAP_NOTES} />
+          <T v="mono" size={11} color={c.ink3} align="right">{`${notes.length}/${MAX_WRAP_NOTES}`}</T>
+        </View>
+        <View style={{ gap: 6 }}>
+          <T v="label" color={c.ink2}>{`${WRAP.spent} `}<T v="meta" size={12} color={c.ink3}>{WRAP.spentHint}</T></T>
+          <Input label={WRAP.spent} value={spent} onChange={t => setSpent(t.replace(/[^\d.]/g, ""))} placeholder="0" keyboardType="decimal-pad" prefix="$" />
+        </View>
+      </View>
+    </Sheet>
+  );
+}
+
+/** Five stars: tap one to set it, tap it again to clear (select haptic). */
+export function StarPicker({ value, onChange }: { value: number | null; onChange: (n: number | null) => void }) {
+  const { c } = useTheme();
+  return (
+    <View style={{ flexDirection: "row", gap: 4 }} accessibilityRole="radiogroup" accessibilityLabel="How it went">
+      {[1, 2, 3, 4, 5].map(n => (
+        <Pressable key={n} onPress={() => { haptics.select(); onChange(value === n ? null : n); }} hitSlop={4}
+          accessibilityRole="radio" accessibilityState={{ checked: value === n }} accessibilityLabel={WRAP.star(n)}>
+          <T v="title" size={28} color={value != null && n <= value ? c.pastel.butter.ink : c.line2}>★</T>
         </Pressable>
       ))}
     </View>
   );
 }
 
-/* ── OwnerSheet ────────────────────────────────────────────────────────────────── */
+/* ── NewIdea ─────────────────────────────────────────────────────────────────── */
 
-export function OwnerSheet({ open, owner, canClear, onClose, onPick }: {
-  open: boolean; owner: Owner; canClear: boolean; onClose: () => void; onPick: (o: Owner) => void;
-}) {
+export function NewIdea({ open, types, onClose, onAdded }: { open: boolean; types: CalEventType[]; onClose: () => void; onAdded: (e: ProgrammingEvent) => void }) {
   const { c } = useTheme();
-  const roster = useRoster(open);
-  const roles = useRoles(open);
-  const [tab, setTab] = useState<"people" | "roles">(owner.roleId ? "roles" : "people");
-  const [q, setQ] = useState("");
-  useEffect(() => { if (open) { setQ(""); setTab(owner.roleId ? "roles" : "people"); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const s = q.trim().toLowerCase();
-  const people = (roster.data ?? []).filter(b => !s || b.name.toLowerCase().includes(s)).sort((a, b) => a.name.localeCompare(b.name));
-  const roleList = (roles.data ?? []).filter(r => !s || r.name.toLowerCase().includes(s));
-  const holders = (r: RoleChip) => (roster.data ?? []).filter(b => b.roles?.some(x => x.id === r.id)).map(b => b.name.split(/\s+/)[0]);
-  const pick = (o: Owner) => { haptics.select(); onPick(o); };
-
-  return (
-    <Sheet open={open} onClose={onClose} size="tall" tone="peach" icon="people" kicker="Owner" title="Who's on it?">
-      <View style={{ gap: 12 }}>
-        <Segmented<"people" | "roles"> label="Owner kind" value={tab} onChange={setTab} options={[{ value: "people", label: "A person" }, { value: "roles", label: "A role" }]} />
-        <T v="meta" color={c.ink3}>{tab === "people" ? "One person accountable for it." : "A standing duty: it follows whoever holds the role."}</T>
-        <View style={[styles.find, { borderColor: c.line2, backgroundColor: c.card }]}>
-          <Icon name="search" size={15} color={c.ink3} />
-          <TextInput value={q} onChangeText={setQ} placeholder={tab === "people" ? "Find someone" : "Find a role"} placeholderTextColor={c.faint} style={[styles.findIn, { color: c.ink }]} accessibilityLabel="Search" />
-        </View>
-        {(tab === "people" ? !roster.data : !roles.data) ? <SkeletonList count={5} /> : (
-          <View style={[styles.list, { borderColor: c.line, backgroundColor: c.card }]}>
-            {tab === "people"
-              ? people.map((b: Brother, i) => (
-                <PickLine key={b.id} first={i === 0} on={owner.brotherId === b.id} title={b.name} sub={b.role}
-                  lead={<Avatar name={b.name} uri={b.avatarUrl ?? null} tone="peach" style={styles.face} />}
-                  onPress={() => pick({ brotherId: b.id, roleId: null, label: b.name })} />
-              ))
-              : roleList.map((r, i) => {
-                const h = holders(r);
-                return (
-                  <PickLine key={r.id} first={i === 0} on={owner.roleId === r.id} title={r.name} sub={h.length ? h.join(" / ") : "Nobody holds it right now"}
-                    lead={<View style={[styles.face, styles.roleFace, { borderColor: c.line2 }]}><Icon name="people" size={13} color={c.ink3} /></View>}
-                    onPress={() => pick({ brotherId: null, roleId: r.id, label: r.name })} />
-                );
-              })}
-            {(tab === "people" ? people : roleList).length === 0 ? <T v="meta" color={c.ink3} style={{ padding: 14 }}>Nothing by that name.</T> : null}
-          </View>
-        )}
-        {canClear && owner.label ? <Button label="Nobody yet" variant="soft" icon="x" onPress={() => pick({ brotherId: null, roleId: null, label: null })} /> : null}
-      </View>
-    </Sheet>
-  );
-}
-
-function PickLine({ title, sub, lead, on, first, onPress }: { title: string; sub?: string | null; lead: React.ReactNode; on: boolean; first: boolean; onPress: () => void }) {
-  const { c } = useTheme();
-  return (
-    <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={title}
-      style={({ pressed }) => [styles.pick, !first && { borderTopWidth: 1, borderTopColor: c.lineSoft }, (pressed || on) && { backgroundColor: on ? c.pastel.peach.soft : c.paper2 }]}>
-      {lead}
-      <View style={{ flex: 1 }}>
-        <T v="callout" numberOfLines={1}>{title}</T>
-        {sub ? <T v="meta" color={c.ink3} numberOfLines={1}>{sub}</T> : null}
-      </View>
-      {on ? <Icon name="check" size={15} color={c.ink} /> : null}
-    </Pressable>
-  );
-}
-
-/* ── FixStep ───────────────────────────────────────────────────────────────────── */
-
-export function FixStep({ target, onClose }: { target: { e: ProgrammingEvent; stage: ProgrammingStage } | null; onClose: () => void }) {
-  const { c } = useTheme();
-  const { term, zone, today } = useOrgBits();
-  const e = target?.e ?? null;
-  const missing: FieldKey[] = target ? missingFor(target.e, target.stage) : [];
-  const [owner, setOwner] = useState<Owner>(ownerOf(null));
-  const [date, setDate] = useState(today);
-  const [minutes, setMinutes] = useState<number | null>(19 * 60);
-  const [loc, setLoc] = useState("");
-  const [picking, setPicking] = useState(false);
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("");
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const rooms = useRooms(e?.category ?? "", loc);
-
-  useEffect(() => {
-    if (!target) return;
-    setOwner(ownerOf(target.e.owner)); setErr(null); setBusy(false); setPicking(false);
-    setDate(target.e.dueDate ?? (term && today < term.startDate ? term.startDate : today));
-    setMinutes(minutesOf(target.e, zone) ?? 19 * 60);
-    setLoc(target.e.location);
-  }, [target]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const ok = missing.every(k => k === "owner" ? !!owner.label : k === "location" ? !!loc.trim() : !!date);
-  const to = target ? STAGE[target.stage].label : "";
+  useEffect(() => { if (open) { setTitle(""); setCategory(""); setBusy(false); } }, [open]);
+  const trimmed = title.trim();
+  const remain = ideaRemain(trimmed, category);
+  const ready = !!trimmed && !!category;
+  const cat = category ? typeCat(category, types, c) : null;
 
   const go = async () => {
-    if (!target || !ok || busy) return;
-    setBusy(true); setErr(null);
-    const patch: ProgrammingPatch = {};
-    if (missing.includes("owner")) owner.roleId ? (patch.ownerRoleId = owner.roleId) : (patch.ownerBrotherId = owner.brotherId);
-    if (missing.includes("date")) { patch.dueDate = date; patch.schedule = scheduleOf(date, minutes, zone); }
-    if (missing.includes("location")) patch.location = loc.trim();
-    try {
-      const saved = await patchProgramming(target.e.id, patch);
-      await moveStage(saved, target.stage);
-      haptics.success();
-      onClose();
-      toast.show(target.stage === "confirmed" ? `${saved.title} is confirmed` : `Moved to ${to}`,
-        { detail: target.stage === "confirmed" ? "It's on the chapter's Timeline now." : STAGE[target.stage].meaning });
-    } catch (x) {
-      haptics.error();
-      setErr(errorMessage(x, "Couldn't move it. Try again."));
-      setBusy(false);
-    }
-  };
-
-  return (
-    <>
-      <Sheet open={!!target} onClose={onClose} locked={busy} size="tall" tone={target ? STAGE[target.stage].tone : "peach"} icon="flag"
-        kicker={e ? `${e.title} → ${to}` : ""} title={`Before it's ${to.toLowerCase()}`}
-        footer={
-          <View style={{ flex: 1, gap: 6 }}>
-            <Err text={err} />
-            <Button label={busy ? "Saving…" : target?.stage === "confirmed" ? "Confirm it" : `Move to ${to}`} icon="check" tone={target ? STAGE[target.stage].tone : "peach"} block onPress={() => void go()} disabled={!ok || busy} />
-          </View>
-        }>
-        <View style={{ gap: 20 }}>
-          <T v="body" color={c.ink2}>{target?.stage === "confirmed"
-            ? "Confirming puts it on everyone's calendar. It needs these first:"
-            : "A plan belongs to somebody. Who's on it?"}</T>
-          {missing.includes("owner") ? (
-            <View style={{ gap: 8 }}>
-              <Label icon="people" text="Owner" />
-              <OwnerRow owner={owner} onPress={() => setPicking(true)} />
-              <T v="meta" color={c.ink3}>{FIELD.owner.hint}</T>
-            </View>
-          ) : null}
-          {missing.includes("date") ? (
-            <View style={{ gap: 8 }}>
-              <Label icon="cal" text="Day" />
-              <DayStrip value={date} onChange={setDate} today={today} term={term} usualDow={null} taken={new Set()} editing={false} open={!!target} />
-              <Label icon="clock" text="Time" />
-              <Clock minutes={minutes} onChange={setMinutes} tone="sky" />
-            </View>
-          ) : null}
-          {missing.includes("location") ? (
-            <View style={{ gap: 8 }}>
-              <Field label="Where" value={loc} onChangeText={setLoc} placeholder="The room, the address" maxLength={200} />
-              <RoomChips rooms={rooms} onPick={setLoc} />
-            </View>
-          ) : null}
-        </View>
-      </Sheet>
-      <OwnerSheet open={!!target && picking} owner={owner} canClear={false} onClose={() => setPicking(false)} onPick={o => { setOwner(o); setPicking(false); }} />
-    </>
-  );
-}
-
-/* ── WrapUp ────────────────────────────────────────────────────────────────────── */
-
-export function WrapUp({ e, editing, onClose }: { e: ProgrammingEvent | null; editing?: boolean; onClose: () => void }) {
-  const { c } = useTheme();
-  const [stars, setStars] = useState<number | null>(null);
-  const [spent, setSpent] = useState("");
-  const [notes, setNotes] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  useEffect(() => {
-    if (!e) return;
-    setStars(e.successRating); setNotes(e.wrapUpNotes ?? ""); setErr(null); setBusy(false);
-    setSpent(e.spendingCents ? (e.spendingCents / 100).toFixed(2).replace(/\.00$/, "") : "");
-  }, [e?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const cents = spent.trim() ? Math.round(Number(spent.replace(/[$,\s]/g, "")) * 100) : 0;
-  const badSpend = !Number.isFinite(cents) || cents < 0;
-
-  const go = async () => {
-    if (!e || busy || badSpend) return;
-    setBusy(true); setErr(null);
-    try {
-      const saved = await patchProgramming(e.id, {
-        successRating: stars, wrapUpNotes: notes.trim() || null, ...(cents !== e.spendingCents ? { spendingCents: cents } : {}),
-      });
-      if (!editing) await moveStage(saved, "done");
-      haptics.success();
-      onClose();
-      toast.show(editing ? "Wrap-up saved" : `${e.title} is wrapped`, { detail: stars ? `${stars} ★ · ${RATING[stars]}` : "On the record." });
-    } catch (x) {
-      haptics.error();
-      setErr(errorMessage(x, "Couldn't save the wrap-up."));
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Sheet open={!!e} onClose={onClose} locked={busy} size="tall" tone="mint" icon="star" kicker={e?.title ?? ""} title={editing ? "The wrap-up" : "How did it go?"}
-      footer={
-        <View style={{ flex: 1, gap: 6 }}>
-          <Err text={err} />
-          <Button label={busy ? "Saving…" : editing ? "Save" : "Wrap it up"} icon="check" tone="mint" block onPress={() => void go()} disabled={busy || badSpend} />
-        </View>
-      }>
-      <View style={{ gap: 22 }}>
-        <View style={{ gap: 10, alignItems: "center" }}>
-          <StarPicker value={stars} onChange={setStars} />
-          <T v="callout" color={stars ? c.ink : c.ink3}>{stars ? RATING[stars] : "Tap a star (tap it again to clear)"}</T>
-        </View>
-        <View style={{ gap: 6 }}>
-          <Field label="What it cost" value={spent} onChangeText={setSpent} placeholder="$0" keyboardType="decimal-pad" maxLength={12} error={badSpend ? "A dollar amount, like 120 or 45.50." : null} />
-        </View>
-        <View style={{ gap: 6 }}>
-          <T v="label" color={c.ink2}>Notes for next time</T>
-          <TextInput value={notes} onChangeText={setNotes} multiline maxLength={500} placeholder="What worked, what to change" placeholderTextColor={c.faint}
-            accessibilityLabel="Notes for next time" style={[styles.notes, { color: c.note.ink, backgroundColor: c.pastel.butter.soft, borderColor: c.pastel.butter.border }]} />
-          <T v="meta" color={c.ink3} style={{ alignSelf: "flex-end" }}>{`${notes.length}/500`}</T>
-        </View>
-        {!editing ? <T v="meta" color={c.ink3}>All optional. This is just the one moment anybody still remembers how it went.</T> : null}
-      </View>
-    </Sheet>
-  );
-}
-
-/** Five stars. A tap fills the run with a little pop; tapping the chosen star clears. */
-export function StarPicker({ value, onChange }: { value: number | null; onChange: (n: number | null) => void }) {
-  return (
-    <View style={{ flexDirection: "row", gap: 6 }} accessibilityRole="radiogroup" accessibilityLabel="How it went">
-      {[1, 2, 3, 4, 5].map(n => <StarBtn key={n} n={n} value={value} onPress={() => { haptics.select(); onChange(value === n ? null : n); }} />)}
-    </View>
-  );
-}
-
-function StarBtn({ n, value, onPress }: { n: number; value: number | null; onPress: () => void }) {
-  const { c } = useTheme();
-  const m = useMotion();
-  const lit = value != null && n <= value;
-  const s = useSharedValue(1);
-  useEffect(() => {
-    if (!lit || m.reduced) { s.value = 1; return; }
-    s.value = withSequence(withTiming(1, { duration: m.t((n - 1) * 35) }), withTiming(1.22, m.timing(90, "out")), withSpring(1, m.spring("pop")));
-  }, [lit, value]); // eslint-disable-line react-hooks/exhaustive-deps
-  const st = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
-  return (
-    <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ checked: value === n }} accessibilityLabel={`${n} ${n === 1 ? "star" : "stars"}, ${RATING[n]}`} hitSlop={4}>
-      <Animated.View style={[styles.star, { borderColor: lit ? c.ink : c.line2, backgroundColor: lit ? c.note.fill.butter : c.card }, st]}>
-        <Icon name="star" size={22} color={lit ? c.note.ink : c.line2} />
-      </Animated.View>
-    </Pressable>
-  );
-}
-
-/* ── OffTimeline ───────────────────────────────────────────────────────────────── */
-
-export function OffTimeline({ target, onClose }: { target: { e: ProgrammingEvent; stage: ProgrammingStage } | null; onClose: () => void }) {
-  const { c } = useTheme();
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { if (target) setBusy(false); }, [target]);
-  const go = async () => {
-    if (!target || busy) return;
+    if (!ready || busy) return;
     setBusy(true);
     try {
-      await moveStage(target.e, target.stage);
-      haptics.soft();
+      const body: NewProgrammingBody = { title: trimmed, category, dueDate: null, location: null, time: null, collab: null, status: "Upcoming", mandatory: false, description: null };
+      const created = await createProgramming(body);
+      haptics.success();
       onClose();
-      toast.show(`${target.e.title} is off the Timeline`, { detail: `Back in ${STAGE[target.stage].label}. Change what you need, then confirm it again.` });
+      toast.show(SAY.ideaAdded(created.title));
+      onAdded(created);
     } catch (x) {
       haptics.error();
-      toast.error("Couldn't move it", { detail: errorMessage(x) });
+      toast.error(SAY.ideaFail, { detail: errorMessage(x) });
       setBusy(false);
     }
   };
+
   return (
-    <Sheet open={!!target} onClose={onClose} locked={busy} tone="rose" icon="cal" kicker={target?.e.title ?? ""} title="Take it off the Timeline?"
-      footer={
-        <View style={[styles.acts, { flex: 1 }]}>
-          <Button label="Keep it" variant="soft" onPress={onClose} style={{ flex: 1 }} disabled={busy} />
-          <Button label={busy ? "Moving…" : `Back to ${target ? STAGE[target.stage].label : ""}`} tone="rose" onPress={() => void go()} style={{ flex: 1.3 }} disabled={busy} />
+    <Sheet open={open} onClose={onClose} locked={busy} size="tall" tone="butter" icon="note" title={IDEA.title}
+      footer={<Foot left={<T v="mono" size={12} color={ready ? c.pastel.mint.ink : c.pastel.butter.ink} style={{ flexShrink: 1 }}>{remain}</T>}
+        cancel={IDEA.cancel} go={busy ? IDEA.adding : IDEA.go} busy={busy} ok={ready} onCancel={onClose} onGo={() => void go()} />}>
+      <View style={{ gap: 16 }}>
+        <T v="body" color={c.ink2}>{IDEA.subParts[0]}<T v="bodyStrong">{IDEA.subParts[1]}</T>{` ${IDEA.subParts[2]}`}</T>
+        <View style={{ gap: 6 }}>
+          <Lab>{IDEA.titleK}</Lab>
+          <Input label={IDEA.titleK} value={title} onChange={setTitle} placeholder={IDEA.titlePh} maxLength={120} />
         </View>
-      }>
-      <T v="body" color={c.ink2}>
-        {target?.e.stage === "done"
-          ? "It comes off everyone's calendar and out of the record. Its wrap-up stays with it."
-          : "The chapter stops seeing it on the Timeline and their calendars until it's confirmed again. While it's back, its date, place and details can change."}
-      </T>
+        <View style={{ gap: 6 }}>
+          <Lab>{IDEA.categoryK}</Lab>
+          <TypeChips list={types} value={category} onChange={setCategory} label={IDEA.categoryK} />
+        </View>
+        <View style={[styles.sticky, { backgroundColor: cat?.fill ?? c.note.fill.butter }]} accessibilityLabel={`${trimmed || IDEA.preview}. ${IDEA.noDate}. ${IDEA.needsOwner}`}>
+          <T v="subhead" color={c.note.ink} numberOfLines={2}>{trimmed || IDEA.preview}</T>
+          <T v="mono" size={11.5} color={c.note.ink}>{IDEA.noDate}</T>
+          <T v="meta" size={12} color={c.pastel.butter.ink} style={{ fontWeight: "600" }}>{IDEA.needsOwner}</T>
+        </View>
+      </View>
     </Sheet>
   );
 }
 
-/* ── NewIdea ───────────────────────────────────────────────────────────────────── */
+/* ── EventForm (New event / Edit event) ──────────────────────────────────────── */
 
-export function NewIdea({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded?: (e: ProgrammingEvent) => void }) {
+const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+const minutesOfHhmm = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+/** lib/event-time clock12, from minutes. */
+const clock = (m: number) => `${Math.floor(m / 60) % 12 || 12}:${String(m % 60).padStart(2, "0")} ${m < 720 ? "AM" : "PM"}`;
+
+type Mode = "timed" | "allDay" | "legacy";
+
+/** ScheduleFields.initialSchedule: a new event starts timed; a saved one opens as what it is (no times: all day). */
+function initialWhen(e: ProgrammingEvent | null, today: string, zone: string) {
+  const base = { mode: "timed" as Mode, date: e?.dueDate ?? today, start: null as number | null, end: null as number | null, lastDay: "", legacy: "" };
+  const s = e?.schedule;
+  if (s?.kind === "timed") {
+    const z = s.timeZone || zone;
+    const w = wallOf(s.start, z);
+    const we = s.end ? wallOf(s.end, z) : null;
+    return { ...base, date: w?.date ?? base.date, start: w?.minutes ?? null, end: we?.minutes ?? null };
+  }
+  if (s?.kind === "allDay") {
+    const last = addDays(s.end, -1);
+    return { ...base, mode: "allDay" as Mode, date: s.start, lastDay: last === s.start ? "" : last };
+  }
+  if (e?.time?.trim()) return { ...base, mode: "legacy" as Mode, legacy: e.time.trim() };
+  return e ? { ...base, mode: "allDay" as Mode } : base;
+}
+
+function FormRow({ icon, children }: { icon: IconName; children: React.ReactNode }) {
+  const { c } = useTheme();
+  return <View style={styles.cefRow}><View style={styles.cefIc}><Icon name={icon} size={16} color={c.ink3} /></View><View style={{ flex: 1, gap: 8 }}>{children}</View></View>;
+}
+
+function QuietInput({ value, onChange, placeholder, label, multiline }: { value: string; onChange: (t: string) => void; placeholder: string; label: string; multiline?: boolean }) {
   const { c } = useTheme();
   const scale = useFontScale();
-  const { me } = useOrgBits();
-  const types = useEventTypes();
-  const list = useMemo(() => managedTypes(types.data, me?.org?.enabledWorkflows ?? []), [types.data, me]);
-  const [title, setTitle] = useState("");
-  const [cat, setCat] = useState<string>("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { if (open) { setTitle(""); setErr(null); setBusy(false); setCat(list.find(t => t.slug !== "chapter")?.slug ?? list[0]?.slug ?? ""); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-  const starters = starterIdeas(list);
-  const tone: Tone = cat ? toneOf(cat) : "butter";
-
-  const go = async () => {
-    if (!title.trim() || !cat || busy) return;
-    setBusy(true); setErr(null);
-    try {
-      const saved = await createProgramming({ title: title.trim(), category: cat });
-      haptics.success();
-      onClose();
-      toast.show("Idea on the board", { detail: `${saved.title} · it belongs to the chapter until someone picks it up.` });
-      onAdded?.(saved);
-    } catch (x) {
-      haptics.error();
-      setErr(errorMessage(x, "Couldn't add it."));
-      setBusy(false);
-    }
-  };
-
   return (
-    <Sheet open={open} onClose={onClose} locked={busy} tone={tone} icon="spark" kicker="Programming" title="New idea"
-      footer={
-        <View style={{ flex: 1, gap: 6 }}>
-          <Err text={err} />
-          <Button label={busy ? "Adding…" : "Put it on the board"} icon="plus" tone={tone} block onPress={() => void go()} disabled={!title.trim() || !cat || busy} />
-        </View>
-      }>
-      <View style={{ gap: 18 }}>
-        <View style={[styles.note, { backgroundColor: c.note.fill[tone] }]}>
-          <TextInput value={title} onChangeText={setTitle} placeholder="What if we…" placeholderTextColor={alpha(c.note.ink, 0.45)} autoFocus maxLength={200}
-            accessibilityLabel="Idea" returnKeyType="done" onSubmitEditing={() => void go()}
-            style={[resolveType("title", scale), { color: c.note.ink, minHeight: 64, textAlignVertical: "top" }]} multiline blurOnSubmit />
-        </View>
-        {!title.trim() && starters.length ? (
-          <View style={{ gap: 8 }}>
-            <T v="label" color={c.ink3}>Or start from one</T>
-            <View style={styles.rooms}>
-              {starters.map(s => (
-                <Pressable key={s.title} onPress={() => { haptics.select(); setTitle(s.title); setCat(s.category); }} accessibilityRole="button"
-                  style={({ pressed }) => [styles.room, { borderColor: pressed ? c.ink : c.line2, backgroundColor: c.card }]}>
-                  <View style={[styles.dot, { backgroundColor: c.pastel[toneOf(s.category)].ink }]} />
-                  <T v="pill" color={c.ink2}>{s.title}</T>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        ) : null}
-        <TypeChips list={list} value={cat} onChange={setCat} />
-      </View>
-    </Sheet>
+    <TextInput value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={c.faint} accessibilityLabel={label} multiline={multiline}
+      style={[resolveType("body", scale), styles.quiet, { color: c.ink, borderBottomColor: c.line }, multiline && { minHeight: 44, textAlignVertical: "top" }]} />
   );
 }
 
-function TypeChips({ list, value, onChange }: { list: { slug: string; label: string }[]; value: string; onChange: (s: string) => void }) {
+export function EventForm({ open, editing, types, onClose, onSaved }: {
+  open: boolean; editing: ProgrammingEvent | null; types: CalEventType[]; onClose: () => void; onSaved: (e: ProgrammingEvent) => void;
+}) {
   const { c } = useTheme();
-  return (
-    <View style={{ gap: 8 }}>
-      <Label icon="flag" text="Kind" />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8 }}>
-        {list.map(t => {
-          const on = t.slug === value;
-          const p = c.pastel[toneOf(t.slug)];
-          return (
-            <Pressable key={t.slug} onPress={() => { if (!on) { haptics.select(); onChange(t.slug); } }} accessibilityRole="radio" accessibilityState={{ selected: on }}
-              style={[styles.chip, { borderColor: on ? c.ink : p.border, backgroundColor: on ? p.soft : c.card }]}>
-              <View style={[styles.dot, { backgroundColor: p.ink }]} />
-              <T v="pill" color={on ? c.ink : c.ink2}>{t.label}</T>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
-
-/* ── EditDetails ───────────────────────────────────────────────────────────────── */
-
-export function EditDetails({ e, onClose }: { e: ProgrammingEvent | null; onClose: () => void }) {
-  const { c } = useTheme();
-  const { me, term, zone, today } = useOrgBits();
-  const types = useEventTypes();
-  const list = useMemo(() => {
-    const l = managedTypes(types.data, me?.org?.enabledWorkflows ?? []);
-    return e && !l.some(t => t.slug === e.category) ? [{ slug: e.category, label: e.type } as (typeof l)[number], ...l] : l;
-  }, [types.data, me, e]);
+  const scale = useFontScale();
+  const { term, zone, today } = useOrgBits();
   const [title, setTitle] = useState("");
-  const [cat, setCat] = useState("");
-  const [dated, setDated] = useState(false);
-  const [date, setDate] = useState(today);
-  const [minutes, setMinutes] = useState<number | null>(19 * 60);
-  const [loc, setLoc] = useState("");
-  const [collab, setCollab] = useState("");
+  const [when, setWhen] = useState(() => initialWhen(null, today, zone));
+  const [several, setSeveral] = useState(false);
+  const [category, setCategory] = useState("");
   const [mandatory, setMandatory] = useState(false);
+  const [collab, setCollab] = useState("");
+  const [location, setLocation] = useState("");
+  const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const rooms = useRooms(cat, loc);
+  const [schedErr, setSchedErr] = useState("");
+
+  // the event's own type stays choosable while editing, even if it's since been hidden
+  const options = useMemo(() => {
+    if (!editing || types.some(t => t.slug === editing.category)) return types;
+    return [...types, { slug: editing.category, label: editing.type, mandatoryDefault: false } as CalEventType];
+  }, [types, editing]);
 
   useEffect(() => {
-    if (!e) return;
-    setTitle(e.title); setCat(e.category); setDated(!!e.dueDate); setDate(e.dueDate ?? (term && today < term.startDate ? term.startDate : today));
-    setMinutes(e.dueDate ? minutesOf(e, zone) : 19 * 60); setLoc(e.location); setCollab(e.collab ?? ""); setMandatory(e.mandatory); setErr(null); setBusy(false);
-  }, [e?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!open) return;
+    setBusy(false); setSchedErr(""); setSeveral(false);
+    setWhen(initialWhen(editing, term?.startDate && today < term.startDate ? term.startDate : term?.endDate && today > term.endDate ? term.endDate : today, zone));
+    if (editing) {
+      setTitle(editing.title); setCategory(editing.category); setMandatory(editing.mandatory);
+      setCollab(editing.collab ?? ""); setLocation(editing.location); setDescription(editing.description ?? "");
+      return;
+    }
+    const first = types[0];
+    setTitle(""); setCategory(first?.slug ?? ""); setMandatory(first?.mandatoryDefault ?? false);
+    setCollab(""); setLocation(""); setDescription("");
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const go = async () => {
-    if (!e || busy || !title.trim()) return;
-    setBusy(true); setErr(null);
-    const patch: ProgrammingPatch = {
-      title: title.trim(), category: cat, location: loc.trim() || null, collab: collab.trim() || null, mandatory,
-      ...(dated ? { dueDate: date, schedule: scheduleOf(date, minutes, zone) } : { dueDate: null, schedule: null, time: null }),
+  const set = (p: Partial<typeof when>) => setWhen(w => ({ ...w, ...p }));
+  const selected = options.find(t => t.slug === category);
+  const hint = category === "party" ? "Guest list and wrap-up live on the Parties page."
+    : selected?.mandatoryDefault ? `${selected.label} events are required by default.` : "";
+  const ok = !!title.trim();
+  const timed = when.mode === "timed";
+  const hasEnd = timed && when.start != null && when.end != null;
+  const sameAsStart = hasEnd && when.end === when.start;
+  const overnight = hasEnd && when.end! <= when.start!;
+  const suspect = hasEnd ? suspectLength(hhmm(when.start!), hhmm(when.end!)) : null;
+  const multiDay = when.mode === "allDay" && (several || !!when.lastDay);
+  const legacyRead = when.mode === "legacy" ? parseLegacyTime(when.legacy).start : undefined;
+
+  /** ScheduleFields.scheduleFromValue. */
+  const schedule = (): { schedule: ProgrammingPatch["schedule"]; time: string | null } | { error: string } => {
+    if (when.mode === "legacy") return { schedule: null, time: when.legacy.trim() || null };
+    if (when.mode === "allDay") {
+      if (when.lastDay && when.lastDay < when.date) return { error: "The last day can't be before the first." };
+      return { schedule: { kind: "allDay", start: when.date, end: addDays(when.lastDay || when.date, 1) }, time: null };
+    }
+    if (when.start == null) return { error: "Add a start time, or make it an all-day event." };
+    if (when.end != null && when.end === when.start) return { error: "The end time is the same as the start. Clear it or pick a later time." };
+    const start = wallToInstant(when.date, when.start, zone);
+    const end = when.end != null ? wallToInstant(when.end <= when.start ? addDays(when.date, 1) : when.date, when.end, zone) : undefined;
+    return { schedule: { kind: "timed", start, ...(end ? { end } : {}), timeZone: zone }, time: hhmm(when.start) };
+  };
+
+  const save = async () => {
+    if (!ok || busy) return;
+    const r = schedule();
+    if ("error" in r) { setSchedErr(r.error); return; }
+    setSchedErr("");
+    const body = {
+      title: title.trim(), dueDate: when.date, schedule: r.schedule, time: r.time,
+      location: location.trim() || null, collab: collab.trim() || null, category, mandatory, description: description.trim() || null,
     };
+    if (editing) {
+      // As the web: the form closes, and a refusal comes back as a toast.
+      onClose();
+      try {
+        const saved = await patchProgramming(editing.id, body);
+        haptics.success();
+        onSaved(saved);
+      } catch (x) {
+        haptics.error();
+        toast.error(SAY.saveFail, { detail: errorMessage(x) });
+      }
+      return;
+    }
+    setBusy(true);
     try {
-      await patchProgramming(e.id, patch);
+      const saved = await createProgramming({ ...body, status: "Upcoming" });
       haptics.success();
       onClose();
-      toast.show("Saved", { detail: title.trim() });
+      onSaved(saved);
     } catch (x) {
       haptics.error();
-      setErr(errorMessage(x, "Couldn't save that."));
+      toast.error(SAY.createFail, { detail: errorMessage(x) });
       setBusy(false);
     }
   };
 
+  const bold = (t: string) => <T v="meta" color={c.ink} style={{ fontWeight: "700" }}>{t}</T>;
+  const link = (t: string, onPress: () => void) => <T v="meta" color={c.pastel.lilac.ink} style={styles.u} onPress={onPress} accessibilityRole="button">{t}</T>;
+
   return (
-    <Sheet open={!!e} onClose={onClose} locked={busy} size="tall" tone={cat ? toneOf(cat) : "peach"} icon="pencil" kicker={e ? STAGE[e.stage].label : ""} title="Edit details"
-      footer={
-        <View style={{ flex: 1, gap: 6 }}>
-          <Err text={err} />
-          <Button label={busy ? "Saving…" : "Save"} icon="check" tone={cat ? toneOf(cat) : "peach"} block onPress={() => void go()} disabled={busy || !title.trim()} />
-        </View>
-      }>
-      <View style={{ gap: 20 }}>
-        <Field label="Name" value={title} onChangeText={setTitle} maxLength={200} />
-        <TypeChips list={list} value={cat} onChange={setCat} />
-        <View style={{ gap: 8 }}>
-          <View style={styles.switchRow}>
-            <View style={{ flex: 1 }}>
-              <T v="callout">A day picked</T>
-              <T v="meta" color={c.ink3}>{dated ? "Penciled in. It isn't on the Timeline until it's confirmed." : "Ideas and plans can wait for a day."}</T>
-            </View>
-            <Switch value={dated} onChange={setDated} tone="sky" label="Has a date" />
+    <Sheet open={open} onClose={onClose} locked={busy} size="tall" tone="lilac" icon="cal" title={editing ? "Edit event" : "New event"}
+      footer={<Foot cancel="Cancel" go={editing ? "Save changes" : "Add event"} busy={busy} ok={ok} onCancel={onClose} onGo={() => void save()} />}>
+      <View style={{ gap: 18 }}>
+        <TextInput value={title} onChangeText={setTitle} placeholder="Event name" placeholderTextColor={c.faint} maxLength={200} accessibilityLabel="Title" autoFocus={!editing}
+          style={[resolveType("title", scale), { color: c.ink, paddingVertical: 6 }]} />
+
+        <FormRow icon="clock">
+          <View accessibilityLabel={multiDay ? "First day" : "Date"}>
+            <DayStrip value={when.date} onChange={date => set({ date })} today={today} term={term} usualDow={null} taken={new Set()} editing={!!editing} open={open} />
           </View>
-          {dated ? (
-            <View style={{ gap: 8 }}>
-              <DayStrip value={date} onChange={setDate} today={today} term={term} usualDow={null} taken={new Set()} editing open={!!e} />
-              <Clock minutes={minutes} onChange={setMinutes} tone="sky" />
+          {timed ? (
+            <View style={styles.times}>
+              {when.start == null ? (
+                <Pressable onPress={() => set({ start: 19 * 60 })} accessibilityRole="button" accessibilityLabel="Starts"
+                  style={({ pressed }) => [styles.pick, { borderColor: c.line2, backgroundColor: c.card }, pressed && pressedDim]}>
+                  <T v="mono" color={c.faint}>--:-- --</T>
+                </Pressable>
+              ) : <View accessibilityLabel="Starts"><Clock minutes={when.start} onChange={m => set(m == null ? { start: null, end: null } : { start: m })} tone="lilac" /></View>}
+              <T v="body" color={c.ink3}>→</T>
+              {when.end == null ? (
+                <Pressable disabled={when.start == null} onPress={() => set({ end: ((when.start ?? 1140) + 120) % 1440 })} accessibilityRole="button" accessibilityLabel="Ends (optional)"
+                  style={({ pressed }) => [styles.pick, { borderColor: c.line2, backgroundColor: c.card }, pressed && pressedDim]}>
+                  <T v="mono" color={c.faint}>--:-- --</T>
+                </Pressable>
+              ) : <View accessibilityLabel="Ends (optional)"><Clock minutes={when.end} onChange={m => set({ end: m })} tone="lilac" /></View>}
             </View>
           ) : null}
-        </View>
-        <View style={{ gap: 8 }}>
-          <Field label="Where" value={loc} onChangeText={setLoc} placeholder="The room, the address" maxLength={200} />
-          <RoomChips rooms={rooms} onPick={setLoc} />
-        </View>
-        <Field label="With (another group, optional)" value={collab} onChangeText={setCollab} placeholder="Delta chapter, the alumni board" maxLength={200} />
-        <View style={styles.switchRow}>
-          <View style={{ flex: 1 }}>
-            <T v="callout">Required attendance</T>
-            <T v="meta" color={c.ink3}>{mandatory ? "Once confirmed, it counts toward standing." : "Optional: nobody's standing moves."}</T>
+          {multiDay ? (
+            <View style={{ gap: 6 }} accessibilityLabel="Last day (optional)">
+              <T v="body" color={c.ink3}>→</T>
+              <DayStrip value={when.lastDay || when.date} onChange={lastDay => set({ lastDay })} today={today} term={term} usualDow={null} taken={new Set()} editing open={open} />
+            </View>
+          ) : null}
+          {when.mode === "legacy" ? (
+            <QuietInput value={when.legacy} onChange={legacy => set({ legacy })} placeholder="" label="Time, as written" />
+          ) : null}
+          <View style={styles.meta}>
+            <T v="meta" color={c.ink3} style={{ flex: 1 }} accessibilityLiveRegion="polite">
+              {timed ? (
+                when.start == null ? "Pick a start time"
+                  : when.end == null ? <>{"Starts "}{bold(clock(when.start))}{" · no end time"}</>
+                    : sameAsStart ? "End matches start"
+                      : <>{bold(durationLabel(hhmm(when.start), hhmm(when.end)))}{overnight ? " · ends next day" : ""}</>
+              ) : null}
+              {when.mode === "allDay" ? <>{bold("All day")}{!multiDay ? <>{" · "}{link("Several days", () => setSeveral(true))}</> : null}</> : null}
+              {when.mode === "legacy" ? bold("As written") : null}
+              {timed ? ` · ${zoneLine(zone, zoneName(zone))}` : null}
+            </T>
+            <View style={styles.allDay}>
+              <Switch value={when.mode === "allDay"} label="All day"
+                onChange={v => { haptics.select(); if (v) set({ mode: "allDay" }); else if (when.mode === "allDay") set({ mode: "timed" }); }} />
+              <T v="meta" color={c.ink2}>All day</T>
+            </View>
           </View>
-          <Switch value={mandatory} onChange={setMandatory} tone="peach" label="Required attendance" />
-        </View>
+          {when.mode === "legacy" ? (
+            <T v="meta" color={c.ink3}>
+              {legacyRead
+                ? `Calendars show this at ${clock(minutesOfHhmm(legacyRead))}${timeIsClear(when.legacy) ? "" : " (no AM/PM was typed, so it's read as PM)"}. `
+                : "Calendar subscriptions show this as an all-day event until it has a start time. "}
+              {link("Set a time", () => { const g = parseLegacyTime(when.legacy); set({ mode: "timed", start: g.start ? minutesOfHhmm(g.start) : null, end: g.end ? minutesOfHhmm(g.end) : null }); })}
+            </T>
+          ) : null}
+          {sameAsStart ? <T v="meta" color={c.pastel.rose.ink} accessibilityRole="alert">The end is the same as the start. Clear it or pick a later time.</T> : null}
+          {suspect && when.end != null ? (
+            <T v="meta" color={c.pastel.rose.ink} accessibilityRole="alert">
+              {`This runs ${suspect.hours} hours, ending the next day at ${clock(when.end)}. `}
+              {suspect.suggest ? link(`Change to ${clock(minutesOfHhmm(suspect.suggest))}`, () => set({ end: minutesOfHhmm(suspect.suggest!) })) : null}
+            </T>
+          ) : null}
+          {schedErr ? <T v="meta" color={c.pastel.rose.ink} accessibilityRole="alert">{schedErr}</T> : null}
+        </FormRow>
+
+        <FormRow icon="tack">
+          <TypeChips list={options} value={category} label="Category"
+            onChange={s => { setCategory(s); if (options.find(x => x.slug === s)?.mandatoryDefault) setMandatory(true); }} />
+          {hint ? <T v="meta" color={c.ink3}>{hint}</T> : null}
+        </FormRow>
+
+        <FormRow icon="check">
+          <View style={styles.reqRow}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <T v="callout">Required attendance</T>
+              <T v="meta" color={c.ink3}>Take attendance and track excuses.</T>
+            </View>
+            <Switch value={mandatory} onChange={v => { haptics.select(); setMandatory(v); }} tone="peach" label="Required attendance" />
+          </View>
+        </FormRow>
+        <FormRow icon="people"><QuietInput value={collab} onChange={setCollab} placeholder="Add a collab org (KDF, DSP…)" label="Collab" /></FormRow>
+        <FormRow icon="pin"><QuietInput value={location} onChange={setLocation} placeholder="Add location" label="Location" /></FormRow>
+        <FormRow icon="note"><QuietInput value={description} onChange={setDescription} placeholder="Add notes, agenda, or links" label="Description" multiline /></FormRow>
       </View>
     </Sheet>
   );
 }
 
-/* ── AttachLink ────────────────────────────────────────────────────────────────── */
+/* ── HelpSheet ───────────────────────────────────────────────────────────────── */
 
-export function AttachLink({ e, onClose }: { e: ProgrammingEvent | null; onClose: () => void }) {
-  const [title, setTitle] = useState("");
-  const [url, setUrl] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { if (e) { setTitle(""); setUrl(""); setErr(null); setBusy(false); } }, [e?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const full = /^https?:\/\//i.test(url.trim()) ? url.trim() : url.trim() ? `https://${url.trim()}` : "";
-  const go = async () => {
-    if (!e || busy || !title.trim() || !full) return;
-    setBusy(true); setErr(null);
-    try {
-      await attachDoc(e.id, title.trim(), full);
-      haptics.success();
-      onClose();
-      toast.show("Link attached", { detail: `${title.trim()} · it's in Docs too.` });
-    } catch (x) {
-      haptics.error();
-      setErr(errorMessage(x, "Couldn't attach that link."));
-      setBusy(false);
-    }
+export function HelpSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { c } = useTheme();
+  return (
+    <Sheet open={open} onClose={onClose} size="tall" tone="lilac" icon="board" title={HELP.title}>
+      <View style={{ gap: 14 }}>
+        <T v="body" color={c.ink2}>{HELP.lead}</T>
+        <View style={[styles.list, { borderColor: c.line }]}>
+          {helpRows().map((r, i) => {
+            const tone = STAGE_TONE[r.stage];
+            return (
+              <View key={r.stage} style={[styles.gap, i > 0 && { borderTopWidth: 1, borderTopColor: c.line }]}>
+                <View style={styles.helpHead}>
+                  <View style={[styles.dot, { backgroundColor: tone ? c.pastel[tone].ink : c.faint }]} />
+                  <T v="callout" style={{ fontWeight: "700" }}>{r.label}</T>
+                  <T v="meta" color={c.ink3} style={{ flex: 1 }}>{r.meaning}</T>
+                </View>
+                <T v="body" color={c.ink2} style={{ paddingLeft: 15 }}>{r.cost}</T>
+              </View>
+            );
+          })}
+        </View>
+        <T v="meta" color={c.ink3}>{HELP.foot[0]}<T v="meta" color={c.ink} style={{ fontWeight: "700" }}>{HELP.foot[1]}</T>{` ${HELP.foot[2]} `}<T v="meta" color={c.ink} style={{ fontWeight: "700" }}>{HELP.foot[3]}</T>{` ${HELP.foot[4]}`}</T>
+      </View>
+    </Sheet>
+  );
+}
+
+/* ── DeleteEvent ─────────────────────────────────────────────────────────────── */
+
+export function DeleteEvent({ e, onClose, onDeleted }: { e: ProgrammingEvent | null; onClose: () => void; onDeleted: (id: number) => void }) {
+  const { c } = useTheme();
+  if (!e) return <Sheet open={false} onClose={onClose} />;
+  const go = () => {
+    onClose();
+    onDeleted(e.id);
+    // Off the board at once, as the web does; a refusal puts it back.
+    const undo = setProgramming(l => l.filter(x => x.id !== e.id));
+    deleteProgramming(e.id).then(
+      () => haptics.success(),
+      x => { undo(); haptics.error(); toast.error(SAY.deleteFail, { detail: errorMessage(x) }); },
+    );
   };
   return (
-    <Sheet open={!!e} onClose={onClose} locked={busy} tone="butter" icon="link" kicker={e?.title ?? ""} title="Attach a link"
-      footer={
-        <View style={{ flex: 1, gap: 6 }}>
-          <Err text={err} />
-          <Button label={busy ? "Attaching…" : "Attach"} icon="link" tone="butter" block onPress={() => void go()} disabled={busy || !title.trim() || !full} />
-        </View>
-      }>
-      <View style={{ gap: 14 }}>
-        <Field label="Link" value={url} onChangeText={setUrl} placeholder="docs.google.com/…" autoCapitalize="none" autoCorrect={false} keyboardType="url" autoFocus />
-        <Field label="Call it" value={title} onChangeText={setTitle} placeholder="Run of show, budget sheet" maxLength={200} />
-      </View>
+    <Sheet open onClose={onClose} tone="rose" icon="trash" title={SAY.deleteTitle}
+      footer={<Foot cancel={SAY.cancel} go={SAY.deleteGo} ok danger onCancel={onClose} onGo={go} />}>
+      <T v="body" color={c.ink2}>{SAY.deleteMessage(e.title, !!e.dueDate)}</T>
     </Sheet>
   );
 }
 
+/* ── New field (the panel's FieldTogglePills "New field") ────────────────────── */
+
+export const FIELD_KINDS: { kind: EventFieldRow["kind"]; label: string; eg: string }[] = [
+  { kind: "text",   label: "Text",     eg: "Anything written — a contact, a note, a dress code." },
+  { kind: "num",    label: "Number",   eg: "A count. Head count, buses, tables." },
+  { kind: "money",  label: "Money",    eg: "A dollar amount, kept apart from what was actually spent." },
+  { kind: "bool",   label: "Yes / no", eg: "A box that's either ticked or it isn't. Risk form filed?" },
+  { kind: "date",   label: "Date",     eg: "A second date the event depends on — a deposit deadline." },
+  { kind: "person", label: "Person",   eg: "Somebody on the roster who isn't the owner." },
+  { kind: "file",   label: "File",     eg: "A link or an attachment." },
+];
+
 const styles = StyleSheet.create({
-  label: { flexDirection: "row", alignItems: "center", gap: 6 },
-  pickRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 14, borderWidth: 1.5 },
-  face: { width: 30, height: 30, borderRadius: 15 },
-  roleFace: { borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  find: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 12, minHeight: 44 },
-  findIn: { flex: 1, fontSize: 16, paddingVertical: 8 },
-  list: { borderWidth: 1.5, borderRadius: 16, overflow: "hidden" },
-  pick: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, paddingHorizontal: 12, minHeight: 54 },
-  rooms: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  room: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 11, minHeight: 32 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 7, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 13, minHeight: 38 },
+  foot: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "stretch" },
+  input: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12 },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, minHeight: 36 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  star: { width: 48, height: 48, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  notes: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, lineHeight: 24, minHeight: 110, textAlignVertical: "top" },
-  acts: { flexDirection: "row", gap: 8 },
-  note: { borderTopLeftRadius: 5, borderTopRightRadius: 14, borderBottomRightRadius: 7, borderBottomLeftRadius: 12, padding: 16, transform: [{ rotate: "-0.8deg" }] },
-  switchRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  tabsRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  tabs: { flexDirection: "row", gap: 2, padding: 3, borderRadius: 999, borderWidth: 1.5 },
+  tab: { paddingHorizontal: 14, minHeight: 32, borderRadius: 999, justifyContent: "center" },
+  unassign: { paddingHorizontal: 8, minHeight: 32, justifyContent: "center" },
+  opt: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
+  av: { width: 26, height: 26, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  list: { borderWidth: 1.5, borderRadius: 14, overflow: "hidden" },
+  gap: { gap: 8, padding: 12 },
+  gapHead: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
+  choice: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  starsRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  sticky: { gap: 6, padding: 14, borderRadius: 8, alignSelf: "center", width: 220, transform: [{ rotate: "-1.5deg" }] },
+  allDay: { flexDirection: "row", alignItems: "center", gap: 12 },
+  pick: { borderWidth: 1.5, borderStyle: "dashed", borderRadius: 12, paddingHorizontal: 12, minHeight: 44, justifyContent: "center" },
+  helpHead: { flexDirection: "row", alignItems: "baseline", gap: 7 },
+  cefRow: { flexDirection: "row", gap: 12 },
+  cefIc: { width: 20, paddingTop: 10, alignItems: "center" },
+  quiet: { borderBottomWidth: 1, paddingVertical: 8 },
+  times: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  meta: { flexDirection: "row", alignItems: "center", gap: 10 },
+  reqRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  u: { textDecorationLine: "underline" },
 });

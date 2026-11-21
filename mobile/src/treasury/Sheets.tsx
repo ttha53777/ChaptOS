@@ -93,8 +93,10 @@ function Foot({ busy, label, ok, onCancel, onSave, err, danger }: { busy: boolea
 
 /* ── Add / Edit Transaction ──────────────────────────────────────────────────── */
 
-export function LedgerTxForm({ open, tx, catalog, terms, activeTerm, events, onClose }: {
+export function LedgerTxForm({ open, tx, catalog, terms, activeTerm, events, onClose, lockType, lockEventIds, initialDate, onSaved }: {
   open: boolean; tx: Transaction | null; catalog: Catalog; terms: SemesterRow[]; activeTerm: string | null; events: CalendarEvent[]; onClose: () => void;
+  /** TxForm's locks (Programming's "+ Log transaction"): the type fixed and hidden, these events linked and unremovable. */
+  lockType?: "income" | "expense"; lockEventIds?: number[]; initialDate?: string; onSaved?: () => void;
 }) {
   const { c } = useTheme();
   const today = localDay();
@@ -113,10 +115,10 @@ export function LedgerTxForm({ open, tx, catalog, terms, activeTerm, events, onC
 
   useEffect(() => {
     if (!open) return;
-    setType(tx?.type ?? "expense"); setCategory(tx?.category ?? ""); setAmount(tx ? String(tx.amount) : "");
-    setDate(tx?.date ?? localDay()); setDescription(tx?.description ?? ""); setMethod(tx?.paymentMethod ?? "");
+    setType(lockType ?? tx?.type ?? "expense"); setCategory(tx?.category ?? ""); setAmount(tx ? String(tx.amount) : "");
+    setDate(tx?.date ?? initialDate ?? localDay()); setDescription(tx?.description ?? ""); setMethod(tx?.paymentMethod ?? "");
     setSemester(tx?.semester ?? ""); setStatus(tx?.status === "scheduled" ? "scheduled" : "posted");
-    setEventIds(tx?.calendarEvents?.map(e => e.id) ?? []);
+    setEventIds(lockEventIds?.length ? lockEventIds : tx?.calendarEvents?.map(e => e.id) ?? []);
     picked.current = tx && tx.date > localDay() ? (tx.status as "posted" | "scheduled") : null;
     setBusy(false); setErr(null);
   }, [open, tx?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -141,6 +143,7 @@ export function LedgerTxForm({ open, tx, catalog, terms, activeTerm, events, onC
       if (tx) await patchTransaction(tx.id, body as TxPatch);
       else await createTransaction(body);
       haptics.success();
+      onSaved?.();
       onClose();
     } catch (e) {
       haptics.error();
@@ -151,9 +154,9 @@ export function LedgerTxForm({ open, tx, catalog, terms, activeTerm, events, onC
 
   return (
     <Sheet open={open} onClose={onClose} locked={busy} size="tall" tone="lilac" icon="wallet" title={tx ? "Edit Transaction" : "Add Transaction"}
-      footer={<Foot busy={busy} err={err} ok={ok} onCancel={onClose} onSave={() => void save()} label={tx ? "Save Changes" : "Add Transaction"} />}>
+      footer={<Foot busy={busy} err={err} ok={ok} onCancel={onClose} onSave={() => void save()} label={tx ? "Save Changes" : lockType === "expense" ? "Log Expense" : lockType === "income" ? "Log Revenue" : "Add Transaction"} />}>
       <View style={{ gap: 16 }}>
-        <Choices label="Type" value={type} onChange={t => { setType(t); setCategory(""); }} options={[{ v: "income", l: "Income" }, { v: "expense", l: "Expense" }]} />
+        {!lockType ? <Choices label="Type" value={type} onChange={t => { setType(t); setCategory(""); }} options={[{ v: "income", l: "Income" }, { v: "expense", l: "Expense" }]} /> : null}
         <Choices label="Category" value={category || null} onChange={setCategory} options={cats.map(x => ({ v: x.slug, l: x.label }))} />
         <Field label="Amount ($)" value={amount} onChangeText={t => setAmount(t.replace(/[^\d.]/g, ""))} placeholder="0.00" keyboardType="decimal-pad" />
         <DayField date={date} onChange={onDate} />
@@ -181,6 +184,14 @@ export function LedgerTxForm({ open, tx, catalog, terms, activeTerm, events, onC
                 {eventIds.map(id => {
                   const ev = termEvents.find(e => e.id === id);
                   if (!ev) return null;
+                  if (lockEventIds?.includes(id)) {
+                    return (
+                      <View key={id} style={[styles.ev, { backgroundColor: c.pastel.lilac.soft, borderColor: c.pastel.lilac.border }]}>
+                        <Icon name="cal" size={12} color={c.pastel.lilac.ink} />
+                        <T v="pill" size={11} color={c.pastel.lilac.ink}>{ev.title}</T>
+                      </View>
+                    );
+                  }
                   return (
                     <Pressable key={id} onPress={() => setEventIds(xs => xs.filter(x => x !== id))} accessibilityRole="button" accessibilityLabel={`Remove ${ev.title}`}
                       style={({ pressed }) => [[styles.ev, { backgroundColor: c.pastel.lilac.soft, borderColor: c.pastel.lilac.border }], pressed && pressedDim]}>

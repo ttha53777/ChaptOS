@@ -3,7 +3,8 @@
  *
  *   useProgramming        the board, every lane
  *   useRoles              GET /api/roles, for the owner picker
- *   useProgrammingDocs    links attached to one event
+ *   useEventFields        GET /api/events/fields, the org's optional fields
+ *   useEventTransactions  GET /api/transactions?calendarEventId=, a published event's spend
  *
  * Writes return the saved event, which replaces its row in the cache at once.
  * Optimistic where the web is (a stage move shows in its new lane while it saves and
@@ -13,7 +14,7 @@
  * Request bodies are written out here: lib/validation/programming pulls the schedule
  * schema, which needs Temporal, and mobile/ only imports types from the server.
  */
-import type { ProgrammingDoc, ProgrammingEvent, ProgrammingStage, RoleChip } from "@/lib/api-types";
+import type { EventFieldRow, ProgrammingEvent, ProgrammingStage, RoleChip, Transaction } from "@/lib/api-types";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "~/api/client";
 import { activeOrg, useActiveOrg } from "~/state/org";
@@ -23,7 +24,8 @@ import { queryClient } from "./query";
 export const progKeys = {
   list: (slug: string | null) => ["programming", slug] as const,
   roles: (slug: string | null) => ["roles", slug] as const,
-  docs: (slug: string | null, id: number) => ["programmingDocs", slug, id] as const,
+  fields: (slug: string | null) => ["eventFields", slug] as const,
+  txns: (slug: string | null, calendarEventId: number) => ["transactions", slug, "event", calendarEventId] as const,
 };
 
 const slugNow = () => activeOrg.get().slug;
@@ -47,12 +49,22 @@ export function useRoles(enabled: boolean) {
   });
 }
 
-export function useProgrammingDocs(id: number | null) {
+export function useEventFields(enabled = true) {
   const { slug } = useActiveOrg();
   return useQuery({
-    queryKey: progKeys.docs(slug, id ?? 0),
-    queryFn: () => api<ProgrammingDoc[]>(`/api/programming/${id}/docs`, { org: slug }),
-    enabled: id != null,
+    queryKey: progKeys.fields(slug),
+    queryFn: () => api<EventFieldRow[]>("/api/events/fields", { org: slug }),
+    enabled,
+  });
+}
+
+/** Linked transactions for a published event (the treasury writes them; anyone may read). */
+export function useEventTransactions(calendarEventId: number | null) {
+  const { slug } = useActiveOrg();
+  return useQuery({
+    queryKey: progKeys.txns(slug, calendarEventId ?? 0),
+    queryFn: () => api<Transaction[]>(`/api/transactions?calendarEventId=${calendarEventId}`, { org: slug }),
+    enabled: calendarEventId != null,
   });
 }
 
@@ -73,6 +85,9 @@ export interface NewProgrammingBody {
   mandatory?: boolean;
   ownerBrotherId?: number | null;
   ownerRoleId?: number | null;
+  /** Sent as the web sends them; the create schema keeps status and drops description. */
+  status?: string;
+  description?: string | null;
 }
 
 export interface ProgrammingPatch {
@@ -90,6 +105,10 @@ export interface ProgrammingPatch {
   spendingCents?: number;
   successRating?: number | null;
   wrapUpNotes?: string | null;
+  attachmentUrl?: string | null;
+  attachmentDocId?: number | null;
+  fieldValues?: Record<string, string | number | boolean | null>;
+  detachedFields?: string[];
 }
 
 /* ── cache ──────────────────────────────────────────────────────────────────────── */
@@ -158,21 +177,14 @@ export async function deleteProgramming(id: number): Promise<void> {
   if (before && published(before.stage)) calendarMoved();
 }
 
-export async function attachDoc(id: number, title: string, url: string): Promise<ProgrammingDoc> {
-  const doc = await api<ProgrammingDoc>(`/api/programming/${id}/docs`, { method: "POST", body: { title, url }, org: slugNow() });
-  queryClient.setQueryData<ProgrammingDoc[]>(progKeys.docs(slugNow(), id), l => [doc, ...(l ?? [])]);
-  void queryClient.invalidateQueries({ queryKey: ["docs", slugNow()] });
-  return doc;
+/** A new optional field for every event (MANAGE_EVENTS): the server derives its slug. */
+export async function createEventField(label: string, kind: EventFieldRow["kind"]): Promise<EventFieldRow> {
+  const row = await api<EventFieldRow>("/api/events/fields", { method: "POST", body: { label, kind }, org: slugNow() });
+  queryClient.setQueryData<EventFieldRow[]>(progKeys.fields(slugNow()), l => [...(l ?? []), row]);
+  return row;
 }
 
-export async function detachDoc(id: number, docId: number): Promise<void> {
-  const key = progKeys.docs(slugNow(), id);
-  const before = queryClient.getQueryData<ProgrammingDoc[]>(key);
-  queryClient.setQueryData<ProgrammingDoc[]>(key, l => (l ?? []).filter(d => d.id !== docId));
-  try {
-    await api<null>(`/api/programming/${id}/docs/${docId}`, { method: "DELETE", org: slugNow() });
-  } catch (e) {
-    queryClient.setQueryData(key, before);
-    throw e;
-  }
+/** A transaction landed against an event: its linked list re-reads. */
+export function eventTxnsMoved(calendarEventId: number) {
+  void queryClient.invalidateQueries({ queryKey: progKeys.txns(slugNow(), calendarEventId) });
 }

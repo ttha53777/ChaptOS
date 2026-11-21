@@ -13,9 +13,8 @@ import { useState } from "react";
 import { Modal } from "../dashboard/primitives";
 import { btnDuskPrimaryCls } from "../dashboard/styles";
 import type { ProgrammingTask } from "../../data";
-import { fmtDate } from "../../data";
+import { DEMOTE } from "@/lib/programme/board";
 
-const WEEKDAY = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("en-US", { weekday: "long" });
 
 export function EventDemoteStep({
   event,
@@ -29,7 +28,7 @@ export function EventDemoteStep({
   onCommit: () => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
-  const from = event.dueDate ? fmtDate(event.dueDate) : "its date";
+  const from = DEMOTE.from(event.dueDate);
 
   async function commit() {
     if (saving) return;
@@ -38,19 +37,17 @@ export function EventDemoteStep({
   }
 
   return (
-    <Modal tone="dusk" title="Move it off the Timeline?" onClose={onCancel} maxWidthClass="max-w-lg">
+    <Modal tone="dusk" title={DEMOTE.title} onClose={onCancel} maxWidthClass="max-w-lg">
       <div className="ev-ov space-y-4">
         <p className="ev-ov-sub">
-          <b>{event.title}</b>{" "}is on the chapter&apos;s timeline for <b>{from}</b>.{" "}
-          Moving it to {WEEKDAY(date)}, {fmtDate(date)} takes it back to Planning first —
-          confirm it again once the new date&apos;s right.
+          <b>{event.title}</b>{DEMOTE.mid}<b>{from}</b>{DEMOTE.tail(date)}
         </p>
         <div className="flex items-center justify-end gap-2 pt-1">
           <button type="button" onClick={onCancel} className="ev-ov-cancel" autoFocus>
-            Keep {from}
+            {DEMOTE.keep(from)}
           </button>
           <button type="button" onClick={commit} disabled={saving} className={`${btnDuskPrimaryCls} w-auto`}>
-            {saving ? "Moving…" : `Move to Planning · ${fmtDate(date)}`}
+            {saving ? DEMOTE.moving : DEMOTE.go(date)}
           </button>
         </div>
       </div>

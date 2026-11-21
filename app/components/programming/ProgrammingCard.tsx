@@ -5,7 +5,7 @@ import { fmtDate } from "../../data";
 import { TypeBadge, StarRating } from "./ProgrammingChips";
 import { OwnerAvatar } from "./OwnerPicker";
 import type { TypeVisual } from "./typeColor";
-import { missingFor, needsWrapUp } from "@/lib/programming";
+import { BOARD, cardBlocker as blockerOf, cardPlace, ideaTilt, needsWrapUp } from "@/lib/programme/board";
 import { ownerShortLabel } from "@/lib/event-owner";
 import { todayStr } from "../../lib/dates";
 import { cardWhen } from "./eventsCopy";
@@ -28,23 +28,8 @@ const URGENT_DAYS = 14;
  * buries the cards that need a person. A Confirmed event whose date has PASSED
  * is the exception — it's waiting on a wrap-up, and nothing else will say so.
  */
-function cardBlocker(task: ProgrammingTask): { text: string; tone: "rose" | "gold" | "ok" } | null {
-  if (needsWrapUp(task, TODAY)) return { text: "Happened — wrap it up", tone: "rose" };
-  if (task.stage === "done" || task.stage === "confirmed") return null;
-  const days = task.dueDate
-    ? Math.round((new Date(task.dueDate + "T00:00:00").getTime() - new Date(TODAY + "T00:00:00").getTime()) / 86_400_000)
-    : null;
-  const tone: "rose" | "gold" = days != null && days <= URGENT_DAYS ? "rose" : "gold";
-
-  // An OWNED idea is unremarkable — a backlog is allowed to sit. The only thing
-  // worth saying about an idea is that nobody has picked it up.
-  if (task.stage === "idea") {
-    return task.owner ? null : { text: "Needs an owner", tone };
-  }
-  // A ProgrammingTask carries `dueDate`, not `date` — hasRequiredField reads both.
-  const missing = missingFor(task, "confirmed");
-  if (missing.length === 0) return { text: "Ready to confirm", tone: "ok" };
-  return { text: `Needs ${missing.map(f => f.label.toLowerCase()).join(" + ")}`, tone };
+function cardBlocker(task: ProgrammingTask) {
+  return blockerOf(task, TODAY);
 }
 
 function countdown(dueDate: string | null): { label: string; tone: string } | null {
@@ -215,7 +200,7 @@ function DuskCard({
 
   // The subtitle is the PLACE. The type is already carried by the coloured edge,
   // so repeating "Social ·" here prints the same fact twice.
-  const sub = task.location || (task.collab ? `w/ ${task.collab}` : "");
+  const sub = cardPlace(task.location, task.collab);
 
   return (
     <div
@@ -234,7 +219,7 @@ function DuskCard({
       <div className="ec-meta">
         <span className={`ec-when${when.tone ? ` ${when.tone}` : ""}`}>{when.label}</span>
         {sub && <span className="ec-where">{task.location && <PaperIcon name="pin" />}{sub}</span>}
-        {task.mandatory && <span className="ec-mand" title="Required of every member">Required</span>}
+        {task.mandatory && <span className="ec-mand" title="Required of every member">{BOARD.required}</span>}
         {isDone && task.successRating != null && <CardStars value={task.successRating} />}
       </div>
       {/* The one status row: the owner's avatar, then either what the event still
@@ -246,7 +231,7 @@ function DuskCard({
             ? blocker.text
             : task.owner
               ? ownerShortLabel(task.owner)
-              : "No owner"}
+              : BOARD.noOwner}
         </span>
         {task.stage === "confirmed" && (
           <span className="ec-pub" title="On the chapter Timeline" aria-hidden>
@@ -263,9 +248,6 @@ function DuskCard({
 
 /** Paper's Idea cards are pinned-up sticky notes, each a little askew. Derived
  *  from the id so a card keeps its tilt across renders and reloads. */
-function ideaTilt(id: number): number {
-  return ((id % 5) - 2) * 1.1;
-}
 
 /**
  * A wrapped event's rating.

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ProgrammingTask } from "../../data";
 import { STAGES, STAGE_LABELS, STAGE_PILL, type ProgrammingStage } from "@/lib/state/programming-stage";
 import { canEnter, missingFor, needsConfirmFirst } from "@/lib/programming";
+import { BOARD, DONE_LIMIT, byStage as groupByStage } from "@/lib/programme/board";
 import { ProgrammingCard } from "./ProgrammingCard";
 import { typeVisual, type TypeVisual } from "./typeColor";
 import { PaperIcon } from "../paper/PaperIcon";
@@ -65,8 +66,7 @@ export function ProgrammingBoard({
   const [dragId, setDragId] = useState<number | null>(null);
   const [overStage, setOverStage] = useState<ProgrammingStage | null>(null);
   const [showAllDone, setShowAllDone] = useState(false);
-  const DONE_LIMIT = 6;
-  // Native HTML5 drag-and-drop doesn't work on touch; on those devices we tell
+    // Native HTML5 drag-and-drop doesn't work on touch; on those devices we tell
   // users to open the card and change its stage from the detail panel instead.
   const [touch, setTouch] = useState(false);
   useEffect(() => {
@@ -75,10 +75,7 @@ export function ProgrammingBoard({
   const dndEnabled = canManage && !touch;
 
   const byStage = useMemo(() => {
-    const map: Record<ProgrammingStage, ProgrammingTask[]> = { idea: [], planning: [], confirmed: [], done: [] };
-    for (const t of tasks) (map[t.stage] ?? map.idea).push(t);
-    map.done.sort((a, b) => (b.dueDate ?? "").localeCompare(a.dueDate ?? ""));
-    return map;
+    return groupByStage(tasks);
   }, [tasks]);
 
   async function handleDrop(stage: ProgrammingStage) {
@@ -128,8 +125,8 @@ export function ProgrammingBoard({
           Planning aren't secret (members can open this page), they're just not
           on the Timeline yet — so the bracket says that, not "officers only". */}
       <div className="ev-vis-bracket" aria-hidden>
-        <span className="priv"><PaperIcon name="lock" />Not on the Timeline yet</span>
-        <span className="pub"><PaperIcon name="eye" />On the chapter Timeline · everyone sees these</span>
+        <span className="priv"><PaperIcon name="lock" />{BOARD.privateBracket}</span>
+        <span className="pub"><PaperIcon name="eye" />{BOARD.publicBracket}</span>
       </div>
       <div className="ev-pipeline">
         {STAGES.map(stage => {
@@ -161,7 +158,7 @@ export function ProgrammingBoard({
               {cue && <p className={`ev-lane-cue${cue.blocked ? " gated" : ""}`}>{cue.text}</p>}
               <LaneBody deps={[items.length, showAllDone]}>
                 {items.length === 0 ? (
-                  <p className="empty">{dndEnabled ? "Drop here" : "Nothing here"}</p>
+                  <p className="empty">{dndEnabled ? "Drop here" : BOARD.laneEmpty}</p>
                 ) : (() => {
                   const visible = stage === "done" && !showAllDone ? items.slice(0, DONE_LIMIT) : items;
                   const hidden = stage === "done" ? items.length - visible.length : 0;
@@ -183,12 +180,12 @@ export function ProgrammingBoard({
                       ))}
                       {hidden > 0 && (
                         <button className="ev-done-more" onClick={() => setShowAllDone(true)}>
-                          +{hidden} more wrapped
+                          {BOARD.more(hidden)}
                         </button>
                       )}
                       {stage === "done" && showAllDone && items.length > DONE_LIMIT && (
                         <button className="ev-done-more" onClick={() => setShowAllDone(false)}>
-                          Show less
+                          {BOARD.less}
                         </button>
                       )}
                     </>

@@ -19,17 +19,12 @@ import { useState } from "react";
 import { Modal } from "../dashboard/primitives";
 import { inputDuskCls, btnDuskPrimaryCls } from "../dashboard/styles";
 import type { ProgrammingTask } from "../../data";
+import { MAX_WRAP_NOTES, RATING_LABELS, WRAP } from "@/lib/programme/board";
 import { STAGE_LABELS } from "@/lib/state/programming-stage";
 
-export const RATING_LABELS: Record<number, string> = {
-  1: "Rough",
-  2: "Okay",
-  3: "Good",
-  4: "Great",
-  5: "Legendary",
-};
+export { RATING_LABELS };
 
-const MAX_NOTES = 500;
+const MAX_NOTES = MAX_WRAP_NOTES;
 
 /**
  * Five stars as a proper radiogroup.
@@ -61,7 +56,7 @@ export function StarRadioGroup({
           // Only the exact star is checked. Marking n <= value would announce
           // four selected options in a group where one can be selected.
           aria-checked={value === n}
-          aria-label={`${n} star${n > 1 ? "s" : ""} — ${RATING_LABELS[n]}`}
+          aria-label={WRAP.star(n)}
           disabled={disabled}
           onClick={() => onChange?.(value === n ? null : n)}
           onMouseEnter={() => !disabled && setHovered(n)}
@@ -106,28 +101,28 @@ export function EventWrapUp({
   }
 
   return (
-    <Modal tone="dusk" title="Wrap it up" onClose={onCancel} maxWidthClass="max-w-lg">
+    <Modal tone="dusk" title={WRAP.title} onClose={onCancel} maxWidthClass="max-w-lg">
       <div className="ev-ov space-y-4">
         <p className="ev-ov-sub">
-          Nothing here is required — but this is the one moment anybody still remembers how it went.
+          {WRAP.sub}
         </p>
         <p className="ev-ov-lead truncate">
-          <span className="k">Event:</span> {event.title}
+          <span className="k">{WRAP.eventK}</span> {event.title}
         </p>
 
         <div className="space-y-2">
-          <label className="ev-ov-lbl block">How did it go?</label>
+          <label className="ev-ov-lbl block">{WRAP.how}</label>
           <div className="flex items-center gap-3">
             <StarRadioGroup value={stars} onChange={setStars} />
             <span className="ev-ov-sub">
-              {stars != null ? RATING_LABELS[stars] : "No rating yet"}
+              {stars != null ? RATING_LABELS[stars] : WRAP.noRating}
             </span>
           </div>
         </div>
 
         <div className="space-y-2">
           <label htmlFor="wrapup-notes" className="ev-ov-lbl block">
-            Anything worth remembering next time?
+            {WRAP.notes}
           </label>
           <textarea
             id="wrapup-notes"
@@ -135,7 +130,7 @@ export function EventWrapUp({
             maxLength={MAX_NOTES}
             value={notes}
             onChange={e => setNotes(e.target.value)}
-            placeholder="What worked, what to do differently, who to call again."
+            placeholder={WRAP.notesPh}
             className={`${inputDuskCls} resize-none`}
           />
           <p className="ev-ov-hint text-right">{notes.length}/{MAX_NOTES}</p>
@@ -143,7 +138,7 @@ export function EventWrapUp({
 
         <div className="space-y-2">
           <label htmlFor="wrapup-spent" className="ev-ov-lbl block">
-            Spent <span className="ev-wu-hint">optional · the manual total</span>
+            {`${WRAP.spent} `}<span className="ev-wu-hint">{WRAP.spentHint}</span>
           </label>
           <div className="ev-wu-amt">
             <span aria-hidden>$</span>
@@ -172,7 +167,7 @@ export function EventWrapUp({
             Leave in {STAGE_LABELS[event.stage]}
           </button>
           <button type="button" onClick={commit} disabled={saving} className={`${btnDuskPrimaryCls} w-auto`}>
-            {saving ? "Saving…" : "Mark it done"}
+            {saving ? WRAP.saving : WRAP.go}
           </button>
         </div>
       </div>

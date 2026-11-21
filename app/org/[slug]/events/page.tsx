@@ -24,7 +24,6 @@ import { ProgrammingDayOne } from "../../../components/programming/ProgrammingDa
 import { statusBits, starterIdeas, type StatusBit } from "../../../components/programming/eventsCopy";
 import { LedgerStrip, Measure } from "../../../components/dashboard/ledger/LedgerStrip";
 import type { CalEventType, ProgrammingTask, TaskStatus } from "../../../data";
-import { fmtDate } from "../../../data";
 import { useChapter } from "../../../context/ChapterContext";
 import { requestJson } from "../../../lib/api";
 import { useActiveSemester } from "../../../hooks/useActiveSemester";
@@ -41,6 +40,10 @@ import {
   needsConfirmFirst,
   needsWrapUp,
 } from "@/lib/programming";
+import {
+  NO_MATCH, PAGE, SAY, filterEvents, longDate, measures, noMatchBits as noMatchWords,
+  readyToConfirmCount, termLabel as termWords,
+} from "@/lib/programme/board";
 import { STAGES } from "@/lib/state/programming-stage";
 import type { ProgrammingStage } from "@/lib/state/programming-stage";
 import "./events-ledger.css";
@@ -167,7 +170,7 @@ export default function ProgrammingPage() {
         setEvents(data);
         setProgrammingTaskList(data);
       })
-      .catch(() => showError("Could not load programming events."))
+      .catch(() => showError(SAY.loadFail))
       .finally(() => setLoading(false));
   }, [setProgrammingTaskList]);
 
@@ -272,7 +275,7 @@ export default function ProgrammingPage() {
       });
       syncEvents(prev => prev.map(e => e.id === id ? saved : e));
     } catch (err) {
-      handleSemesterError(err, showError, "Could not save changes.");
+      handleSemesterError(err, showError, SAY.saveFail);
       reload();
     }
   }, [syncEvents, reload, handleSemesterError, showError]);
@@ -303,7 +306,7 @@ export default function ProgrammingPage() {
       syncEvents(prev => prev.map(e => e.id === id ? { ...e, stage: prevStage } : e));
       // Promotion runs the semester guard server-side: route to setup when no
       // semester is active, surface the out-of-range message otherwise.
-      handleSemesterError(err, showError, "Could not move event.");
+      handleSemesterError(err, showError, SAY.moveFail);
       return false;
     }
   }, [events, syncEvents, handleSemesterError, showError]);
@@ -326,8 +329,8 @@ export default function ProgrammingPage() {
     // Done is the one gate that isn't about fields: an event the chapter never
     // saw cannot be "over". Offer the missing step instead of just refusing.
     if (needsConfirmFirst(target, stage)) {
-      toast.info(`“${target.title}” hasn’t been confirmed — the chapter has to have seen it before it can be wrapped.`, {
-        action: { label: "Confirm it", onClick: () => { void moveStageRef.current?.(id, "confirmed"); } },
+      toast.info(SAY.confirmFirst(target.title), {
+        action: { label: SAY.confirmIt, onClick: () => { void moveStageRef.current?.(id, "confirmed"); } },
       });
       return false;
     }
@@ -380,47 +383,23 @@ export default function ProgrammingPage() {
     // Would this date have been the last thing it needed?
     const candidate = { ...target, dueDate: date };
     if (target.stage === "planning" && canEnter(candidate, "confirmed")) {
-      toast.success(`“${target.title}” is penciled in for ${fmtDate(date)}.`, {
-        action: { label: "Confirm it", onClick: () => { void moveStageRef.current?.(id, "confirmed"); } },
+      toast.success(SAY.penciled(target.title, date), {
+        action: { label: SAY.confirmIt, onClick: () => { void moveStageRef.current?.(id, "confirmed"); } },
       });
       return;
     }
     const miss = missingFor(candidate, "confirmed").map(f => f.label.toLowerCase()).join(" + ");
-    toast.success(
-      miss
-        ? `“${target.title}” is penciled in for ${fmtDate(date)} — still needs ${miss}.`
-        : `“${target.title}” is penciled in for ${fmtDate(date)}.`,
-    );
+    toast.success(SAY.penciled(target.title, date, miss || undefined));
   }, [events, patchEvent, toast]);
 
-  const filtered = useMemo(() => {
-    let list = [...events];
-    const q = search.trim().toLowerCase();
-    if (q) {
-      list = list.filter(e =>
-        e.title.toLowerCase().includes(q) ||
-        e.location.toLowerCase().includes(q) ||
-        (e.collab ?? "").toLowerCase().includes(q),
-      );
-    }
-    if (typeFilter.size) list = list.filter(e => typeFilter.has(e.category));
-    return list;
-  }, [events, search, typeFilter]);
+  const filtered = useMemo(() => filterEvents(events, search, typeFilter), [events, search, typeFilter]);
 
   // Names the filters actually in force, so the empty result is attributable to
   // something the reader can then clear.
-  const noMatchBits = useMemo(() => {
-    const bits: string[] = [];
-    if (typeFilter.size) {
-      bits.push(
-        [...typeFilter]
-          .map(slug => typeFilters.find(t => t.slug === slug)?.label ?? slug)
-          .join(" or "),
-      );
-    }
-    if (search.trim()) bits.push(`“${search.trim()}”`);
-    return bits.length ? bits.join(" + ") : "this filter";
-  }, [typeFilter, typeFilters, search]);
+  const noMatchBits = useMemo(
+    () => noMatchWords([...typeFilter].map(slug => typeFilters.find(t => t.slug === slug)?.label ?? slug), search),
+    [typeFilter, typeFilters, search],
+  );
 
   /** Toggle a type chip. An empty set means every type, so this never empties to
    *  a state that shows nothing. */
@@ -440,10 +419,7 @@ export default function ProgrammingPage() {
   const stats = useMemo(() => eventsTermStats(events, today), [events, today]);
   // Planning events with nothing left to collect. This is the status line's one
   // genuinely actionable count — the events a click away from being public.
-  const readyToConfirm = useMemo(
-    () => events.filter(e => e.stage === "planning" && canEnter(e, "confirmed")).length,
-    [events],
-  );
+  const readyToConfirm = useMemo(() => readyToConfirmCount(events), [events]);
   // Confirmed events whose date has passed. Officers only: wrapping up is a
   // MANAGE_EVENTS move, and a member can't act on the nudge.
   const toWrapUp = useMemo(
@@ -478,10 +454,8 @@ export default function ProgrammingPage() {
   // The kicker's second half. The active term is the more useful of the two —
   // the org's name is already at the top of the sidebar — so it leads, and the
   // org name only stands in when no semester is active.
-  const termLabel = activeSemester?.label ?? currentUser?.org?.name ?? "ChaptOS";
-  const dateLabel = new Date(today + "T12:00:00").toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric", year: "numeric",
-  });
+  const termLabel = termWords(activeSemester?.label, currentUser?.org?.name);
+  const dateLabel = longDate(today);
 
   async function handleAdd(draft: CalendarDraft) {
     const input = draftToFormInput(draft);
@@ -495,7 +469,7 @@ export default function ProgrammingPage() {
       setSelectedId(created.id);
       setModal(null);
     } catch (err) {
-      handleSemesterError(err, showError, "Could not create event.");
+      handleSemesterError(err, showError, SAY.createFail);
     }
   }
 
@@ -521,9 +495,9 @@ export default function ProgrammingPage() {
       syncEvents(prev => [...prev, created]);
       setSelectedId(created.id);
       setModal(null);
-      toast.success(`“${created.title}” is on the board as an idea.`);
+      toast.success(SAY.ideaAdded(created.title));
     } catch (err) {
-      handleSemesterError(err, showError, "Could not add the idea.");
+      handleSemesterError(err, showError, SAY.ideaFail);
     }
   }
 
@@ -556,7 +530,7 @@ export default function ProgrammingPage() {
     try {
       await requestJson<void>(`/api/programming/${id}`, { method: "DELETE" });
     } catch {
-      showError("Could not delete event.");
+      showError(SAY.deleteFail);
       reload();
     }
   }
@@ -629,10 +603,10 @@ export default function ProgrammingPage() {
                 </p>
                 {dayOne ? (
                   <h1 className="greeting">
-                    <span>Events, <em>one step at a time</em></span>
+                    <span>{PAGE.dayOneParts[0]}<em>{PAGE.dayOneParts[1]}</em></span>
                   </h1>
                 ) : (
-                  <h1 className="greeting">The <em>programme</em>.</h1>
+                  <h1 className="greeting">{PAGE.titleParts[0]}<em>{PAGE.titleParts[1]}</em>{PAGE.titleParts[2]}</h1>
                 )}
                 {/* Three derived clauses, not a digest paragraph. Each one names a
                     count the board's gates make actionable, so the line reads as
@@ -640,7 +614,7 @@ export default function ProgrammingPage() {
                     see below it. */}
                 <p className="status-line">
                   {loading ? (
-                    <span className="status-loading">Reading the slate…</span>
+                    <span className="status-loading">{PAGE.loading}</span>
                   ) : status.lead || status.bits.length ? (
                     <>
                       {status.lead && (
@@ -665,12 +639,11 @@ export default function ProgrammingPage() {
                   ) : dayOne ? (
                     <>
                       <span>
-                        Write down an idea, pick who&apos;s running it, then give it a date and a place.
-                        That&apos;s when the whole chapter sees it.
+                        {PAGE.dayOneLine}
                       </span>
                     </>
                   ) : (
-                    "Nothing scheduled."
+                    PAGE.nothing
                   )}
                 </p>
               </div>
@@ -681,11 +654,11 @@ export default function ProgrammingPage() {
                         thought should cost less than scheduling one. */}
                     <button className="ev-add ghost" onClick={() => { setModal("idea"); }}>
                       <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                      New idea
+                      {PAGE.newIdea}
                     </button>
                     <button className={`ev-add${dayOne ? " d1-hide" : ""}`} onClick={() => setModal("add")}>
                       <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                      New event
+                      {PAGE.newEvent}
                     </button>
                   </>
                 )}
@@ -695,7 +668,7 @@ export default function ProgrammingPage() {
                 <button
                   className={`ev-help-btn${dayOne ? " d1-hide" : ""}`}
                   onClick={() => setHelpOpen(true)}
-                  aria-label="How this board works"
+                  aria-label={PAGE.help}
                   title="How this board works  (?)"
                 >
                   ?
@@ -712,50 +685,19 @@ export default function ProgrammingPage() {
               <>
                 {/* ── Glance strip ── */}
                 <LedgerStrip>
-                  <Measure
-                    label="On the slate"
-                    // Live only. Done events are the term's history, not its
-                    // slate, and by November they'd swamp the number.
-                    value={String(stats.liveTotal)}
-                    note={`${stats.byStage.idea} ideas · ${stats.byStage.planning} planning · ${stats.byStage.confirmed} confirmed`}
-                  />
-                  <Measure
-                    label="Next 14 days"
-                    value={String(stats.next14)}
-                    unit={stats.next14 === 1 ? " event" : " events"}
-                    note={stats.next14Unready > 0
-                      ? `${stats.next14Unready} can't be confirmed yet`
-                      : "all confirmed or ready to be"}
-                    noteWarn={stats.next14Unready > 0}
-                  />
-                  {/* Replaced "Spent this term": spend is a treasury question
-                      and the treasury page answers it properly. What this board
-                      is for is noticing the ideas nobody has picked up — the
-                      measure the owner gate exists to make visible. Third rather
-                      than last, because it's the one measure here you can act on
-                      today. */}
-                  <Measure
-                    label="Unowned ideas"
-                    value={String(stats.unownedIdeas)}
-                    unit={` of ${stats.ideaCount}`}
-                    note={stats.unownedIdeas > 0
-                      ? "nobody's picked them up"
-                      : stats.ideaCount > 0 ? "every idea has someone" : "no ideas yet"}
-                    noteWarn={stats.unownedIdeas > 0}
-                    noteGood={stats.unownedIdeas === 0 && stats.ideaCount > 0}
-                  />
-                  {/* Averaged over the events that were RATED, not every wrapped
-                      one — the wrap-up's rating is optional, and counting the
-                      unrated ones in the denominator's label would overstate what
-                      the number is built from. */}
-                  <Measure
-                    label="Average stars"
-                    value={stats.avgSuccess != null ? stats.avgSuccess.toFixed(1) : "—"}
-                    unit={stats.avgSuccess != null ? " / 5" : undefined}
-                    note={stats.ratedCount > 0
-                      ? `${stats.ratedCount} event${stats.ratedCount === 1 ? "" : "s"} rated`
-                      : "nothing rated yet"}
-                  />
+                  {/* Live slate, the next fortnight, the ideas nobody has picked up,
+                      and the average over RATED events — lib/programme/board. */}
+                  {measures(stats).map(m => (
+                    <Measure
+                      key={m.label}
+                      label={m.label}
+                      value={m.value}
+                      unit={m.unit}
+                      note={m.note}
+                      noteWarn={m.warn}
+                      noteGood={m.good}
+                    />
+                  ))}
                 </LedgerStrip>
 
                 {/* ── Toolbar: the two views, the type chips, and search, on one
@@ -791,7 +733,7 @@ export default function ProgrammingPage() {
                       type="search"
                       value={search}
                       onChange={e => setSearch(e.target.value)}
-                      placeholder="Search events…"
+                      placeholder={PAGE.search}
                     />
                   </span>
                 </div>
@@ -814,13 +756,13 @@ export default function ProgrammingPage() {
                   // the filters just don't match it. Without this the board
                   // renders four blank lanes and reads as data loss.
                   <div className="ev-nomatch">
-                    <p className="nm-t">No events match.</p>
+                    <p className="nm-t">{NO_MATCH.title}</p>
                     <p className="nm-s">
                       Nothing on the slate matches {noMatchBits}. All {events.length}{" "}
                       {events.length === 1 ? "event is" : "events are"} still there.
                     </p>
                     <button className="ev-btn-ghost" onClick={() => { setSearch(""); setTypeFilter(new Set()); }}>
-                      Clear filters
+                      {NO_MATCH.clear}
                     </button>
                   </div>
                 ) : view === "board" ? (
@@ -956,9 +898,9 @@ export default function ProgrammingPage() {
       {deleteTarget && (
         <ConfirmDialog
           tone="dusk"
-          title="Delete this event?"
-          message={`"${deleteTarget.title}" will be removed from programming${deleteTarget.dueDate ? " and the timeline" : ""}.`}
-          confirmLabel="Delete"
+          title={SAY.deleteTitle}
+          message={SAY.deleteMessage(deleteTarget.title, !!deleteTarget.dueDate)}
+          confirmLabel={SAY.deleteGo}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
         />
@@ -999,7 +941,7 @@ export default function ProgrammingPage() {
             const { event, date } = demoteTarget;
             setDemoteTarget(null);
             if (await commitStage(event.id, "planning", date)) {
-              toast.success(`“${event.title}” came off the Timeline — back in Planning for ${fmtDate(date)}.`);
+              toast.success(SAY.demoted(event.title, date));
             }
           }}
         />

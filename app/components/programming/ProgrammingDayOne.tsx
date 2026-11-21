@@ -1,6 +1,7 @@
 "use client";
 
 import { PaperIcon } from "../paper/PaperIcon";
+import { DAY_ONE, dayOneInitials, dayOneWhen } from "@/lib/programme/board";
 
 /**
  * Paper's first frame for an org with nothing on the board — the same shape as
@@ -34,18 +35,17 @@ export function ProgrammingDayOne({
   if (!sample) return null;
   const style = { ["--tc" as string]: sample.color ?? "var(--muted)" };
   const type = sample.label && <span className="d1-ty">{sample.label}</span>;
-  const initials = owner.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join("") || "?";
+  const initials = dayOneInitials(owner);
   // Two weeks out, so the Confirmed picture shows a date that reads as upcoming.
-  const when = new Date(today + "T12:00:00");
-  when.setDate(when.getDate() + 14);
-  const whenLabel = when.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const whenLabel = dayOneWhen(today);
+  const [s1, s2, s3, s4] = DAY_ONE.steps;
 
   return (
     <>
       <section className="ev-d1" aria-label="How Programming works">
         <figure>
           <div><div className="d1-card" data-stage="idea" style={style}><b>{sample.title}</b>{type}</div></div>
-          <figcaption><b>1 · Write the idea</b><span>Just a name and a type.</span></figcaption>
+          <figcaption><b>{s1.title}</b><span>{s1.sub}</span></figcaption>
         </figure>
         <figure>
           <div>
@@ -54,37 +54,37 @@ export function ProgrammingDayOne({
               <span className="d1-m"><i className="d1-av">{initials}</i>{owner}</span>
             </div>
           </div>
-          <figcaption><b>2 · Pick who runs it</b><span>A person, or a role.</span></figcaption>
+          <figcaption><b>{s2.title}</b><span>{s2.sub}</span></figcaption>
         </figure>
         <figure>
           <div>
             <div className="d1-card" data-stage="confirmed" style={style}>
               <b>{sample.title}</b>
               <span className="d1-m"><PaperIcon name="cal" />{whenLabel}</span>
-              <span className="d1-m"><PaperIcon name="pin" />Chapter house</span>
-              <span className="d1-pub"><PaperIcon name="eye" />On the Timeline</span>
+              <span className="d1-m"><PaperIcon name="pin" />{DAY_ONE.place}</span>
+              <span className="d1-pub"><PaperIcon name="eye" />{DAY_ONE.onTimeline}</span>
             </div>
           </div>
-          <figcaption><b>3 · Set a date and place</b><span>Now everyone sees it.</span></figcaption>
+          <figcaption><b>{s3.title}</b><span>{s3.sub}</span></figcaption>
         </figure>
         <figure>
           <div>
             <div className="d1-card" data-stage="done" style={style}>
-              <span className="d1-stamp">Wrapped</span>
+              <span className="d1-stamp">{DAY_ONE.stamp}</span>
               <b>{sample.title}</b>
               <span className="d1-stars" aria-label="4 of 5 stars">★★★★<s>★</s></span>
-              <span className="d1-m">“Do it again.”</span>
+              <span className="d1-m">{DAY_ONE.quote}</span>
             </div>
           </div>
-          <figcaption><b>4 · Wrap it up</b><span>Stars and a note for next time.</span></figcaption>
+          <figcaption><b>{s4.title}</b><span>{s4.sub}</span></figcaption>
         </figure>
       </section>
       {!ready ? null : canManage ? (
         <div className="ev-d1-cta">
-          <button className="ev-add" onClick={onNew}><PaperIcon name="plus" />Write your first idea</button>
+          <button className="ev-add" onClick={onNew}><PaperIcon name="plus" />{DAY_ONE.cta}</button>
         </div>
       ) : (
-        <p className="ev-d1-note">Nothing planned yet. Your officers will add the first one.</p>
+        <p className="ev-d1-note">{DAY_ONE.member}</p>
       )}
     </>
   );

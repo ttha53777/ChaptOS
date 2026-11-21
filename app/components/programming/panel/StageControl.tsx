@@ -14,13 +14,8 @@
  * interface can simply skip.
  */
 
-import { canEnter, missingFor, needsConfirmFirst } from "@/lib/programming";
-import {
-  STAGES,
-  STAGE_LABELS,
-  STAGE_MEANINGS,
-  type ProgrammingStage,
-} from "@/lib/state/programming-stage";
+import { STAGE_SAY, stageSay, stepLocked } from "@/lib/programme/board";
+import { STAGES, STAGE_LABELS, type ProgrammingStage } from "@/lib/state/programming-stage";
 import type { ProgrammingTask } from "../../../data";
 
 /** Each lane's own accent, and the wash its halo is drawn in. */
@@ -47,16 +42,7 @@ export function StageControl({
   onJumpToField: (key: string) => void;
 }) {
   const at = STAGES.indexOf(event.stage);
-  const nextStage: ProgrammingStage | null =
-    event.stage === "idea" ? "planning"
-    : event.stage === "planning" ? "confirmed"
-    : event.stage === "confirmed" ? "done"
-    : null;
-  const missing = nextStage ? missingFor(event, nextStage) : [];
-  // Done sits two lanes from Planning, and the sentence below only ever
-  // describes the NEXT one — so from Idea or Planning its padlock would go
-  // unexplained, and a locked step with nothing named beside it reads as a bug.
-  const confirmFirst = needsConfirmFirst(event, "done") && at < STAGES.indexOf("done");
+  const say = stageSay(event);
 
   return (
     <div className="ev-stage">
@@ -66,7 +52,7 @@ export function StageControl({
           const isPast = i < at;
           // Locked = a forward lane this event cannot enter yet, for either
           // reason: fields it hasn't got, or the Confirmed step it skipped.
-          const locked = i > at && (!canEnter(event, s) || needsConfirmFirst(event, s));
+          const locked = stepLocked(event, s);
           return (
             <button
               key={s}
@@ -94,49 +80,44 @@ export function StageControl({
       </div>
 
       <p className="ev-stage-say">
-        <b>{STAGE_LABELS[event.stage]}.</b> {STAGE_MEANINGS[event.stage]}
-        {nextStage && missing.length > 0 && (
+        <b>{say.label}.</b> {say.meaning}
+        {say.gap && (
           <>
             {" "}
             <span className="lock">
               Needs{" "}
-              {missing.map((f, i) => (
+              {say.gap.fields.map((f, i, all) => (
                 <span key={f.key}>
-                  {i > 0 && (i === missing.length - 1 ? " and " : ", ")}
+                  {i > 0 && (i === all.length - 1 ? " and " : ", ")}
                   <button type="button" className="ev-stage-gap" onClick={() => onJumpToField(f.key)}>
-                    {f.label.toLowerCase()}
+                    {f.label}
                   </button>
                 </span>
               ))}{" "}
-              to reach {STAGE_LABELS[nextStage]}.
+              to reach {say.gap.next}.
             </span>
           </>
         )}
         {/* Confirming is the one move that publishes, so it says so rather than
             reading like any other lane change. */}
-        {nextStage && missing.length === 0 && event.stage === "planning" && (
-          <> Ready to confirm — that publishes it to the chapter.</>
-        )}
-        {nextStage && missing.length === 0 && event.stage !== "confirmed" && event.stage !== "planning" && (
-          <> Can move to {STAGE_LABELS[nextStage]}.</>
-        )}
+        {say.ready && <>{` ${say.ready}`}</>}
+        {!say.gap && at === 0 && <> Can move to {STAGE_LABELS.planning}.</>}
         {/* Confirmed explains its own padlock: the fields are frozen, and the way
             out is named rather than left to be discovered by clicking one. */}
-        {event.stage === "confirmed" && (
+        {say.locked && (
           <>
-            {" "}Fields are locked while it&apos;s published —{" "}
+            {" "}{STAGE_SAY.lockedBefore}{" "}
             <button type="button" className="ev-stage-gap" onClick={() => onStage("planning")} disabled={!canManage}>
-              move it back to Planning
+              {STAGE_SAY.lockedLink}
             </button>{" "}
-            to change them.
+            {STAGE_SAY.lockedAfter}
           </>
         )}
-        {event.stage === "done" && <> Fields are part of the record now and can&apos;t be changed.</>}
-        {confirmFirst && (
+        {say.done && <>{` ${say.done}`}</>}
+        {say.confirmFirst && (
           <>
             {" "}
-            <span className="lock">Wrapping up comes after confirming</span> — the chapter
-            has to have seen it first.
+            <span className="lock">{STAGE_SAY.confirmFirst}</span>{` ${STAGE_SAY.confirmFirstTail}`}
           </>
         )}
       </p>

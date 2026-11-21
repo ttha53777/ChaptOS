@@ -16,19 +16,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { ProgrammingTask } from "../../data";
 import { typeVisual, type TypeVisual } from "./typeColor";
-import { needsWrapUp } from "@/lib/programming";
+import { TIMELINE, monthShort, needsWrapUp, publishedOf, stubLine } from "@/lib/programme/board";
 import { formatEventTime } from "@/lib/event-time";
 import { todayStr } from "../../lib/dates";
 
-const MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** Paper's stub line: how it went once wrapped, the nudge while it's owed,
  *  otherwise when and where. */
-function stubLine(t: ProgrammingTask, today: string): string {
-  if (t.stage === "done") return `${t.successRating ? "★".repeat(t.successRating) + " · " : ""}wrapped`;
-  if (needsWrapUp(t, today)) return "happened · not wrapped";
-  return [formatEventTime(t.time, t.schedule), t.location].filter(Boolean).join(" · ");
-}
 
 /** How long a departing chip stays on screen before the list settles. */
 const LEAVE_MS = 300;
@@ -43,9 +37,7 @@ export function TimelineStrip({
   onSelect: (id: number) => void;
 }) {
   const today = todayStr();
-  const published = tasks
-    .filter(t => t.stage === "confirmed" || t.stage === "done")
-    .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""));
+  const published = publishedOf(tasks);
 
   // Ids rendered last pass, so an arrival can be told from a departure.
   const prevIds = useRef<Set<number>>(new Set());
@@ -72,13 +64,13 @@ export function TimelineStrip({
   return (
     <section className="ev-tl" aria-label="On the chapter timeline">
       <div className="ev-tl-head">
-        <span className="ev-tl-lbl">On the chapter timeline</span>
-        <span className="ev-tl-sub">what everyone sees</span>
+        <span className="ev-tl-lbl">{TIMELINE.label}</span>
+        <span className="ev-tl-sub">{TIMELINE.sub}</span>
         <span className="ev-tl-count">{published.length} published</span>
       </div>
       {published.length === 0 && leaving.length === 0 ? (
         <p className="ev-tl-empty">
-          Nothing published yet. Confirming an event is what puts it here.
+          {TIMELINE.empty}
         </p>
       ) : (
         <div className="ev-tl-body">
@@ -97,13 +89,13 @@ export function TimelineStrip({
                 {/* Paper renders each published event as a ticket stub. */}
                 {t.dueDate && (
                   <span className="tk-d" aria-hidden>
-                    <small>{MON3[Number(t.dueDate.slice(5, 7)) - 1]}</small>
+                    <small>{monthShort(t.dueDate)}</small>
                     <b>{Number(t.dueDate.slice(8, 10))}</b>
                   </span>
                 )}
                 <span className="tk-x">
                   <span className="t">{t.title}</span>
-                  <span className="l">{stubLine(t, today)}</span>
+                  <span className="l">{stubLine(t, today, formatEventTime(t.time, t.schedule))}</span>
                 </span>
               </button>
             );

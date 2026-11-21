@@ -15,7 +15,7 @@
  */
 
 import type { ProgrammingTask } from "../../data";
-import { missingFor } from "@/lib/programming";
+import { BOARD, CALENDAR, undatedFoot, undatedOf } from "@/lib/programme/board";
 import { ownerShortLabel } from "@/lib/event-owner";
 import { STAGE_LABELS } from "@/lib/state/programming-stage";
 import { typeVisual, type TypeVisual } from "./typeColor";
@@ -37,28 +37,17 @@ export function UndatedRail({
 }) {
   // Done events are excluded: an event with no date that already happened is a
   // record-keeping problem, not something to schedule.
-  const undated = tasks.filter(t => !t.dueDate && t.stage !== "done");
-
-  // Waiting on nothing but a date — one drag from being confirmable.
-  const readyBarDate = undated.filter(
-    t => t.stage === "planning" && missingFor(t, "confirmed").every(f => f.key === "date"),
-  ).length;
-
-  const foot =
-    undated.length === 0
-      ? "Every event on the slate is on the month."
-      : readyBarDate > 0
-        ? `${readyBarDate} of these ${readyBarDate === 1 ? "is" : "are"} waiting on nothing but a date.`
-        : "A date alone won't confirm them — they're missing other fields too.";
+  const undated = undatedOf(tasks);
+  const foot = undatedFoot(undated);
 
   return (
     <aside className="ev-rail-undated" aria-label="Events with no date">
       <div className="ev-ru-head">
-        <span className="ev-ru-lbl">No date yet</span>
+        <span className="ev-ru-lbl">{CALENDAR.undated}</span>
         <span className="ev-ru-count">{undated.length}</span>
       </div>
       {undated.length > 0 && draggable && (
-        <p className="ev-ru-hint">Drop one on a day to set its date.</p>
+        <p className="ev-ru-hint">{CALENDAR.dropHint}</p>
       )}
 
       <div className="ev-ru-body">
@@ -82,7 +71,7 @@ export function UndatedRail({
               <span className="t">{t.title}</span>
               <span className="m">
                 <span className="st">{STAGE_LABELS[t.stage]}</span>
-                <span className="ow">{owner ?? "No owner"}</span>
+                <span className="ow">{owner ?? BOARD.noOwner}</span>
               </span>
             </div>
           );

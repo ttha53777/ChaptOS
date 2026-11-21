@@ -63,6 +63,8 @@
  *   GET    /api/programming/[id]/docs          ProgrammingDoc[]
  *   POST   /api/programming/[id]/docs          ProgrammingDoc          (MANAGE_EVENTS; body attachProgrammingDocInput)
  *   DELETE /api/programming/[id]/docs/[docId]  204                     (MANAGE_EVENTS)
+ *   GET    /api/events/fields                  EventFieldRow[]         (every member; disabled rows too)
+ *   POST   /api/events/fields                  EventFieldRow           (201; MANAGE_EVENTS; body createEventFieldInput: label + kind, the server derives the slug)
  *   GET    /api/roles                          RoleChip[]
  *   GET    /api/instagram                      InstagramPost[]         (everyone with the communications workflow)
  *   POST   /api/instagram                      InstagramPost           (201; MANAGE_INSTAGRAM; body createInstagramTaskInput)

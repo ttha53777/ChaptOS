@@ -15,6 +15,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "../dashboard/primitives";
+import { IDEA, ideaRemain } from "@/lib/programme/board";
 import { btnDuskActionCls } from "../dashboard/styles";
 import type { CategoryOption } from "../timeline/CalendarEventForm";
 
@@ -51,26 +52,25 @@ export function NewIdeaComposer({
   }
 
   return (
-    <Modal tone="dusk" title="New idea" onClose={onCancel} maxWidthClass="max-w-lg">
+    <Modal tone="dusk" title={IDEA.title} onClose={onCancel} maxWidthClass="max-w-lg">
       <div className="space-y-3">
         <p className="ev-ni-sub">
           {/* The space after </b> is an explicit {" "}: this vendored Next drops a
               literal trailing space after a closing tag, so "Idea — nobody" would
               render as "Idea— nobody". */}
-          Lands in <b>Idea</b>{" "}
-          — nobody owns it yet, so it won&apos;t publish to the Timeline or the
-          calendar. Just enough to hold the thought.
+          {IDEA.subParts[0]}<b>{IDEA.subParts[1]}</b>{" "}
+          {IDEA.subParts[2]}
         </p>
 
         <div className="ev-ni-field">
-          <label className="ev-ni-lbl" htmlFor="ev-ni-title">Title</label>
+          <label className="ev-ni-lbl" htmlFor="ev-ni-title">{IDEA.titleK}</label>
           <input
             id="ev-ni-title"
             ref={inputRef}
             type="text"
             value={title}
             maxLength={120}
-            placeholder="Speaker series, beach cleanup, rush info night…"
+            placeholder={IDEA.titlePh}
             onChange={e => setTitle(e.target.value)}
             // Enter commits from the title, which is where the cursor already is
             // once a category has been picked.
@@ -80,7 +80,7 @@ export function NewIdeaComposer({
         </div>
 
         <div className="ev-ni-field">
-          <span className="ev-ni-lbl">Category</span>
+          <span className="ev-ni-lbl">{IDEA.categoryK}</span>
           <div className="ev-ni-cats">
             {categoryOptions.map(opt => (
               <button
@@ -113,19 +113,19 @@ export function NewIdeaComposer({
               ["--rot" as string]: "-1.1deg",
             }}
           >
-            <div className="ec-t">{trimmed || "Your idea"}</div>
-            <div className="ec-meta"><span className="ec-when nodate">No date yet</span></div>
-            <div className="ec-block gold"><span>Needs an owner</span></div>
+            <div className="ec-t">{trimmed || IDEA.preview}</div>
+            <div className="ec-meta"><span className="ec-when nodate">{IDEA.noDate}</span></div>
+            <div className="ec-block gold"><span>{IDEA.needsOwner}</span></div>
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-3 pt-1">
           <span className={`ev-ni-remain${ready ? " ready" : ""}`}>
-            {ready ? "Ready" : !trimmed && !category ? "Needs a title + a category" : !trimmed ? "Needs a title" : "Needs a category"}
+            {ideaRemain(trimmed, category)}
           </span>
           <div className="flex items-center gap-2">
             <button type="button" onClick={onCancel} className="ev-ni-cancel">
-              Cancel
+              {IDEA.cancel}
             </button>
             <button
               type="button"
@@ -133,7 +133,7 @@ export function NewIdeaComposer({
               disabled={!ready || saving}
               className={btnDuskActionCls}
             >
-              {saving ? "Adding…" : "Add idea"}
+              {saving ? IDEA.adding : IDEA.go}
             </button>
           </div>
         </div>

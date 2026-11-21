@@ -23,9 +23,9 @@ import { Modal } from "../dashboard/primitives";
 import { inputDuskCls, btnDuskPrimaryCls } from "../dashboard/styles";
 import { OwnerPicker, type OwnerPatch, type RoleOption } from "./OwnerPicker";
 import type { Brother, ProgrammingTask } from "../../data";
-import { missingFor, type RequiredField } from "@/lib/programming";
+import { FIX, WRAP, attendanceText, fixCopy, missingFor, type RequiredField } from "@/lib/programme/board";
 import { initialsOf, type OwnerRef } from "@/lib/event-owner";
-import { STAGE_LABELS, type ProgrammingStage } from "@/lib/state/programming-stage";
+import type { ProgrammingStage } from "@/lib/state/programming-stage";
 
 /** Just enough of a category to render one option. */
 export interface FixTypeOption { slug: string; label: string }
@@ -43,22 +43,6 @@ type Draft = {
 
 /** Copy per gate. The two forward boundaries ask for different things and mean
  *  different things, so they should not share a generic "Complete this event". */
-const GATE_COPY: Partial<Record<ProgrammingStage, {
-  kicker: string; sub: string; go: string; cancel: string;
-}>> = {
-  planning: {
-    kicker: "One step to start planning",
-    sub: "Planning means somebody is accountable for this. That's all it costs.",
-    go: "Start planning",
-    cancel: "Leave as an idea",
-  },
-  confirmed: {
-    kicker: "One step to confirm",
-    sub: "Confirming publishes this to the whole chapter's calendar, so it needs a day and a place people can plan around.",
-    go: "Confirm & publish",
-    cancel: "Leave in Planning",
-  },
-};
 
 /** Has this field been answered in the draft (falling back to the event)? */
 function answered(f: RequiredField, draft: Draft, event: ProgrammingTask): boolean {
@@ -102,12 +86,7 @@ export function EventFixStep({
   // agenda for this step, not a live readout.
   const gaps = useMemo(() => missingFor(event, stage), [event.id, stage]); // eslint-disable-line react-hooks/exhaustive-deps
   const left = gaps.filter(f => !answered(f, draft, event)).length;
-  const copy = GATE_COPY[stage] ?? {
-    kicker: `One step to ${STAGE_LABELS[stage].toLowerCase()}`,
-    sub: "This lane needs a little more first.",
-    go: `Move to ${STAGE_LABELS[stage]}`,
-    cancel: "Cancel",
-  };
+  const copy = fixCopy(stage);
 
   // Focus the first UNANSWERED control, never the disabled Continue: the point
   // of opening here is to put the cursor on the thing that's blocking.
@@ -138,7 +117,7 @@ export function EventFixStep({
       <div className="ev-ov space-y-3">
         <p className="ev-ov-sub">{copy.sub}</p>
         <p className="ev-ov-lead truncate">
-          <span className="k">Event:</span> {event.title}
+          <span className="k">{WRAP.eventK}</span> {event.title}
         </p>
 
         <div className="ev-ov-list divide-y divide-[rgba(var(--ink-rgb),0.06)] overflow-hidden rounded-xl border border-[rgba(var(--ink-rgb),0.08)] bg-[rgba(var(--ink-rgb),0.015)]">
@@ -147,7 +126,7 @@ export function EventFixStep({
               <div className="mb-1 flex items-baseline justify-between gap-3">
                 <label className="ev-ov-lbl">{f.label}</label>
                 {answered(f, draft, event) && (
-                  <span className="ev-ov-ok">Answered</span>
+                  <span className="ev-ov-ok">{FIX.answered}</span>
                 )}
               </div>
               <p className="ev-ov-hint mb-2">{f.hint}</p>
@@ -167,7 +146,7 @@ export function EventFixStep({
 
         <div className="flex items-center justify-between gap-3 pt-1">
           <span className={`ev-ov-remain${left === 0 ? " ready" : ""}`}>
-            {left === 0 ? "All clear" : `${left} left`}
+            {left === 0 ? FIX.allClear : FIX.left(left)}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -183,7 +162,7 @@ export function EventFixStep({
               disabled={left > 0 || saving}
               className={`${btnDuskPrimaryCls} w-auto`}
             >
-              {saving ? "Saving…" : copy.go}
+              {saving ? FIX.saving : copy.go}
             </button>
           </div>
         </div>
@@ -240,7 +219,7 @@ function GapEditor({
         value={draft.category ?? event.category ?? ""}
         onChange={e => onSet({ category: e.target.value })}
       >
-        <option value="" className="ev-ov-opt">Pick a type…</option>
+        <option value="" className="ev-ov-opt">{FIX.pickType}</option>
         {eventTypes.map(t => (
           <option key={t.slug} value={t.slug} className="ev-ov-opt">{t.label}</option>
         ))}
@@ -271,7 +250,7 @@ function GapEditor({
             onClick={() => onSet({ mandatory: v })}
             className={`ev-ov-choice${on === v ? " on" : ""}`}
           >
-            {v ? "Required of every member" : "Optional — no attendance taken"}
+            {attendanceText(v)}
           </button>
         ))}
       </div>
@@ -286,7 +265,7 @@ function GapEditor({
       type="text"
       className={inputDuskCls}
       maxLength={isTitle ? 120 : 160}
-      placeholder={isTitle ? "What to call it" : "Where it happens"}
+      placeholder={isTitle ? FIX.titlePh : FIX.placePh}
       value={(isTitle ? draft.title ?? event.title : draft.location ?? event.location) ?? ""}
       onChange={e => onSet(isTitle ? { title: e.target.value } : { location: e.target.value })}
     />
