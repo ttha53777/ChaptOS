@@ -1,284 +1,361 @@
 /**
- * More → Service (mock `#service`, phone-first): my punch card leads (manila stock in one
- * brick ink, a hole per hour toward the goal, ~/moments/Punch), then the next shift as a
- * ticket, then the shifts I've logged and the ones before.
+ * Service (the web's app/org/[slug]/service, PaperService, as its phone renders it),
+ * reached from More → Service. Top to bottom, as the web:
  *
- * Log my hours (POST /api/service-events/[id]/participation/me): pick a shift that has
- * happened, set the hours, and the card punches in. It's optimistic; an undo in the toast
- * puts the old hours back (or removes the row: DELETE), and a refusal unpunches the holes
- * and says why. There's no "I'm going" sign-up: the server has no RSVP for shifts, only
- * hours after the fact, which is also all the web offers.
+ *   brief      "FRI · NOV 20", "The service log · FA26", "Hours, by the event.", the
+ *              digest (hours logged, who's short of the goal, what's next)
+ *   actions    New service event (MANAGE_SERVICE) · Log my hours (once an event has
+ *              happened) · Ask who's behind (Ask Chapt, the web's question waiting)
+ *   measures   Hours logged · Service events · On track · Avg / member
+ *   tools      Search events… / Search members… · Events | Members · "n of m"
+ *   events     Coming up (soonest first) and Logged (newest first); a card opens onto
+ *              its sign-in sheet, with Log hours · Edit · Delete for officers
+ *   members    punch cards, most hours first; a card opens the member's hours by event
+ *   day one    the three steps, Plan your first service event (officers) or the member line
  *
- * Reads GET /api/service-events and /api/service-participation (mine filtered here).
+ * Every rule and word comes from lib/service/ledger (shared with the web page). The
+ * signature moment: Log my hours, once the server has it, punches my card's new holes.
  */
-import type { ServiceEvent } from "@/lib/api-types";
-import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
-import { errorMessage } from "~/api/errors";
+import type { Brother, ServiceEvent, ServiceParticipationRow } from "@/lib/api-types";
+import { roleTitle } from "@/lib/dashboard/roster";
+import { router } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import Animated, { FadeInDown, LinearTransition, SlideOutRight } from "react-native-reanimated";
 import { localDay } from "~/data/home";
-import { logMyHours, putEventRows, setMyHours, unlogMyHours, useParticipation, useServiceEvents } from "~/data/more";
 import { refreshRoster } from "~/data/members";
+import {
+  createServiceEvent, deleteServiceEvent, dropEventRows, dropRow, editServiceEvents, logHours, logMyHours, patchServiceEvent, putEventRows,
+  removeParticipation, useParticipation, useServiceEvents,
+} from "~/data/more";
+import { useRoster } from "~/data/tasks";
 import { useEntryOf } from "~/entry/EntryContext";
 import { Icon } from "~/icons/Icon";
-import { PunchHoles } from "~/moments/Punch";
+import { navLabel } from "~/more/model";
 import { haptics } from "~/motion/haptics";
-import { myHours, r1 } from "~/more/model";
-import { Button } from "~/paper/Button";
-import { Stamp, type StampState } from "~/paper/Stamp";
-import { Ticket } from "~/paper/Ticket";
+import { Calm, DayOne, EventCard, Legend, Measure, MemberCard, SectionHead } from "~/service/bits";
+import {
+  DAY_ONE, MEASURES, PAGE, SAY, avgHours, canService as canServiceOf, dateParts, digestEmpty, digestRest, dow3, ledgerStats, logEntries, loggable,
+  mineHours, mon3, mutationMessage, nextWhen, r1, rankMembers, rowsByEvent, splitEvents,
+} from "~/service/model";
+import { LogHours, LogMine, MemberSheet, PunchMoment, ServiceForm, type Punch, type ServiceFormBody } from "~/service/sheets";
 import { Screen } from "~/shell/Screen";
-import { Sheet } from "~/shell/sheets";
-import { EmptyState, ErrorState, SkeletonCard, StaleNote } from "~/shell/states";
+import { ErrorState, SkeletonCard, SkeletonList } from "~/shell/states";
 import { toast } from "~/shell/toast";
-import { alpha } from "~/theme/palette";
-import { useTheme } from "~/theme/PaperProvider";
-import { clockLabel, daysFrom, monthDay, weekdayShort } from "~/today/time";
+import { useMotion, useTheme } from "~/theme/PaperProvider";
+import { TrBtn } from "~/treasury/bits";
+import { PageBrief, type BriefPart } from "~/ui/PageBrief";
 import { T } from "~/ui/T";
 
-export default function ServicePage() {
+type View_ = "events" | "members";
+const byDateDesc = (a: ServiceEvent, b: ServiceEvent) => b.date.localeCompare(a.date);
+/** Past this many cards, no per-card layout animation. */
+const ANIMATE_UP_TO = 40;
+
+export default function Service() {
   const { c } = useTheme();
+  const m = useMotion();
   const entry = useEntryOf("ready");
-  const events = useServiceEvents();
-  const parts = useParticipation();
-  const [logOpen, setLogOpen] = useState(false);
+  const evQ = useServiceEvents();
+  const partQ = useParticipation();
+  const rosterQ = useRoster();
+  const [view, setView] = useState<View_>("events");
+  const [find, setFind] = useState("");
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [form, setForm] = useState<{ editing: ServiceEvent | null } | null>(null);
+  const [logFor, setLogFor] = useState<ServiceEvent | null>(null);
+  const [mineOpen, setMineOpen] = useState(false);
+  const [member, setMember] = useState<Brother | null>(null);
+  const [pending, setPending] = useState<ReadonlySet<number>>(new Set());
+  const [fresh, setFresh] = useState<number | null>(null);
+  const [punch, setPunch] = useState<Punch | null>(null);
+
+  const today = localDay();
+  const events = useMemo(() => evQ.data ?? [], [evQ.data]);
+  const rows = useMemo(() => partQ.data ?? [], [partQ.data]);
+  const roster = useMemo(() => rosterQ.data ?? [], [rosterQ.data]);
+  const byEvent = useMemo(() => rowsByEvent(events, rows), [events, rows]);
+  const split = useMemo(() => splitEvents(events, find, today), [events, find, today]);
+  const ranked = useMemo(() => rankMembers(roster, find), [roster, find]);
+  const mineList = useMemo(() => loggable(events.filter(e => !pending.has(e.id))), [events, pending]);
+
+  const toggle = useCallback((id: number) => setOpenId(o => (o === id ? null : id)), []);
+  const onEdit = useCallback((ev: ServiceEvent) => setForm({ editing: ev }), []);
+  const onLog = useCallback((ev: ServiceEvent) => setLogFor(ev), []);
+  const onMember = useCallback((b: Brother) => setMember(b), []);
+
+  const onDelete = useCallback(async (ev: ServiceEvent) => {
+    const undoEvents = editServiceEvents(list => list.filter(e => e.id !== ev.id));
+    const keep = rows.filter(r => r.serviceEventId === ev.id);
+    dropEventRows(ev.id);
+    try {
+      await deleteServiceEvent(ev.id);
+      haptics.success();
+      toast.show(SAY.deleted(ev.title));
+      // Deleting an event recomputes totals server-side; refresh the roster.
+      void refreshRoster();
+    } catch {
+      undoEvents();
+      putEventRows(ev.id, keep);
+      haptics.error();
+      toast.error(SAY.deleteFail);
+    }
+  }, [rows]);
+
+  const onRemove = useCallback(async (_eventId: number, p: ServiceParticipationRow) => {
+    const undo = dropRow(p.id);
+    try {
+      await removeParticipation(p.id);
+      void refreshRoster();
+    } catch {
+      undo();
+      haptics.error();
+      toast.error(SAY.removeFail);
+    }
+  }, []);
+
   if (!entry) return null;
   const me = entry.me;
-  const today = localDay();
+  const officer = canServiceOf(me);
   const goal = me.org?.thresholds.serviceHoursGoal ?? 10;
-  const word = me.org?.vocabularyOverrides.Service ?? "Service";
-  const refresh = () => Promise.all([events.refetch(), parts.refetch()]);
-  const list = events.data;
-  const rows = parts.data;
+  const term = me.org?.activeTerm?.label ?? null;
+  const orgName = me.org?.name ?? "ChaptOS";
+  const eventsLoading = !evQ.data;
+  const rosterLoading = !rosterQ.data;
+  const stats = ledgerStats(roster, events, goal, today);
+  const tp = dateParts(today);
+  const refresh = () => Promise.all([evQ.refetch(), partQ.refetch(), rosterQ.refetch()]);
+  const myTotal = roster.find(b => b.id === me.id)?.serviceHours ?? 0;
 
+  /* ── writes ── */
+  const save = async (body: ServiceFormBody) => {
+    const editing = form?.editing ?? null;
+    setForm(null);
+    if (!editing) {
+      // On the page now, inert until the save lands.
+      const tempId = -Date.now();
+      const draft: ServiceEvent = {
+        id: tempId, organizationId: 0, title: body.title, date: body.date, location: body.location, notes: body.notes, calendarEventId: null,
+        createdAt: new Date().toISOString(), schedule: body.schedule ?? null, time: null,
+      };
+      editServiceEvents(list => [...list, draft].sort(byDateDesc));
+      setPending(s => new Set(s).add(tempId));
+      setFresh(tempId);
+      try {
+        const saved = await createServiceEvent(body);
+        editServiceEvents(list => list.map(e => (e.id === tempId ? saved : e)).sort(byDateDesc));
+        putEventRows(saved.id, []);
+        setFresh(saved.id);
+        haptics.success();
+        toast.show(SAY.added(saved.title));
+      } catch (err) {
+        editServiceEvents(list => list.filter(e => e.id !== tempId));
+        haptics.error();
+        toast.error(mutationMessage(err, SAY.addFail));
+      } finally {
+        setPending(s => { const n = new Set(s); n.delete(tempId); return n; });
+      }
+      return;
+    }
+    const undo = editServiceEvents(list => list.map(e => (e.id === editing.id ? { ...e, ...body, schedule: body.schedule !== undefined ? body.schedule : e.schedule } : e)).sort(byDateDesc));
+    try {
+      const saved = await patchServiceEvent(editing.id, body);
+      editServiceEvents(list => list.map(e => (e.id === editing.id ? saved : e)).sort(byDateDesc));
+      haptics.success();
+      toast.show(SAY.updated);
+    } catch (err) {
+      undo();
+      haptics.error();
+      toast.error(mutationMessage(err, SAY.saveFail));
+    }
+  };
+
+  const saveLog = async (ev: ServiceEvent, draft: Record<number, string>): Promise<boolean> => {
+    const entries = logEntries(draft);
+    if (!entries.length) return true;
+    try {
+      const fresh = await logHours(ev.id, entries);
+      putEventRows(ev.id, fresh);
+      haptics.success();
+      toast.show(SAY.logged);
+      void refreshRoster();
+      return true;
+    } catch {
+      haptics.error();
+      toast.error(SAY.logFail);
+      return false;
+    }
+  };
+
+  const saveMine = async (eventId: number, val: string): Promise<boolean> => {
+    const hours = mineHours(val);
+    try {
+      const fresh = await logMyHours(eventId, hours);
+      putEventRows(eventId, fresh);
+      haptics.success();
+      toast.show(SAY.mineLogged);
+      // The punch shows the server's new total (it recomputes from the sign-in sheets),
+      // and only when whole holes were added.
+      const from = myTotal;
+      void rosterQ.refetch().then(r => {
+        const self = r.data?.find(b => b.id === me.id);
+        if (self && Math.floor(self.serviceHours) > Math.floor(from)) {
+          setPunch({ name: me.name, role: roleTitle(self), from, to: self.serviceHours, goal });
+        }
+      });
+      return true;
+    } catch {
+      haptics.error();
+      toast.error(SAY.mineFail);
+      return false;
+    }
+  };
+
+  /* ── day one ── */
+  if (evQ.data && !events.length) {
+    return (
+      <Screen title={navLabel(me, "Service")} back="More" onRefresh={refresh}>
+        <View style={{ gap: 18 }}>
+          <PageBrief pill={term} pillAfter kicker={DAY_ONE.kicker} lead={DAY_ONE.greet} mark={DAY_ONE.greetHi} tail="" markTone="mint" sub={DAY_ONE.digest} />
+          {rosterLoading ? <SkeletonCard height={300} /> : (
+            <>
+              {officer ? <View style={styles.actions}><TrBtn label={PAGE.newEvent} icon="plus" onPress={() => setForm({ editing: null })} /></View> : null}
+              <DayOne goal={goal} officer={officer} onNew={() => setForm({ editing: null })} />
+            </>
+          )}
+        </View>
+        {officer ? <ServiceForm open={!!form} editing={form?.editing ?? null} onClose={() => setForm(null)} onSave={b => void save(b)} /> : null}
+      </Screen>
+    );
+  }
+
+  /* ── the page ── */
+  let digest: BriefPart[] | null = null;
+  if (!eventsLoading && !rosterLoading) {
+    digest = roster.length === 0 || !stats.hasEvents
+      ? [{ text: digestEmpty(orgName, roster.length) }]
+      : [
+        { text: `${r1(stats.total)} hours`, bold: true },
+        { text: digestRest(stats, events.length, goal).join("") },
+        ...(stats.next ? [{ text: PAGE.nextUp }, { text: stats.next.title, bold: true }, { text: `, ${nextWhen(stats.next.date, today)}.` }] : []),
+      ];
+  }
+
+  const card = (ev: ServiceEvent, i: number) => (
+    <Animated.View key={ev.id} layout={i < ANIMATE_UP_TO && !m.reduced ? LinearTransition : undefined}
+      entering={fresh === ev.id && !m.reduced ? FadeInDown : undefined} exiting={i < ANIMATE_UP_TO && !m.reduced ? SlideOutRight : undefined}>
+      <EventCard ev={ev} today={today} open={openId === ev.id} pending={pending.has(ev.id)} rows={byEvent[ev.id]} canService={officer} selfId={me.id}
+        onToggle={toggle} onLog={onLog} onEdit={onEdit} onDelete={onDelete} onRemove={onRemove} />
+    </Animated.View>
+  );
+
+  let body: React.ReactNode;
+  if (view === "events") {
+    if (eventsLoading) {
+      body = evQ.isError ? <ErrorState title={SAY.loadFail} error={evQ.error} onRetry={() => void evQ.refetch()} /> : <SkeletonList count={4} />;
+    } else if (!split.matched.length) {
+      body = <Calm title={PAGE.noMatch} line={PAGE.noMatchLine} onClear={() => setFind("")} />;
+    } else {
+      body = (
+        <View style={{ gap: 10 }}>
+          {split.up.length ? <><SectionHead title={PAGE.comingUp} count={String(split.up.length)} />{split.up.map(card)}</> : null}
+          {split.past.length ? <><SectionHead title={PAGE.logged} count={`${split.past.length} · ${PAGE.newestFirst}`} />{split.past.map((e, i) => card(e, i + split.up.length))}</> : null}
+        </View>
+      );
+    }
+  } else if (rosterLoading) {
+    body = rosterQ.isError ? <ErrorState title="Couldn't load members." error={rosterQ.error} onRetry={() => void rosterQ.refetch()} /> : <SkeletonList count={5} />;
+  } else if (!ranked.length) {
+    body = <Calm title={PAGE.noMembers} line={PAGE.noMembersLine} />;
+  } else {
+    body = (
+      <View style={{ gap: 12 }}>
+        <Legend goal={goal} />
+        {ranked.map(b => <MemberCard key={b.id} b={b} goal={goal} you={b.id === me.id} onPress={onMember} />)}
+      </View>
+    );
+  }
+
+  const M = MEASURES;
   return (
-    <Screen title={word} back="More" onRefresh={refresh}>
-      {list && rows ? <StaleNote updatedAt={events.dataUpdatedAt} failed={events.isError || parts.isError} onRetry={() => void refresh()} /> : null}
-      {!list || !rows ? (events.isError || parts.isError
-        ? <ErrorState title="Couldn't load service." error={events.error ?? parts.error} onRetry={() => void refresh()} />
-        : <SkeletonCard height={260} />)
-        : <Body events={list} meId={me.id} meName={me.name} meAvatar={me.avatarUrl} role={me.role} goal={goal} today={today} word={word}
-            hours={myHours(rows, me.id)} rows={rows} onLog={() => setLogOpen(true)} />}
-      {list && rows ? (
-        <LogSheet open={logOpen} onClose={() => setLogOpen(false)} events={list.filter(e => e.date <= today)} rows={rows} meId={me.id}
-          me={{ name: me.name, avatarUrl: me.avatarUrl }} />
+    <Screen title={navLabel(me, "Service")} back="More" onRefresh={refresh}>
+      <View style={{ gap: 18 }}>
+        <PageBrief pill={`${dow3(tp.dow)} · ${mon3(tp.m)} ${tp.d}`} kicker={`${PAGE.kicker}${term ? ` · ${term}` : ""}`} kickerSep={false}
+          lead={PAGE.greet} mark={PAGE.greetHi} tail="" markTone="mint" spark digest={stats.hasEvents ? digest : null} quiet={!stats.hasEvents && digest ? digest[0]?.text ?? null : null} />
+
+        <View style={styles.actions}>
+          <View style={styles.actRow}>
+            {officer ? <TrBtn label={PAGE.newEvent} icon="plus" onPress={() => setForm({ editing: null })} /> : null}
+            <TrBtn kind="card" tone="peach" label={PAGE.logMine} icon="clock" disabled={!stats.hasPast} hint={stats.hasPast ? undefined : PAGE.logMineNone} onPress={() => setMineOpen(true)} />
+          </View>
+          <TrBtn kind="ask" label={PAGE.ask} icon="spark" kbd="⌘K" hint="Opens Ask Chapt with the question ready to send"
+            onPress={() => router.push({ pathname: "/ask", params: { q: PAGE.askQ } })} />
+        </View>
+
+        <View style={styles.measures}>
+          {!stats.hasEvents ? (
+            <>
+              <Measure unset label={M.hours.label} icon={M.hours.icon} tone={M.hours.tone} value="—" note={M.hours.why} />
+              <Measure unset label={M.events.label} icon={M.events.icon} tone={M.events.tone} value="—" note={M.events.why} />
+              <Measure unset label={M.onTrack.label} icon={M.onTrack.icon} tone={M.onTrack.tone} value="—" note={M.onTrack.why(goal)} />
+              <Measure unset label={M.avg.label} icon={M.avg.icon} tone={M.avg.tone} value="—" note={M.avg.why} />
+            </>
+          ) : (
+            <>
+              <Measure label={M.hours.label} icon={M.hours.icon} tone={M.hours.tone} value={r1(stats.total)} unit="h" note={M.hours.note} />
+              <Measure label={M.events.label} icon={M.events.icon} tone={M.events.tone} value={String(events.length)} note={M.events.note(stats.upcoming)} />
+              <Measure label={M.onTrack.label} icon={M.onTrack.icon} tone={M.onTrack.tone} value={String(stats.onTrack)} unit={`/${roster.length}`} note={M.onTrack.note(goal)}
+                warn={roster.length > 0 && stats.onTrack < roster.length} />
+              <Measure label={M.avg.label} icon={M.avg.icon} tone={M.avg.tone} value={r1(avgHours(stats.total, roster.length))} unit="h" note={M.avg.note} />
+            </>
+          )}
+        </View>
+
+        <View style={{ gap: 12 }}>
+          <View style={[styles.search, { borderColor: c.line2, backgroundColor: c.card }]}>
+            <Icon name="search" size={16} color={c.ink3} />
+            <TextInput value={find} onChangeText={setFind} placeholder={view === "events" ? PAGE.searchEvents : PAGE.searchMembers} placeholderTextColor={c.ink3}
+              autoCorrect={false} autoCapitalize="none" returnKeyType="search" accessibilityLabel="Search" style={[styles.searchIn, { color: c.ink }]} />
+          </View>
+          <View style={styles.toolRow}>
+            <View style={[styles.tabs, { backgroundColor: c.paper2, borderColor: c.line }]} accessibilityRole="tablist" accessibilityLabel="View">
+              {(["events", "members"] as const).map(k => {
+                const on = view === k;
+                return (
+                  <Pressable key={k} onPress={() => { if (!on) { haptics.select(); setView(k); setFind(""); } }} accessibilityRole="tab" accessibilityLabel={k === "events" ? PAGE.events : PAGE.members} accessibilityState={{ selected: on }}
+                    style={[styles.tab, on && { backgroundColor: c.card, boxShadow: `0 1px 2px ${c.line2}` }]}>
+                    <T v="buttonSm" color={on ? c.ink : c.ink3}>{k === "events" ? PAGE.events : PAGE.members}</T>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <T v="mono" color={c.ink3} style={{ fontSize: 11.5 }}>{view === "events" ? `${split.matched.length} of ${events.length}` : `${ranked.length} of ${roster.length}`}</T>
+          </View>
+        </View>
+
+        {body}
+      </View>
+
+      {officer ? (
+        <>
+          <ServiceForm open={!!form} editing={form?.editing ?? null} onClose={() => setForm(null)} onSave={b => void save(b)} />
+          <LogHours event={logFor} roster={roster} rows={logFor ? byEvent[logFor.id] : undefined} onClose={() => setLogFor(null)} onSave={saveLog} />
+        </>
       ) : null}
+      <LogMine open={mineOpen} events={mineList} rows={rows} selfId={me.id} myTotal={myTotal} goal={goal} onClose={() => setMineOpen(false)} onSave={saveMine} />
+      <MemberSheet member={member} goal={goal} events={events} byEvent={byEvent} onClose={() => setMember(null)} />
+      <PunchMoment punch={punch} onDone={() => setPunch(null)} />
     </Screen>
   );
 }
 
-function Body({ events, meId, role, goal, today, word, hours, rows, onLog }: {
-  events: ServiceEvent[]; meId: number; meName: string; meAvatar: string | null; role: string; goal: number; today: string; word: string;
-  hours: number; rows: ReturnType<typeof useParticipation>["data"] & object; onLog: () => void;
-}) {
-  const { c } = useTheme();
-  const entry = useEntryOf("ready");
-  const ahead = events.filter(e => e.date >= today).sort((a, b) => a.date.localeCompare(b.date));
-  const past = events.filter(e => e.date < today || (e.date === today)).sort((a, b) => b.date.localeCompare(a.date));
-  const next = ahead[0];
-  const mine = new Map(rows.filter(r => r.brotherId === meId).map(r => [r.serviceEventId, r.hours] as const));
-  const left = goal - hours;
-  const canLog = events.some(e => e.date <= today);
-
-  if (!events.length) {
-    return (
-      <>
-        <PunchCard name={entry?.me.name ?? ""} role={role} hours={0} goal={goal} canLog={false} onLog={onLog} />
-        <EmptyState compact pictures={[{ icon: "heart", tone: "mint", label: "Shifts" }, { icon: "clock", tone: "peach", label: "Hours, punched" }, { icon: "check", tone: "sky", label: "The goal" }]}
-          title="No service events yet." line="A cleanup, a food bank shift, a build. When an officer adds one, it lands on the Timeline and here, and you log your hours after." />
-      </>
-    );
-  }
-
-  return (
-    <>
-      <PunchCard name={entry?.me.name ?? ""} role={role} hours={hours} goal={goal} canLog={canLog} onLog={onLog}
-        line={left <= 0 ? (hours > goal ? `Goal met, and ${r1(hours - goal)} extra.` : "Goal met.") : hours === 0 ? `${goal} hours to punch this term.` : `${r1(left)} to go.`} />
-
-      {next ? (
-        <View style={{ gap: 10 }}>
-          <T v="label" color={c.ink3} accessibilityRole="header">Next shift</T>
-          <Ticket tone="mint" body={<View style={{ gap: 3 }}>
-              <T v="subhead" numberOfLines={2}>{next.title}</T>
-              <T v="meta" color={c.ink3}>{[relDay(next.date, today), clockLabel(next.time), next.location || null].filter(Boolean).join(" · ")}</T>
-              {next.notes ? <T v="meta" color={c.ink2} numberOfLines={2}>{next.notes}</T> : null}
-            </View>} stub={<View style={{ alignItems: "center" }}>
-            <T v="mono" color={c.pastel.mint.ink} style={{ fontSize: 10 }}>{weekdayShort(next.date).toUpperCase()}</T>
-            <T v="title" style={{ fontSize: 24 }}>{next.date.slice(8, 10).replace(/^0/, "")}</T>
-          </View>} />
-          {ahead.length > 1 ? <T v="meta" color={c.ink3}>Then {ahead.slice(1, 3).map(e => `${e.title} (${monthDay(e.date)})`).join(", ")}.</T> : null}
-        </View>
-      ) : null}
-
-      {past.length ? (
-        <View style={{ gap: 10 }}>
-          <T v="label" color={c.ink3} accessibilityRole="header">Shifts so far</T>
-          <View style={[styles.list, { borderColor: c.line, backgroundColor: c.card }]}>
-            {past.map((e, i) => {
-              const h = mine.get(e.id);
-              return (
-                <View key={e.id} style={[styles.row, i > 0 && { borderTopColor: c.line, borderTopWidth: 1 }]}>
-                  <Icon name="heart" size={15} color={h != null ? c.pastel.mint.ink : c.line2} />
-                  <View style={{ flex: 1 }}>
-                    <T v="callout" numberOfLines={1}>{e.title}</T>
-                    <T v="meta" color={c.ink3}>{monthDay(e.date)}{e.location ? ` · ${e.location}` : ""}</T>
-                  </View>
-                  <T v="mono" color={h != null ? c.ink : c.ink3} style={{ fontSize: 12 }}>{h != null ? `${r1(h)}h` : "—"}</T>
-                </View>
-              );
-            })}
-          </View>
-          <T v="meta" color={c.ink3}>{word} hours count toward your standing. Log the shift you were at; an officer can fix a mistake.</T>
-        </View>
-      ) : null}
-    </>
-  );
-}
-
-const relDay = (d: string, today: string) => {
-  const n = daysFrom(today, d);
-  return n === 0 ? "Today" : n === 1 ? "Tomorrow" : n < 7 ? weekdayShort(d) : monthDay(d);
-};
-
-/* ── the punch card ───────────────────────────────────────────────────────────── */
-
-function PunchCard({ name, role, hours, goal, line, canLog, onLog }: { name: string; role: string; hours: number; goal: number; line?: string; canLog: boolean; onLog: () => void }) {
-  const { c } = useTheme();
-  const stock = c.pastel.butter.soft;
-  const print = c.pastel.peach.ink;
-  const punched = Math.floor(hours);
-  const total = Math.min(40, Math.max(goal, punched));
-  const met = hours >= goal && goal > 0;
-  const [stamp, setStamp] = useState<StampState>(met ? "shown" : "hidden");
-  const [wasMet, setWasMet] = useState(met);
-  useEffect(() => {
-    if (met && !wasMet) { setStamp("in"); setWasMet(true); }
-    else if (!met && wasMet) { setStamp("out"); setWasMet(false); }
-  }, [met, wasMet]);
-
-  return (
-    <View style={[styles.card, { backgroundColor: stock, borderColor: c.ink, boxShadow: `4px 4px 0 ${c.pastel.peach.fill}` }]}>
-      <View style={[styles.cardHead, { borderBottomColor: alpha(print, 0.38) }]}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Icon name="heart" size={12} color={print} />
-          <T v="label" color={print} style={{ fontSize: 9.5 }}>Service card</T>
-        </View>
-        <T v="label" color={print} style={{ fontSize: 9.5, opacity: 0.85 }}>Goal · {goal} hrs</T>
-      </View>
-      <View style={[styles.who, { borderBottomColor: alpha(print, 0.38) }]}>
-        <T v="label" color={print} style={{ fontSize: 8.5 }}>Name</T>
-        <T v="subhead" style={{ flex: 1 }} numberOfLines={1}>{name}</T>
-        <T v="mono" color={c.ink3} style={{ fontSize: 10 }} numberOfLines={1}>{role}</T>
-      </View>
-      <View style={styles.big}>
-        <T v="hero" style={{ fontSize: 48, lineHeight: 50 }}>{r1(hours)}<T v="subhead" color={print}> / {goal}h</T></T>
-        {line ? <T v="callout" color={c.ink2} style={{ flex: 1, textAlign: "right" }}>{line}</T> : null}
-      </View>
-      <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
-        <PunchHoles punched={punched} total={total} stock={stock} print={print} />
-      </View>
-      {stamp !== "hidden" ? <Stamp label="Goal met" tone="mint" state={stamp} size="md" rotate={-10} style={{ position: "absolute", right: 18, top: 70 }} /> : null}
-      <View style={styles.foot}>
-        {canLog ? <Button label="Log my hours" icon="clock" tone="peach" block onPress={onLog} style={{ flex: 1 }} />
-          : <T v="meta" color={c.ink2}>A hole punches for every hour you log.</T>}
-      </View>
-    </View>
-  );
-}
-
-/* ── log my hours ─────────────────────────────────────────────────────────────── */
-
-function LogSheet({ open, onClose, events, rows, meId, me }: {
-  open: boolean; onClose: () => void; events: ServiceEvent[]; rows: NonNullable<ReturnType<typeof useParticipation>["data"]>; meId: number;
-  me: { name: string; avatarUrl: string | null };
-}) {
-  const { c } = useTheme();
-  const sorted = [...events].sort((a, b) => b.date.localeCompare(a.date));
-  const [pick, setPick] = useState<number | null>(null);
-  const [hours, setHours] = useState(2);
-  const mineFor = (id: number) => rows.find(r => r.serviceEventId === id && r.brotherId === meId)?.hours ?? null;
-  useEffect(() => {
-    if (!open) return;
-    const first = sorted.find(e => mineFor(e.id) == null) ?? sorted[0];
-    setPick(first?.id ?? null);
-    setHours(first ? mineFor(first.id) ?? 2 : 2);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-  const event = sorted.find(e => e.id === pick) ?? null;
-  const before = event ? mineFor(event.id) : null;
-
-  const save = () => {
-    if (!event) return;
-    onClose();
-    const restore = setMyHours(meId, event.id, hours, me);
-    toast.show(before == null ? `${r1(hours)}h logged` : `${r1(before)}h → ${r1(hours)}h`, {
-      detail: event.title,
-      undo: () => {
-        const back = setMyHours(meId, event.id, before, me);
-        (before == null ? unlogMyHours(event.id) : logMyHours(event.id, before)).then(
-          r => { putEventRows(event.id, r); void refreshRoster(); },
-          e => { back(); toast.error("Couldn't undo that", { detail: errorMessage(e) }); },
-        );
-      },
-    });
-    logMyHours(event.id, hours).then(
-      r => { putEventRows(event.id, r); void refreshRoster(); },
-      e => { restore(); haptics.error(); toast.error("Couldn't log those hours", { detail: errorMessage(e) }); },
-    );
-  };
-
-  return (
-    <Sheet open={open} onClose={onClose} title="Log my hours" kicker="One punch per hour" tone="peach" icon="clock"
-      footer={<Button label={before == null ? "Punch it" : "Change it"} icon="check" tone="peach" block onPress={save} disabled={!event || hours === before} style={{ flex: 1 }} />}>
-      <View style={{ gap: 16 }}>
-        <View style={{ gap: 8 }}>
-          <T v="label" color={c.ink3}>Which shift</T>
-          {sorted.slice(0, 8).map(e => {
-            const on = e.id === pick;
-            const had = mineFor(e.id);
-            return (
-              <Pressable key={e.id} onPress={() => { haptics.select(); setPick(e.id); setHours(had ?? 2); }} accessibilityRole="radio" accessibilityState={{ selected: on }}
-                style={[styles.pick, { borderColor: on ? c.ink : c.line, backgroundColor: on ? c.pastel.peach.soft : c.card }]}>
-                <View style={{ flex: 1 }}>
-                  <T v="callout" numberOfLines={1}>{e.title}</T>
-                  <T v="meta" color={c.ink3}>{monthDay(e.date)}{had != null ? ` · you logged ${r1(had)}h` : ""}</T>
-                </View>
-                {on ? <Icon name="check" size={16} color={c.ink} /> : null}
-              </Pressable>
-            );
-          })}
-        </View>
-        <View style={{ gap: 8 }}>
-          <T v="label" color={c.ink3}>Hours</T>
-          <View style={styles.stepper}>
-            <StepBtn glyph="−" label="Half an hour less" onPress={() => setHours(h => Math.max(0.5, h - 0.5))} />
-            <T v="hero" style={{ fontSize: 36, minWidth: 90, textAlign: "center" }} accessibilityLiveRegion="polite">{r1(hours)}h</T>
-            <StepBtn glyph="+" label="Half an hour more" onPress={() => setHours(h => Math.min(24, h + 0.5))} />
-          </View>
-        </View>
-      </View>
-    </Sheet>
-  );
-}
-
-function StepBtn({ glyph, label, onPress }: { glyph: string; label: string; onPress: () => void }) {
-  const { c } = useTheme();
-  return (
-    <Pressable onPress={() => { haptics.select(); onPress(); }} accessibilityRole="button" accessibilityLabel={label} hitSlop={6}
-      style={({ pressed }) => [styles.step, { borderColor: c.ink, backgroundColor: pressed ? c.paper2 : c.card }]}>
-      <T v="title" style={{ fontSize: 22, lineHeight: 26 }}>{glyph}</T>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  step: { width: 46, height: 46, borderRadius: 23, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  card: { borderWidth: 1.5, borderRadius: 14, borderTopLeftRadius: 4, transform: [{ rotate: "-0.6deg" }] },
-  cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginHorizontal: 16, paddingTop: 12, paddingBottom: 8, paddingLeft: 14, borderBottomWidth: 3 },
-  who: { flexDirection: "row", alignItems: "baseline", gap: 10, marginHorizontal: 16, marginTop: 12, paddingBottom: 3, borderBottomWidth: 1 },
-  big: { flexDirection: "row", alignItems: "flex-end", gap: 12, paddingHorizontal: 16, paddingTop: 14 },
-  foot: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14 },
-  list: { borderWidth: 1.5, borderRadius: 16, paddingHorizontal: 14 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 11 },
-  pick: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, borderWidth: 1.5 },
-  stepper: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 18 },
+  actions: { gap: 12, alignItems: "flex-start" },
+  actRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  measures: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 12 },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 14, minHeight: 46 },
+  searchIn: { flex: 1, fontSize: 16, paddingVertical: 10 },
+  toolRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  tabs: { flexDirection: "row", gap: 2, padding: 3, borderRadius: 999, borderWidth: 1.5 },
+  tab: { paddingHorizontal: 14, minHeight: 34, borderRadius: 999, justifyContent: "center" },
 });

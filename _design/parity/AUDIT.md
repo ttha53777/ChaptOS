@@ -40,7 +40,7 @@ Legend: ✅ matches the web phone · 🟡 built, but from the paper mocks rather
 | Docs | `more/docs` | ✅ | Phase 8a: brief and meta line, toolbar, pinned shelf, manila sections, every doc/folder write, day one. See "Docs (Phase 8a)" below. |
 | Media | `more/media` | ✅ | Phase 8b: brief, Add post / Ask, measures that jump, lanes, month, detail with in-place dates, form, delete, day one. See "Media (Phase 8b)" below. |
 | Programming | `more/programming` | ✅ | Phase 8c: brief with tappable clauses, measures, Board/Calendar, the four gated lanes, timeline strip, the event sheet in panel order, fix step, wrap-up, day one. See "Programming (Phase 8c)" below. |
-| Service | `more/service` | 🟡 | Web has PaperService, wide modal forms, and day one. |
+| Service | `more/service` | ✅ | Phase 8d: brief and digest, measures, Events/Members, event cards opening onto the sign-in sheet, punch cards, the wide forms, Log hours, Log my hours with the punch, day one. See "Service (Phase 8d)" below. |
 | Parties | `more/parties` | 🟡 | The ledger and wrap-ups exist. Diff the roll and wrap-up door. |
 | Fundraisers | `more/fundraisers` | 🟡 | Web has jars over the ledger and the wrap-up total. |
 | Treasury (Overview, Transactions, Dues, Reports, Reimbursements) | `more/treasury` | ✅ | Phase 7: the five tabs, the open-books gate and member lock, every sheet, Dues with its drawer, Hand out and charge editor. See "Treasury (Phase 7)" below. |
@@ -461,4 +461,74 @@ Built 2026-11-20.
   - The docs attach/detach data calls.
   - The EmptyState day one.
   - `lab/programming.tsx` still imports EventCard, Ladder and StarPicker, so those stay.
+
+## Service (Phase 8d), what landed
+
+Built 2026-11-20.
+
+- **Shared rules:** `lib/service/ledger.ts` (SHARED now whitelists `@/lib/service/`). "Today" is passed in; `todayOf(now)` replaces the web's clock read.
+  - Dates and times: `r1`, `dayLabel`, `daysFrom`, `relWhen`, `timeLabel`, `standing`.
+  - The numbers: `ledgerStats`, `avgHours`.
+  - The digest: `digestRest` and `nextWhen`, as the web's own text runs; `digestEmpty`.
+  - Lists: `splitEvents` (Coming up / Logged), `rankMembers`, `eventTag`, `sheetSum`, `rowsByEvent`, `sheetRows`, `sheetEmpty`.
+  - Cards: `holesFor`, `cardTail`.
+  - Logging: `logTally`, `logEntries`, `logSeed`, `loggable`, `mineHours`.
+  - The member sheet: `memberLedger`, `memberGoalLine`.
+  - Day one: `dayOneHoles`.
+  - Words: `PAGE`, `MEASURES`, `DAY_ONE`, `FORM`, `LOG`, `MINE`, `MEMBER`, and every toast in `SAY`.
+  - `PaperService.tsx` and `page.tsx` render from it.
+  - Pixdiff before/after: all 52 service frames are IDENTICAL. That covers full, fold, both open cards, members, member sheet, add, edit, log, mine, and both no-match scenes, for busy and day one, admin and member, day and night. One modal-entrance frame needed a rerun.
+- **Wire (additive):**
+  - Route-map lines for POST `/api/service-events`, PATCH/DELETE `/api/service-events/[id]`, POST `/api/service-events/[id]/participation` and DELETE `/api/service-participation/[id]`, all MANAGE_SERVICE.
+  - Contract entries `serviceEventCreated`, `serviceEventUpdated`, `serviceLogged`, and smoke probes.
+  - `createServiceEvent` and `updateServiceEvent` now type their `schedule` as `Schedule | null`, the same cast `listServiceEvents` already used. The JSON is unchanged.
+  - The bearer static test passes on 125 routes; `tests/service` passes on figurints_t6.
+- **Page** (`more/service.tsx`, in the web phone's order):
+  - Brief: "FRI · NOV 20", "The service log · FA26", "Hours, by the event.", then ✦ DIGEST: "**132 hours** logged across 5 events. 4 members are still short of the 10h goal. Next up: **Food Bank Shift**, in 4 days."
+  - Actions:
+    - New service event (MANAGE_SERVICE).
+    - Log my hours, disabled until an event has happened.
+    - Ask who’s behind ⌘K, which opens Ask Chapt with the web's question.
+  - Measures: Hours logged · Service events · On track (butter when someone is short) · Avg / member, with the dashed "unset" versions.
+  - Tools: Search events… / Search members…, Events | Members (switching clears the search), and "n of m".
+  - Events: Coming up and Logged ("3 · newest first").
+    - A card shows the desk date (dashed for upcoming), the tag (In 4 days / Coming up / Past), the date and time, the place, and "4 here · 11 hours" ("—" until anyone is logged).
+    - A tap opens it onto the notes and the sign-in sheet (#, Signed in, Hours, "· you", the total), with Log hours · Edit · Delete for officers and ✕ to remove a line.
+  - Members: the legend, then one punch card per member, most hours first. Each shows role (· you), hours/goal, one hole per hour of the goal, and "+5" / "2 to go" / "done". A tap opens the member's hours by event, plus "Recorded before per-event tracking".
+  - "Nothing matches." with Clear search, and "No members found."
+  - Day one: "SERVICE [FA26]", "Service hours, the easy way", the three steps with their objects, and New service event plus "Plan your first service event" for officers. Members get "Nothing planned yet. An officer can add the first one."
+- **Sheets:**
+  - Log service event / Edit service event: Title, When, Location (opt), Notes (opt), and the foot "Dates stay inside FA26. It lands on the Timeline as a service event."
+    - When follows the web's stacked ScheduleFields with `legacyReadOnly`: Set a time | All day, plus As written for a free-text time.
+    - Date, Starts, then Ends (opt) once there's a start; Last day (opt) when all day.
+    - "Calendars show this at 9:30 AM." with Set a time; the duration; the same-time and next-day warnings; "Times in New York (EST) · this device's zone."; and "Choose a date." when no date is picked.
+    - Add is optimistic (inert until saved). Edit is optimistic and rolls back on refusal.
+  - Log hours · <event>: the hint, Find a member…, a row per member ("6h total", hours input), the running "2 members · 5h on this sheet", and Save hours (Saving…).
+  - Log my hours: Which event? (desk date, "Mon, Nov 9 · North Beach", your hours as a chip), How many hours?, 1h–6h, and "You’re at 14h of 10. Logging again for the same event replaces your hours there."
+  - Refusals use the web's resolveMutationError words: no active semester, no connection, the server's sentence, else the fallback.
+- **Signature moment:** after Log my hours returns, the app refetches the roster. When the server's new total adds whole holes, my service card comes up over the page with the old hours, then the new holes punch in (`~/moments/Punch`: press, chad, soft haptics). A tap or a timeout dismisses it. The success haptic follows the server's answer.
+- **Verified on :3100.** `/api/auth/me` returned ok-today first; a data-only dump was taken first and restored in one transaction after; a fresh dump differed only in the `\restrict` tokens.
+  - Create "Parity cleanup" (Nov 24, 7:00 PM, Pier 4; "Choose a date." shown first), then edit it to Pier 5.
+  - Log hours on Beach cleanup (Dev 2, Leo 3), then remove Dev.
+  - Log my hours (3h, then 6h): the punch played from 10 to 13, the server's figure.
+  - Delete Parity cleanup (toast "Deleted "Parity cleanup".").
+  - Member 12: no officer actions or ✕ on the sheet.
+  - Gated off: with `service` removed from ok-today's workflows, More has no Service tile and the web sidebar has no entry (restored).
+  - Text matches the web word for word for admin 2, member 12, day-one 14 and 16. It also matches for the open card (officer and member), the members view, the member sheet, the add, edit (timed and legacy), Log hours and Log my hours sheets.
+- **Deviations:**
+  - The zone's "Change" link and the DST repeat/gap choosers are not offered, as in Programming. The form shows the zone as text.
+  - Date and time use the app's day strip and clock. Starts and Ends stack, because the clock needs the full width.
+  - The web's delete has no confirm and slides the card off; the app removes it with a slide-out the same way.
+  - The web's card re-ink flash and scroll-into-view on edit are replaced by a fade-in on a new card.
+  - The punch moment is app-only, by design.
+- **Seed drift observed (server behaviour, the same on the web):** logging or removing hours recomputes those members' totals from their sign-in rows, and deleting an event recomputes the whole org. The seed's totals include hours with no rows, so they fall (132 → 117 → 37 during the run). The restore put them back.
+- **Not exercised:**
+  - A refused create or edit (an out-of-term date can't be picked from the day strip).
+  - Log hours and remove-attendee failures.
+  - All day / Several days saves.
+  - The live bearer smoke (it needs a Supabase token).
+- **Removed:**
+  - The app's own "my punch card leads" layout, the next-shift ticket, "Shifts so far" and the stepper sheet with "Punch it" / "Change it".
+  - The undo on Log my hours, which the web doesn't have.
+  - `setMyHours` and `unlogMyHours` in `data/more.ts`, which nothing uses now. `lab/` doesn't import the old screen.
 

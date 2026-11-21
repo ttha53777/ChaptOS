@@ -17,7 +17,10 @@ import { scheduleDate, scheduleTime, type Schedule } from "@/lib/calendar-feed/s
 import "../../../components/dashboard/dashboard-ledger.css";
 import "./service-ledger.css";
 import "./service-paper.css";
-import { PaperService, DeskDate, dayLabel, r1, localToday, standing } from "./PaperService";
+import { PaperService, DeskDate, localToday } from "./PaperService";
+import {
+  FORM, LOG, MEMBER, MINE, MINE_CHIPS, SAY, dayLabel, logEntries, logSeed, logTally, loggable, memberGoalLine, memberLedger, mineHours, r1, rowsByEvent,
+} from "@/lib/service/ledger";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,13 +104,12 @@ export default function ServicePage() {
     const parts = requestJson<Participation[]>("/api/service-participation").catch(() => null);
     events
       .then(setServiceEvents)
-      .catch(() => toast.error("Could not load service events."))
+      .catch(() => toast.error(SAY.loadFail))
       .finally(() => setEventsLoading(false));
     Promise.all([events, parts]).then(([evs, rows]) => {
       // Rows open their sheets one by one (loadParticipation) if this fails.
-      if (!rows) { toast.error("Could not load attendees."); return; }
-      const byEvent: Record<number, Participation[]> = Object.fromEntries(evs.map(e => [e.id, []]));
-      for (const r of rows) (byEvent[r.serviceEventId] ??= []).push(r);
+      if (!rows) { toast.error(SAY.attendeesFail); return; }
+      const byEvent = rowsByEvent(evs, rows);
       // A sheet already fetched or logged in the meantime is newer; keep it.
       setPartByEvent(prev => ({ ...byEvent, ...prev }));
     }).catch(() => { /* events' own catch already said so */ });
@@ -117,7 +119,7 @@ export default function ServicePage() {
     if (partByEvent[eventId]) return; // cached
     requestJson<Participation[]>(`/api/service-events/${eventId}/participation`)
       .then(rows => setPartByEvent(prev => ({ ...prev, [eventId]: rows })))
-      .catch(() => toast.error("Could not load attendees."));
+      .catch(() => toast.error(SAY.attendeesFail));
   }
 
   function toggleExpand(eventId: number) {
@@ -174,10 +176,10 @@ export default function ServicePage() {
         });
         setPartByEvent(prev => ({ ...prev, [saved.id]: [] }));
         startTransition(() => setServiceEvents(prev => prev.map(e => e.clientKey === clientKey ? { ...saved, clientKey } : e)));
-        toast.success(`Added "${saved.title}".`);
+        toast.success(SAY.added(saved.title));
       } catch (err) {
         startTransition(() => setServiceEvents(prev => prev.filter(e => e.clientKey !== clientKey)));
-        handleSemesterError(err, msg => toast.error(msg), "Could not add the service event.");
+        handleSemesterError(err, msg => toast.error(msg), SAY.addFail);
       }
     } else if (eventModal === "edit" && editingEvent) {
       const snapshot = editingEvent;
@@ -191,10 +193,10 @@ export default function ServicePage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        toast.success("Service event updated.");
+        toast.success(SAY.updated);
       } catch (err) {
         setServiceEvents(list => list.map(e => e.id === snapshot.id ? snapshot : e).sort((a, b) => b.date.localeCompare(a.date)));
-        handleSemesterError(err, msg => toast.error(msg), "Could not save changes.");
+        handleSemesterError(err, msg => toast.error(msg), SAY.saveFail);
       }
     }
   }
@@ -204,22 +206,19 @@ export default function ServicePage() {
     setPartByEvent(prev => { const next = { ...prev }; delete next[ev.id]; return next; });
     try {
       await requestJson(`/api/service-events/${ev.id}`, { method: "DELETE" });
-      toast.success(`Deleted "${ev.title}".`);
+      toast.success(SAY.deleted(ev.title));
       // Deleting an event recomputes totals server-side; refresh the roster.
       await refreshRosterHours();
     } catch {
       setServiceEvents(prev => [...prev, ev].sort((a, b) => b.date.localeCompare(a.date)));
-      toast.error("Could not delete the event.");
+      toast.error(SAY.deleteFail);
     }
   }
 
   // ── Log hours ──────────────────────────────────────────────────────────────────
   function openLog(ev: ServiceEvent) {
     // Seed the draft from whatever participation we have cached for this event.
-    const existing = partByEvent[ev.id] ?? [];
-    const seed: Record<number, string> = {};
-    for (const p of existing) seed[p.brotherId] = String(p.hours);
-    setLogDraft(seed);
+    setLogDraft(logSeed(partByEvent[ev.id]));
     setLogSearch("");
     setLogFor(ev);
     loadParticipation(ev.id);
@@ -231,9 +230,7 @@ export default function ServicePage() {
 
   async function submitLog() {
     if (!logFor) return;
-    const entries = Object.entries(logDraft)
-      .map(([id, val]) => ({ brotherId: Number(id), hours: Math.max(0, parseFloat(val) || 0) }))
-      .filter(e => logDraft[e.brotherId] !== undefined && logDraft[e.brotherId] !== "");
+    const entries = logEntries(logDraft);
     if (entries.length === 0) { setLogFor(null); return; }
 
     setLogBusy(true);
@@ -245,10 +242,10 @@ export default function ServicePage() {
       });
       setPartByEvent(prev => ({ ...prev, [logFor.id]: rows }));
       setLogFor(null);
-      toast.success("Hours logged.");
+      toast.success(SAY.logged);
       await refreshRosterHours();
     } catch {
-      toast.error("Could not log hours.");
+      toast.error(SAY.logFail);
     } finally {
       setLogBusy(false);
     }
@@ -256,7 +253,7 @@ export default function ServicePage() {
 
   // ── Log my hours (self-service) ──────────────────────────────────────────────
   function openLogMine() {
-    const recent = serviceEvents.filter(e => !e.pending).sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
+    const recent = loggable(serviceEvents)[0] ?? null;
     setLogMineEventId(recent?.id ?? null);
     setLogMineHours("");
     setLogMineOpen(true);
@@ -264,7 +261,7 @@ export default function ServicePage() {
 
   async function submitLogMine() {
     if (logMineEventId == null) return;
-    const hours = Math.max(0, parseFloat(logMineHours) || 0);
+    const hours = mineHours(logMineHours);
     setLogMineBusy(true);
     try {
       const rows = await requestJson<Participation[]>(`/api/service-events/${logMineEventId}/participation/me`, {
@@ -274,10 +271,10 @@ export default function ServicePage() {
       });
       setPartByEvent(prev => ({ ...prev, [logMineEventId]: rows }));
       setLogMineOpen(false);
-      toast.success("Your hours were logged.");
+      toast.success(SAY.mineLogged);
       await refreshRosterHours();
     } catch {
-      toast.error("Could not log your hours.");
+      toast.error(SAY.mineFail);
     } finally {
       setLogMineBusy(false);
     }
@@ -290,7 +287,7 @@ export default function ServicePage() {
       await refreshRosterHours();
     } catch {
       setPartByEvent(prev => ({ ...prev, [eventId]: [...(prev[eventId] ?? []), p].sort((a, b) => a.brother.name.localeCompare(b.brother.name)) }));
-      toast.error("Could not remove attendee.");
+      toast.error(SAY.removeFail);
     }
   }
 
@@ -303,15 +300,10 @@ export default function ServicePage() {
   }
 
   // Events that contributed to a member's hours (member detail drawer).
-  const memberEvents = useMemo(() => {
-    if (!memberDetail) return [];
-    const out: { event: ServiceEvent; hours: number }[] = [];
-    for (const ev of serviceEvents) {
-      const row = (partByEvent[ev.id] ?? []).find(p => p.brotherId === memberDetail.id);
-      if (row) out.push({ event: ev, hours: row.hours });
-    }
-    return out.sort((a, b) => b.event.date.localeCompare(a.event.date));
-  }, [memberDetail, serviceEvents, partByEvent]);
+  const ledger = useMemo(
+    () => (memberDetail ? memberLedger(memberDetail.id, memberDetail.serviceHours, serviceEvents, partByEvent) : null),
+    [memberDetail, serviceEvents, partByEvent],
+  );
 
   // Make sure every event's participation is loaded before opening a member drawer
   // so the contributing-events list is complete.
@@ -362,37 +354,37 @@ export default function ServicePage() {
 
       {/* ── Add / Edit service event modal ── */}
       {eventModal && (
-        <Modal title={eventModal === "add" ? "Log service event" : "Edit service event"} tone="dusk" icon="heart" accent="mint" onClose={() => setEventModal(null)}>
+        <Modal title={eventModal === "add" ? FORM.add : FORM.edit} tone="dusk" icon="heart" accent="mint" onClose={() => setEventModal(null)}>
           <div className="cef-root cef svc-wide">
             <div className="cef-field">
-              <label className="cef-label" htmlFor="svc-title">Title</label>
+              <label className="cef-label" htmlFor="svc-title">{FORM.title}</label>
               <input id="svc-title" className="cef-input" value={eventForm.title} autoFocus
                 onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))}
-                placeholder="Beach cleanup, food bank, …" />
+                placeholder={FORM.titlePh} />
             </div>
             <div className="cef-field">
-              <span className="cef-label">When</span>
+              <span className="cef-label">{FORM.when}</span>
               <ScheduleFields value={when} onChange={setWhen} legacyReadOnly
                 minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
               {whenError && <p role="alert" className="cef-hint sched-warn">{whenError}</p>}
             </div>
             <div className="cef-field">
-              <label className="cef-label" htmlFor="svc-location">Location<span className="opt">opt</span></label>
+              <label className="cef-label" htmlFor="svc-location">{FORM.location}<span className="opt">{FORM.opt}</span></label>
               <input id="svc-location" className="cef-input" value={eventForm.location}
                 onChange={e => setEventForm(f => ({ ...f, location: e.target.value }))}
-                placeholder="Address or venue name" />
+                placeholder={FORM.locationPh} />
             </div>
             <div className="cef-field">
-              <label className="cef-label" htmlFor="svc-notes">Notes<span className="opt">opt</span></label>
+              <label className="cef-label" htmlFor="svc-notes">{FORM.notes}<span className="opt">{FORM.opt}</span></label>
               <textarea id="svc-notes" className="cef-textarea" value={eventForm.notes}
                 onChange={e => setEventForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="Details, dress code, what to bring…" />
+                placeholder={FORM.notesPh} />
             </div>
             <div className="svc-foot flex justify-end gap-2 pt-1">
-              <span className="note">{activeSemester ? `Dates stay inside ${activeSemester.label}. ` : ""}It lands on the Timeline as a service event.</span>
-              <button onClick={() => setEventModal(null)} className="svc-btn ghost">Cancel</button>
+              <span className="note">{FORM.foot(activeSemester?.label ?? null)}</span>
+              <button onClick={() => setEventModal(null)} className="svc-btn ghost">{FORM.cancel}</button>
               <button onClick={handleSaveEvent} disabled={!eventForm.title} className="svc-btn primary">
-                {eventModal === "add" ? "Log event" : "Save changes"}
+                {FORM.save(eventModal === "add")}
               </button>
             </div>
           </div>
@@ -401,12 +393,12 @@ export default function ServicePage() {
 
       {/* ── Log hours picker ── */}
       {logFor && (
-        <Modal title={`Log hours · ${logFor.title}`} tone="dusk" icon="clock" accent="mint" onClose={() => !logBusy && setLogFor(null)}>
+        <Modal title={LOG.title(logFor.title)} tone="dusk" icon="clock" accent="mint" onClose={() => !logBusy && setLogFor(null)}>
           <div className="svc-wide">
-          <p className="svc-log-hint">Enter hours for everyone who showed up. Leave a member blank to skip them.</p>
+          <p className="svc-log-hint">{LOG.hint}</p>
           <label className="svc-search inmodal">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" /></svg>
-            <input type="search" value={logSearch} onChange={e => setLogSearch(e.target.value)} placeholder="Find a member…" aria-label="Find member" />
+            <input type="search" value={logSearch} onChange={e => setLogSearch(e.target.value)} placeholder={LOG.find} aria-label={LOG.findLabel} />
           </label>
           <div className="svc-log-list">
             {roster
@@ -417,7 +409,7 @@ export default function ServicePage() {
                 return (
                   <div key={b.id} className={`svc-log-row${active ? " on" : ""}`}>
                     <BrotherAvatar brother={b} selfId={selfId} selfAvatarUrl={currentUser?.avatarUrl} avatarRevision={avatarRevision} size="xs" />
-                    <span className="nm">{b.name}<small>{r1(b.serviceHours)}h total</small></span>
+                    <span className="nm">{b.name}<small>{LOG.total(b.serviceHours)}</small></span>
                     <input
                       type="number" min="0" step="0.5" inputMode="decimal"
                       className="hrin"
@@ -425,15 +417,15 @@ export default function ServicePage() {
                       placeholder="0"
                       onChange={e => setDraftHours(b.id, e.target.value)}
                     />
-                    <span className="u">h</span>
+                    <span className="u">{LOG.unit}</span>
                   </div>
                 );
               })}
           </div>
           <div className="svc-foot flex justify-end gap-2 pt-3">
             <span className="note">{logTally(logDraft)}</span>
-            <button onClick={() => setLogFor(null)} disabled={logBusy} className="svc-btn ghost">Cancel</button>
-            <button onClick={submitLog} disabled={logBusy} className="svc-btn primary">{logBusy ? "Saving…" : "Save hours"}</button>
+            <button onClick={() => setLogFor(null)} disabled={logBusy} className="svc-btn ghost">{LOG.cancel}</button>
+            <button onClick={submitLog} disabled={logBusy} className="svc-btn primary">{logBusy ? LOG.saving : LOG.save}</button>
           </div>
           </div>
         </Modal>
@@ -441,12 +433,12 @@ export default function ServicePage() {
 
       {/* ── Log my hours (self-service) ── */}
       {logMineOpen && (
-        <Modal title="Log my hours" tone="dusk" icon="clock" accent="mint" onClose={() => !logMineBusy && setLogMineOpen(false)}>
+        <Modal title={MINE.title} tone="dusk" icon="clock" accent="mint" onClose={() => !logMineBusy && setLogMineOpen(false)}>
           <div className="svc-wide svc-mine">
             <div className="svc-mine-pick">
-              <p className="svc-mine-k">Which event?</p>
-              <div className="svc-mine-list" role="radiogroup" aria-label="Service event">
-                {serviceEvents.filter(e => !e.pending).sort((a, b) => b.date.localeCompare(a.date)).map(ev => {
+              <p className="svc-mine-k">{MINE.which}</p>
+              <div className="svc-mine-list" role="radiogroup" aria-label={MINE.whichLabel}>
+                {loggable(serviceEvents).map(ev => {
                   const mineH = (partByEvent[ev.id] ?? []).find(p => p.brotherId === selfId)?.hours;
                   return (
                     <button key={ev.id} type="button" role="radio" aria-checked={logMineEventId === ev.id}
@@ -460,25 +452,25 @@ export default function ServicePage() {
               </div>
             </div>
             <div className="svc-mine-hours">
-              <p className="svc-mine-k">How many hours?</p>
+              <p className="svc-mine-k">{MINE.how}</p>
               <label className="svc-mine-big">
                 <input type="number" min="0" step="0.5" inputMode="decimal" value={logMineHours} placeholder="0"
-                  onChange={e => setLogMineHours(e.target.value)} aria-label="Hours" />
+                  onChange={e => setLogMineHours(e.target.value)} aria-label={MINE.hoursLabel} />
                 <span>h</span>
               </label>
               <div className="svc-chips">
-                {[1, 2, 3, 4, 6].map(n => (
-                  <button key={n} type="button" className={logMineHours === String(n) ? "on" : ""} onClick={() => setLogMineHours(String(n))}>{n}h</button>
+                {MINE_CHIPS.map(n => (
+                  <button key={n} type="button" className={logMineHours === String(n) ? "on" : ""} onClick={() => setLogMineHours(String(n))}>{MINE.chip(n)}</button>
                 ))}
               </div>
               <p className="svc-mine-hint">
-                You’re at <b>{r1(currentUser ? (roster.find(b => b.id === selfId)?.serviceHours ?? 0) : 0)}h</b> of {goal}. Logging again for the same event replaces your hours there.
+                {MINE.hintA}<b>{r1(currentUser ? (roster.find(b => b.id === selfId)?.serviceHours ?? 0) : 0)}h</b>{MINE.hintB(goal)}
               </p>
             </div>
             <div className="svc-foot flex justify-end gap-2">
-              <button onClick={() => setLogMineOpen(false)} disabled={logMineBusy} className="svc-btn ghost">Cancel</button>
+              <button onClick={() => setLogMineOpen(false)} disabled={logMineBusy} className="svc-btn ghost">{MINE.cancel}</button>
               <button onClick={submitLogMine} disabled={logMineBusy || logMineEventId == null || logMineHours === ""} className="svc-btn primary">
-                {logMineBusy ? "Saving…" : "Log my hours"}
+                {logMineBusy ? MINE.saving : MINE.save}
               </button>
             </div>
           </div>
@@ -491,43 +483,26 @@ export default function ServicePage() {
           <div className="svc-pmd">
             <div className="svc-pmd-big">
               <b>{r1(memberDetail.serviceHours)}</b>
-              <span>of {goal}h goal · {standing(memberDetail.serviceHours, goal) === "ok" ? "on track" : `${r1(goal - memberDetail.serviceHours)}h to go`}</span>
+              <span>{memberGoalLine(memberDetail.serviceHours, goal)}</span>
             </div>
             {(() => {
-              const logged = memberEvents.reduce((s, x) => s + x.hours, 0);
               // Until every event's sheet has loaded, the remainder would read as "before tracking".
-              const loaded = serviceEvents.every(e => e.pending || partByEvent[e.id]);
-              if (!loaded) return <p className="svc-pmd-none">Reading the sign-in sheets…</p>;
-              const early = Math.round((memberDetail.serviceHours - logged) * 10) / 10;
-              if (memberEvents.length === 0 && early <= 0) return <p className="svc-pmd-none">No event-logged hours yet.</p>;
+              if (!ledger?.loaded) return <p className="svc-pmd-none">{MEMBER.reading}</p>;
+              const { list, early } = ledger;
+              if (list.length === 0 && early <= 0) return <p className="svc-pmd-none">{MEMBER.none}</p>;
               return (
                 <ul className="svc-pmd-l">
-                  {memberEvents.map(({ event, hours }) => (
+                  {list.map(({ event, hours }) => (
                     <li key={event.id}><span>{event.title}</span><span className="d">{dayLabel(event.date)}</span><span className="h">{r1(hours)}h</span></li>
                   ))}
-                  {early > 0 && <li className="early"><span>Recorded before per-event tracking</span><span className="d">—</span><span className="h">{r1(early)}h</span></li>}
+                  {early > 0 && <li className="early"><span>{MEMBER.early}</span><span className="d">—</span><span className="h">{r1(early)}h</span></li>}
                 </ul>
               );
             })()}
-            <div className="svc-foot flex justify-end"><button className="svc-btn primary" onClick={() => setMemberDetail(null)}>Done</button></div>
+            <div className="svc-foot flex justify-end"><button className="svc-btn primary" onClick={() => setMemberDetail(null)}>{MEMBER.done}</button></div>
           </div>
         </Modal>
       )}
     </div>
   );
 }
-
-// ─── Helpers ────────────────────────────────────────────────────────────────────
-
-/** Trim trailing .0 so "3" not "3.0", but keep "3.5". */
-function round(n: number): string {
-  return Number.isInteger(n) ? String(n) : n.toFixed(1);
-}
-
-/** "3 members · 7.5h on this sheet" — the Log hours footer's running tally. */
-function logTally(draft: Record<number, string>): string {
-  let n = 0, h = 0;
-  for (const v of Object.values(draft)) { const x = parseFloat(v) || 0; if (x > 0) { n++; h += x; } }
-  return `${n} ${n === 1 ? "member" : "members"} · ${round(h)}h on this sheet`;
-}
-

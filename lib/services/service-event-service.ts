@@ -74,7 +74,7 @@ export async function createServiceEvent(ctx: RequestContext, input: CreateServi
     title: serviceEvent.title, date: serviceEvent.date, calendarEventId: calendarEvent.id,
   });
 
-  return { ...serviceEvent, calendarEvent: withoutNotesDoc(calendarEvent), schedule: calendarEvent.schedule, time: calendarEvent.time };
+  return { ...serviceEvent, calendarEvent: withoutNotesDoc(calendarEvent), schedule: calendarEvent.schedule as Schedule | null, time: calendarEvent.time };
 }
 
 export async function updateServiceEvent(ctx: RequestContext, id: number, input: UpdateServiceEventInput) {
@@ -135,7 +135,7 @@ export async function updateServiceEvent(ctx: RequestContext, id: number, input:
     title: event.title, changedFields,
   });
   const linked = existing.calendarEventId == null ? null : await ctx.db.calendarEvent.findUnique({ where: { id: existing.calendarEventId }, select: { schedule: true, time: true } });
-  return { ...event, schedule: linked?.schedule ?? null, time: linked?.time ?? null };
+  return { ...event, schedule: (linked?.schedule ?? null) as Schedule | null, time: linked?.time ?? null };
 }
 
 export async function deleteServiceEvent(ctx: RequestContext, id: number) {

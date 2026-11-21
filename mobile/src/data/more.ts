@@ -5,6 +5,11 @@
  *   GET    /api/service-events                        ServiceEvent[]
  *   GET    /api/service-participation                 ServiceParticipationRow[] (whole org; mine filtered here)
  *   POST   /api/service-events/[id]/participation/me  log my hours (body logMyParticipationInput; DELETE undoes)
+ *   POST   /api/service-events                        ServiceEvent (MANAGE_SERVICE; body createServiceEventInput)
+ *   PATCH  /api/service-events/[id]                   ServiceEvent (MANAGE_SERVICE; body updateServiceEventInput)
+ *   DELETE /api/service-events/[id]                   204 (MANAGE_SERVICE)
+ *   POST   /api/service-events/[id]/participation     the event's rows after (MANAGE_SERVICE; body logParticipationInput)
+ *   DELETE /api/service-participation/[id]            204 (MANAGE_SERVICE)
  *   GET    /api/docs, /api/docs/folders               Doc[], DocFolder[]
  *   GET    /api/fundraisers                           Fundraiser[]
  *   GET    /api/dues/members/[brotherId]              MemberDuesBook (my tab)
@@ -17,7 +22,8 @@ import type {
 } from "@/lib/api-types";
 import type { deleteAccountInput } from "@/lib/validation/account";
 import type { leaveOrgInput } from "@/lib/validation/org-leave";
-import type { logMyParticipationInput } from "@/lib/validation/service-participation";
+import type { createServiceEventInput, updateServiceEventInput } from "@/lib/validation/service-event";
+import type { logMyParticipationInput, logParticipationInput } from "@/lib/validation/service-participation";
 import { useQuery } from "@tanstack/react-query";
 import type { z } from "zod";
 import { api } from "~/api/client";
@@ -81,9 +87,18 @@ export function logMyHours(eventId: number, hours: number): Promise<ServiceParti
   return api<ServiceParticipationRow[]>(`/api/service-events/${eventId}/participation/me`, { method: "POST", body });
 }
 
-export function unlogMyHours(eventId: number): Promise<ServiceParticipationRow[]> {
-  return api<ServiceParticipationRow[]>(`/api/service-events/${eventId}/participation/me`, { method: "DELETE" });
+export type NewServiceEventBody = z.input<typeof createServiceEventInput>;
+export type ServiceEventPatch = z.input<typeof updateServiceEventInput>;
+type LogHoursBody = z.input<typeof logParticipationInput>;
+
+export const createServiceEvent = (body: NewServiceEventBody) => api<ServiceEvent>("/api/service-events", { method: "POST", body });
+export const patchServiceEvent = (id: number, body: ServiceEventPatch) => api<ServiceEvent>(`/api/service-events/${id}`, { method: "PATCH", body });
+export const deleteServiceEvent = (id: number) => api<void>(`/api/service-events/${id}`, { method: "DELETE" });
+export function logHours(eventId: number, entries: LogHoursBody["entries"]): Promise<ServiceParticipationRow[]> {
+  const body: LogHoursBody = { entries };
+  return api<ServiceParticipationRow[]>(`/api/service-events/${eventId}/participation`, { method: "POST", body });
 }
+export const removeParticipation = (id: number) => api<void>(`/api/service-participation/${id}`, { method: "DELETE" });
 
 export function leaveOrg(confirmSlug: string): Promise<LeaveOrgResponse> {
   const body: LeaveBody = { confirmSlug };
@@ -99,26 +114,31 @@ export function deleteAccount(): Promise<{ ok: true }> {
 
 const slugNow = () => activeOrg.get().slug;
 
-/** Put my row for one event in the cached org list (hours null = remove); returns the undo. */
-export function setMyHours(meId: number, eventId: number, hours: number | null, me: { name: string; avatarUrl: string | null }): () => void {
-  const k = moreKeys.participation(slugNow());
-  const before = queryClient.getQueryData<ServiceParticipationRow[]>(k);
-  queryClient.setQueryData<ServiceParticipationRow[]>(k, rows => {
-    const rest = (rows ?? []).filter(r => !(r.serviceEventId === eventId && r.brotherId === meId));
-    if (hours == null) return rest;
-    const now = new Date().toISOString();
-    const old = rows?.find(r => r.serviceEventId === eventId && r.brotherId === meId);
-    return [...rest, old ? { ...old, hours, updatedAt: now } : {
-      id: -eventId, organizationId: 0, serviceEventId: eventId, brotherId: meId, hours, createdAt: now, updatedAt: now,
-      brother: { id: meId, name: me.name, avatarUrl: me.avatarUrl },
-    }];
-  });
-  return () => queryClient.setQueryData(k, before);
-}
-
 /** The event's roster as the server answered it replaces that event's rows. */
 export function putEventRows(eventId: number, rows: ServiceParticipationRow[]) {
   queryClient.setQueryData<ServiceParticipationRow[]>(moreKeys.participation(slugNow()), all => [
     ...(all ?? []).filter(r => r.serviceEventId !== eventId), ...rows,
   ]);
 }
+
+/** Edit the cached service events; returns the undo. */
+export function editServiceEvents(fn: (list: ServiceEvent[]) => ServiceEvent[]): () => void {
+  const k = moreKeys.serviceEvents(slugNow());
+  const before = queryClient.getQueryData<ServiceEvent[]>(k);
+  queryClient.setQueryData<ServiceEvent[]>(k, list => fn(list ?? []));
+  return () => queryClient.setQueryData(k, before);
+}
+
+/** Drop one participation row from the cached org list; returns the undo. */
+export function dropRow(id: number): () => void {
+  const k = moreKeys.participation(slugNow());
+  const before = queryClient.getQueryData<ServiceParticipationRow[]>(k);
+  queryClient.setQueryData<ServiceParticipationRow[]>(k, rows => (rows ?? []).filter(r => r.id !== id));
+  return () => queryClient.setQueryData(k, before);
+}
+
+/** An event's rows leave with it. */
+export function dropEventRows(eventId: number) {
+  queryClient.setQueryData<ServiceParticipationRow[]>(moreKeys.participation(slugNow()), rows => (rows ?? []).filter(r => r.serviceEventId !== eventId));
+}
+

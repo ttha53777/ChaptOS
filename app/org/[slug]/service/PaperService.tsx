@@ -16,6 +16,11 @@ import { LoadingSpinner } from "../../../components/dashboard/primitives";
 import { PaperIcon, type PaperIconName } from "../../../components/paper/PaperIcon";
 import { roleTitle, type Brother } from "../../../data";
 import type { Schedule } from "@/lib/calendar-feed/schedule";
+import {
+  DAY_ONE, MEASURES, PAGE, avgHours, cardTail, dateParts, dayLabel, dayOneHoles, digestEmpty, digestRest, dow3, eventTag,
+  holesFor, ledgerStats, lineNo, members, mon3, nextWhen, r1, rankMembers, sheetEmpty, sheetRows, sheetSum, splitEvents,
+  standing, timeLabel, todayOf,
+} from "@/lib/service/ledger";
 
 export interface PsvEvent {
   id: number;
@@ -40,62 +45,17 @@ export interface PsvParticipation {
   brother: { id: number; name: string; avatarUrl: string | null };
 }
 
-const MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const DOW3 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-export function r1(n: number): string {
-  return Number.isInteger(n) ? String(n) : n.toFixed(1);
-}
+export { r1, dayLabel, relWhen, timeLabel, standing } from "@/lib/service/ledger";
 
 export function localToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function parts(date: string) {
-  const [y, m, d] = date.split("-").map(Number);
-  return { y, m, d, dow: new Date(y, m - 1, d).getDay() };
-}
-
-/** "Sat, Oct 17" */
-export function dayLabel(date: string): string {
-  const p = parts(date);
-  return `${DOW3[p.dow]}, ${MON3[p.m - 1]} ${p.d}`;
-}
-
-function daysFrom(date: string, today: string): number {
-  const a = parts(date), b = parts(today);
-  return Math.round((Date.UTC(a.y, a.m - 1, a.d) - Date.UTC(b.y, b.m - 1, b.d)) / 86_400_000);
-}
-
-export function relWhen(date: string, today: string): string {
-  const n = daysFrom(date, today);
-  if (n <= 0) return "Today";
-  if (n === 1) return "Tomorrow";
-  return `In ${n} days`;
-}
-
-function clock(iso: string, timeZone: string): string {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone });
-}
-
-/** "10:00 AM–1:00 PM", the legacy free text, or null for all-day. */
-export function timeLabel(ev: PsvEvent): string | null {
-  const s = ev.schedule;
-  if (s?.kind === "timed") return clock(s.start, s.timeZone) + (s.end ? `–${clock(s.end, s.timeZone)}` : "");
-  if (s?.kind === "allDay") return null;
-  return ev.time?.trim() || null;
-}
-
-export function standing(h: number, goal: number): "ok" | "watch" | "risk" {
-  return h >= goal ? "ok" : h >= goal / 2 ? "watch" : "risk";
+  return todayOf(new Date());
 }
 
 export function DeskDate({ date, up }: { date: string; up?: boolean }) {
-  const p = parts(date);
+  const p = dateParts(date);
   return (
     <span className={`psv-cal${up ? " up" : ""}`} aria-hidden>
-      <small>{MON3[p.m - 1]}</small>
+      <small>{mon3(p.m)}</small>
       <b>{p.d}</b>
     </span>
   );
@@ -130,41 +90,41 @@ export type AvatarFn = (b: Avatarish, size?: "xs" | "sm" | "md") => ReactNode;
 /** Day one (no service events yet) — the Fundraisers day-one pattern: one line of
  *  what this page does, then the three steps as the objects themselves. */
 function DayOne({ semesterLabel, goal, canService, onNew }: { semesterLabel: string | null; goal: number; canService: boolean; onNew: () => void }) {
-  const punched = Math.min(3, goal), holes = Math.max(punched, Math.min(goal, 10));
+  const { punched, holes } = dayOneHoles(goal);
   return (
     <div className="psv-page">
       <section className="psv-brief">
         <div>
-          <p className="psv-kick">Service{semesterLabel && <span className="chip">{semesterLabel}</span>}</p>
-          <h1 className="psv-greet">Service hours, <span className="hi">the easy way</span></h1>
-          <p className="psv-digest"><span>Add the event. Afterwards, write down who came and for how long. We add it up and keep everyone’s hours for the term.</span></p>
+          <p className="psv-kick">{DAY_ONE.kicker}{semesterLabel && <span className="chip">{semesterLabel}</span>}</p>
+          <h1 className="psv-greet">{DAY_ONE.greet}<span className="hi">{DAY_ONE.greetHi}</span></h1>
+          <p className="psv-digest"><span>{DAY_ONE.digest}</span></p>
         </div>
-        {canService && <div className="psv-acts-top"><button className="psv-btn" onClick={onNew}><PaperIcon name="plus" />New service event</button></div>}
+        {canService && <div className="psv-acts-top"><button className="psv-btn" onClick={onNew}><PaperIcon name="plus" />{PAGE.newEvent}</button></div>}
       </section>
 
-      <section className="psv-d1" aria-label="How service works">
+      <section className="psv-d1" aria-label={DAY_ONE.aria}>
         <figure>
-          <div><span className="psv-d1-cal" aria-hidden><small>Nov</small><b>7</b><span>Park cleanup</span></span></div>
-          <figcaption><b>1 · Add the event</b><span>What it is, and when.</span></figcaption>
+          <div><span className="psv-d1-cal" aria-hidden><small>{DAY_ONE.calMonth}</small><b>{DAY_ONE.calDay}</b><span>{DAY_ONE.calTitle}</span></span></div>
+          <figcaption><b>{DAY_ONE.steps[0].title}</b><span>{DAY_ONE.steps[0].line}</span></figcaption>
         </figure>
         <figure>
           <div><span className="psv-d1-pad" aria-hidden>
-            <span><i>Ava Chen</i><i>3h</i></span><span><i>Marcus Lee</i><i>3h</i></span><span><i>Leo Brandt</i><i>2h</i></span><span><i>Hours</i><i>8h</i></span>
+            {DAY_ONE.pad.map(([n, h]) => <span key={n}><i>{n}</i><i>{h}</i></span>)}
           </span></div>
-          <figcaption><b>2 · Write down who came</b><span>Names and hours, once it’s over.</span></figcaption>
+          <figcaption><b>{DAY_ONE.steps[1].title}</b><span>{DAY_ONE.steps[1].line}</span></figcaption>
         </figure>
         <figure>
           <div><span className="psv-d1-punch" aria-hidden>
-            <span className="plus">+{punched}h</span><small>Service card</small>
+            <span className="plus">+{punched}h</span><small>{DAY_ONE.card}</small>
             <span className="h">{Array.from({ length: holes }, (_, i) => <i key={i} className={i < punched ? "p" : ""} />)}</span>
           </span></div>
-          <figcaption><b>3 · Watch the cards fill</b><span>Every hour counts toward the {goal}h goal.</span></figcaption>
+          <figcaption><b>{DAY_ONE.steps[2].title}</b><span>{DAY_ONE.steps[2].line(goal)}</span></figcaption>
         </figure>
       </section>
 
       {canService
-        ? <div className="psv-d1-cta"><button className="psv-btn" onClick={onNew}><PaperIcon name="plus" />Plan your first service event</button></div>
-        : <p className="psv-d1-note">Nothing planned yet. An officer can add the first one.</p>}
+        ? <div className="psv-d1-cta"><button className="psv-btn" onClick={onNew}><PaperIcon name="plus" />{DAY_ONE.cta}</button></div>
+        : <p className="psv-d1-note">{DAY_ONE.member}</p>}
     </div>
   );
 }
@@ -197,7 +157,6 @@ export function PaperService(props: {
 }) {
   const { roster, events, goal, view, search, partByEvent, canService, selfId } = props;
   const today = localToday();
-  const q = search.trim().toLowerCase();
 
   // Card motion. Every commit records where each card and section header sits
   // (relative to the page, so scrolling doesn't count); when the events list itself
@@ -289,36 +248,22 @@ export function PaperService(props: {
   }
 
 
-  const total = roster.reduce((s, b) => s + b.serviceHours, 0);
-  const onTrack = roster.filter(b => b.serviceHours >= goal).length;
-  const behind = roster.length - onTrack;
-  const upcomingAll = events.filter(e => e.date >= today);
-  const next = [...upcomingAll].sort((a, b) => a.date.localeCompare(b.date))[0];
-  const hasEvents = events.length > 0;
-  const hasPast = events.some(e => e.date <= today);
+  const stats = ledgerStats(roster, events, goal, today);
+  const { total, onTrack, next, hasEvents, hasPast } = stats;
+  const { matched: evF, up, past } = splitEvents(events, search, today);
+  const rosF = rankMembers(roster, search);
 
-  const evF = events.filter(e => !q || e.title.toLowerCase().includes(q) || e.location.toLowerCase().includes(q));
-  const up = evF.filter(e => e.date >= today).sort((a, b) => a.date.localeCompare(b.date));
-  const past = evF.filter(e => e.date < today).sort((a, b) => b.date.localeCompare(a.date));
-  const rosF = roster
-    .filter(b => !q || b.name.toLowerCase().includes(q))
-    .sort((a, b) => b.serviceHours - a.serviceHours || a.name.localeCompare(b.name));
+  const todayP = dateParts(today);
+  const ask = () => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: PAGE.askQ } }));
 
-  const todayP = parts(today);
-  const ask = () => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: "Who's behind on service hours?" } }));
-
-
-  function sum(id: number) {
-    const rows = partByEvent[id];
-    return rows ? { n: rows.length, h: rows.reduce((s, p) => s + p.hours, 0) } : null;
-  }
 
   function eventCard(ev: PsvEvent) {
-    const isUp = ev.date >= today;
+    const tag = eventTag(ev.date, today);
+    const isUp = tag.up;
     const open = props.expandedId === ev.id;
-    const s = sum(ev.id);
+    const s = sheetSum(partByEvent[ev.id]);
     const t = timeLabel(ev);
-    const rows = [...(partByEvent[ev.id] ?? [])].sort((a, b) => a.brother.name.localeCompare(b.brother.name));
+    const rows = sheetRows(partByEvent[ev.id]);
     return (
       <div key={rowKey(ev)} ref={track(`e${rowKey(ev)}`)}
         className={`psv-ev${isUp ? " up" : ""}${open ? " open" : ""}${ev.pending ? " pending" : ""}`} aria-busy={ev.pending || undefined}>
@@ -327,9 +272,7 @@ export function PaperService(props: {
           <span className="psv-main">
             <span className="t">
               {ev.title}
-              {isUp
-                ? <span className="psv-tag up">{daysFrom(ev.date, today) <= 7 ? relWhen(ev.date, today) : "Coming up"}</span>
-                : <span className="psv-tag">Past</span>}
+              <span className={`psv-tag${isUp ? " up" : ""}`}>{tag.label}</span>
             </span>
             <span className="m">
               <span><PaperIcon name="cal" />{dayLabel(ev.date)}{t ? ` · ${t}` : ""}</span>
@@ -337,8 +280,8 @@ export function PaperService(props: {
             </span>
           </span>
           <span className="psv-stats">
-            <span className={s?.n ? "" : "none"}><b>{s?.n || "—"}</b> here</span>
-            <span className={s?.n ? "" : "none"}><b>{s?.n ? r1(s.h) : "—"}</b> hours</span>
+            <span className={s?.n ? "" : "none"}><b>{s?.n || "—"}</b> {PAGE.here}</span>
+            <span className={s?.n ? "" : "none"}><b>{s?.n ? r1(s.h) : "—"}</b> {PAGE.hours}</span>
           </span>
           <PaperIcon name="chev-r" className="pp-ic chev" />
         </button>
@@ -346,30 +289,30 @@ export function PaperService(props: {
           <div className="psv-body">
             {ev.notes && <p className="psv-notes">{ev.notes}</p>}
             <div className="psv-sheet">
-              <div className="psv-sh-h"><span>#</span><span className="who-h">Signed in</span><span className="r">Hours</span><span /></div>
+              <div className="psv-sh-h"><span>#</span><span className="who-h">{PAGE.signedIn}</span><span className="r">{PAGE.hoursCol}</span><span /></div>
               {partByEvent[ev.id] === undefined ? (
-                <p className="empty">Fetching the sheet…</p>
+                <p className="empty">{PAGE.fetching}</p>
               ) : rows.length === 0 ? (
-                <p className="empty">{isUp ? "Nobody’s logged yet — hours go in after the event." : canService ? "No one logged yet. Use “Log hours” to record attendees." : "No one logged yet."}</p>
+                <p className="empty">{sheetEmpty(isUp, canService)}</p>
               ) : (
                 <>
                   {rows.map((p, i) => (
                     <div className="psv-line" key={p.id}>
-                      <span className="no">{String(i + 1).padStart(2, "0")}</span>
+                      <span className="no">{lineNo(i)}</span>
                       <span className="who">
                         {props.avatar(p.brother, "xs")}
-                        <b>{p.brother.name}{p.brotherId === selfId && <span className="you"> · you</span>}</b>
+                        <b>{p.brother.name}{p.brotherId === selfId && <span className="you">{PAGE.you}</span>}</b>
                       </span>
                       <span className="h">{r1(p.hours)}h</span>
                       {canService ? (
-                        <button className="psv-ib" onClick={() => props.onRemove(ev.id, p)} aria-label={`Remove ${p.brother.name}`} title="Remove">
+                        <button className="psv-ib" onClick={() => props.onRemove(ev.id, p)} aria-label={`Remove ${p.brother.name}`} title={PAGE.remove}>
                           <PaperIcon name="plus" className="pp-ic x45" />
                         </button>
                       ) : <span />}
                     </div>
                   ))}
                   <div className="tot">
-                    <span /><span>{rows.length} {rows.length === 1 ? "member" : "members"}</span>
+                    <span /><span>{members(rows.length)}</span>
                     <b>{r1(rows.reduce((a, p) => a + p.hours, 0))}h</b><span />
                   </div>
                 </>
@@ -377,9 +320,9 @@ export function PaperService(props: {
             </div>
             {canService && (
               <div className="psv-acts">
-                <button className="psv-btn sm" onClick={() => props.onLog(ev)}><PaperIcon name="clock" />Log hours</button>
-                <button className="psv-btn sm soft" onClick={() => props.onEdit(ev)}><PaperIcon name="pencil" />Edit</button>
-                <button className="psv-btn sm soft del" onClick={() => remove(ev)}><PaperIcon name="trash" />Delete</button>
+                <button className="psv-btn sm" onClick={() => props.onLog(ev)}><PaperIcon name="clock" />{PAGE.logHours}</button>
+                <button className="psv-btn sm soft" onClick={() => props.onEdit(ev)}><PaperIcon name="pencil" />{PAGE.edit}</button>
+                <button className="psv-btn sm soft del" onClick={() => remove(ev)}><PaperIcon name="trash" />{PAGE.delete}</button>
               </div>
             )}
           </div>
@@ -414,43 +357,41 @@ export function PaperService(props: {
       <section className="psv-brief">
         <div>
           <p className="psv-kick">
-            <span className="chip">{DOW3[todayP.dow]} · {MON3[todayP.m - 1]} {todayP.d}</span>
-            The service log{props.semesterLabel ? ` · ${props.semesterLabel}` : ""}
+            <span className="chip">{dow3(todayP.dow)} · {mon3(todayP.m)} {todayP.d}</span>
+            {PAGE.kicker}{props.semesterLabel ? ` · ${props.semesterLabel}` : ""}
           </p>
-          <h1 className="psv-greet">Hours, <span className="hi">by the event.</span></h1>
+          <h1 className="psv-greet">{PAGE.greet}<span className="hi">{PAGE.greetHi}</span></h1>
           {!props.eventsLoading && !props.rosterLoading && <p className="psv-digest">
-            {hasEvents && <span className="aichip"><PaperIcon name="spark" />Digest</span>}
+            {hasEvents && <span className="aichip"><PaperIcon name="spark" />{PAGE.digest}</span>}
             <span>
-              {roster.length === 0 ? `${props.orgName} hasn't added members yet.`
-                : !hasEvents ? "No service events logged yet — record one and start crediting the members who show up."
+              {roster.length === 0 || !hasEvents ? digestEmpty(props.orgName, roster.length)
                 : <>
-                    <b>{r1(total)} hours</b> logged across {events.length} {events.length === 1 ? "event" : "events"}.
-                    {behind > 0 ? ` ${behind} ${behind === 1 ? "member is" : "members are"} still short of the ${goal}h goal.` : ` Every member has hit the ${goal}h goal.`}
-                    {next && <> Next up: <b>{next.title}</b>, {relWhen(next.date, today).toLowerCase()}.</>}
+                    <b>{r1(total)} hours</b>{digestRest(stats, events.length, goal)}
+                    {next && <>{PAGE.nextUp}<b>{next.title}</b>, {nextWhen(next.date, today)}.</>}
                   </>}
             </span>
           </p>}
         </div>
         <div className="psv-acts-top">
-          {props.canService && <button className="psv-btn" onClick={props.onNew}><PaperIcon name="plus" />New service event</button>}
-          <button className="psv-btn ghost" onClick={props.onLogMine} disabled={!hasPast} title={hasPast ? undefined : "No service events yet"}>
-            <PaperIcon name="clock" />Log my hours
+          {props.canService && <button className="psv-btn" onClick={props.onNew}><PaperIcon name="plus" />{PAGE.newEvent}</button>}
+          <button className="psv-btn ghost" onClick={props.onLogMine} disabled={!hasPast} title={hasPast ? undefined : PAGE.logMineNone}>
+            <PaperIcon name="clock" />{PAGE.logMine}
           </button>
-          <button className="psv-askbar" onClick={ask}><PaperIcon name="spark" />Ask who’s behind<kbd>⌘K</kbd></button>
+          <button className="psv-askbar" onClick={ask}><PaperIcon name="spark" />{PAGE.ask}<kbd>⌘K</kbd></button>
         </div>
       </section>
 
       <section className="psv-meas-row">
         {!hasEvents ? [
-          unset("Hours logged", "clock", "mint", "Counts from your first service event."),
-          unset("Service events", "heart", "rose", "Cleanups, food banks, fundraisers."),
-          unset("On track", "check", "sky", `Everyone’s goal is ${goal}h this term.`),
-          unset("Avg / member", "people", "lilac", "Once hours are logged."),
+          unset(MEASURES.hours.label, MEASURES.hours.icon, MEASURES.hours.tone, MEASURES.hours.why),
+          unset(MEASURES.events.label, MEASURES.events.icon, MEASURES.events.tone, MEASURES.events.why),
+          unset(MEASURES.onTrack.label, MEASURES.onTrack.icon, MEASURES.onTrack.tone, MEASURES.onTrack.why(goal)),
+          unset(MEASURES.avg.label, MEASURES.avg.icon, MEASURES.avg.tone, MEASURES.avg.why),
         ] : [
-          meas("Hours logged", "clock", "mint", <>{r1(total)}<small>h</small></>, "this term"),
-          meas("Service events", "heart", "rose", events.length, `${upcomingAll.length} coming up`),
-          meas("On track", "check", "sky", <>{onTrack}<small>/{roster.length}</small></>, `${goal}h goal`, roster.length > 0 && onTrack < roster.length),
-          meas("Avg / member", "people", "lilac", <>{r1(Math.round((total / Math.max(1, roster.length)) * 10) / 10)}<small>h</small></>, "hours"),
+          meas(MEASURES.hours.label, MEASURES.hours.icon, MEASURES.hours.tone, <>{r1(total)}<small>h</small></>, MEASURES.hours.note),
+          meas(MEASURES.events.label, MEASURES.events.icon, MEASURES.events.tone, events.length, MEASURES.events.note(stats.upcoming)),
+          meas(MEASURES.onTrack.label, MEASURES.onTrack.icon, MEASURES.onTrack.tone, <>{onTrack}<small>/{roster.length}</small></>, MEASURES.onTrack.note(goal), roster.length > 0 && onTrack < roster.length),
+          meas(MEASURES.avg.label, MEASURES.avg.icon, MEASURES.avg.tone, <>{r1(avgHours(total, roster.length))}<small>h</small></>, MEASURES.avg.note),
         ]}
       </section>
 
@@ -458,11 +399,11 @@ export function PaperService(props: {
         <label className="psv-search">
           <PaperIcon name="search" />
           <input type="search" value={search} onChange={e => props.setSearch(e.target.value)}
-            placeholder={view === "events" ? "Search events…" : "Search members…"} aria-label="Search" autoComplete="off" />
+            placeholder={view === "events" ? PAGE.searchEvents : PAGE.searchMembers} aria-label="Search" autoComplete="off" />
         </label>
         <div className="psv-tabs" role="tablist" aria-label="View">
           {(["events", "members"] as const).map(k => (
-            <button key={k} role="tab" aria-selected={view === k} onClick={() => props.setView(k)}>{k === "events" ? "Events" : "Members"}</button>
+            <button key={k} role="tab" aria-selected={view === k} onClick={() => props.setView(k)}>{k === "events" ? PAGE.events : PAGE.members}</button>
           ))}
         </div>
         <span className="psv-scope">{view === "events" ? `${evF.length} of ${events.length}` : `${rosF.length} of ${roster.length}`}</span>
@@ -474,26 +415,24 @@ export function PaperService(props: {
         ) : !hasEvents ? (
           <div className="psv-empty">
             <span className="art"><PaperIcon name="heart" /></span>
-            <h3>No service events yet.</h3>
-            <p>{props.canService
-              ? "Log your first cleanup, food bank or fundraiser — then record who showed up and how long they stayed. It lands on the Timeline too."
-              : "Ask an officer to log the chapter’s service events — then your hours land here."}</p>
-            {props.canService && <div className="actions"><button className="psv-btn" onClick={props.onNew}><PaperIcon name="plus" />New service event</button></div>}
+            <h3>{PAGE.emptyTitle}</h3>
+            <p>{props.canService ? PAGE.emptyOfficer : PAGE.emptyMember}</p>
+            {props.canService && <div className="actions"><button className="psv-btn" onClick={props.onNew}><PaperIcon name="plus" />{PAGE.newEvent}</button></div>}
           </div>
         ) : evF.length === 0 ? (
           <div className="psv-calm">
             <span className="art"><PaperIcon name="search" /></span>
-            <div><h4>Nothing matches.</h4><p>Try a different search — it looks at titles and locations.</p>
-              <button className="psv-btn sm ghost" onClick={() => props.setSearch("")}>Clear search</button></div>
+            <div><h4>{PAGE.noMatch}</h4><p>{PAGE.noMatchLine}</p>
+              <button className="psv-btn sm ghost" onClick={() => props.setSearch("")}>{PAGE.clear}</button></div>
           </div>
         ) : (
           <>
             {up.length > 0 && <>
-              <div className="psv-sec" ref={track("s:up")}><h2>Coming up</h2><span className="rule" /><span className="cnt">{up.length}</span></div>
+              <div className="psv-sec" ref={track("s:up")}><h2>{PAGE.comingUp}</h2><span className="rule" /><span className="cnt">{up.length}</span></div>
               <div>{up.map(eventCard)}</div>
             </>}
             {past.length > 0 && <>
-              <div className="psv-sec" ref={track("s:past")}><h2>Logged</h2><span className="rule" /><span className="cnt">{past.length} · newest first</span></div>
+              <div className="psv-sec" ref={track("s:past")}><h2>{PAGE.logged}</h2><span className="rule" /><span className="cnt">{past.length} · {PAGE.newestFirst}</span></div>
               <div>{past.map(eventCard)}</div>
             </>}
           </>
@@ -503,32 +442,31 @@ export function PaperService(props: {
       ) : rosF.length === 0 ? (
         <div className="psv-calm">
           <span className="art"><PaperIcon name="search" /></span>
-          <div><h4>No members found.</h4><p>Try a different search.</p></div>
+          <div><h4>{PAGE.noMembers}</h4><p>{PAGE.noMembersLine}</p></div>
         </div>
       ) : (
         <>
           <div className="psv-legend">
-            <span style={{ ["--c" as string]: "var(--pp-mint)" }}><i />On track · {goal}h+</span>
-            <span style={{ ["--c" as string]: "var(--pp-butter)" }}><i />Halfway</span>
-            <span style={{ ["--c" as string]: "var(--pp-peach)" }}><i />Under half</span>
-            <span>One hole per hour of the goal — punched as hours land.</span>
+            <span style={{ ["--c" as string]: "var(--pp-mint)" }}><i />{PAGE.legendOk(goal)}</span>
+            <span style={{ ["--c" as string]: "var(--pp-butter)" }}><i />{PAGE.legendHalf}</span>
+            <span style={{ ["--c" as string]: "var(--pp-peach)" }}><i />{PAGE.legendUnder}</span>
+            <span>{PAGE.legendNote}</span>
           </div>
           <div className="psv-cards">
             {rosF.map(b => {
               const hh = b.serviceHours;
               const st = standing(hh, goal);
               const you = b.id === selfId;
-              const holes = Math.max(0, Math.min(goal, 40));
+              const holes = holesFor(goal);
+              const tail = cardTail(hh, goal);
               return (
                 <button key={b.id} className={`psv-card ${st}${you ? " you" : ""}`} onClick={() => props.onMember(b)}>
                   {props.avatar(b, "sm")}
-                  <span className="nm">{b.name}<small>{roleTitle(b) || "Member"}{you ? " · you" : ""}</small></span>
+                  <span className="nm">{b.name}<small>{roleTitle(b) || PAGE.member}{you ? PAGE.you : ""}</small></span>
                   <span className="hr">{r1(hh)}<i>/{goal}h</i></span>
                   <span className="psv-holes">
                     {Array.from({ length: holes }, (_, i) => <i key={i} className={i < Math.floor(hh) ? "p" : ""} />)}
-                    {hh > goal ? <span className="x">+{r1(hh - goal)}</span>
-                      : hh < goal ? <span className="short">{r1(goal - hh)} to go</span>
-                      : <span className="x">done</span>}
+                    <span className={tail.kind}>{tail.text}</span>
                   </span>
                 </button>
               );

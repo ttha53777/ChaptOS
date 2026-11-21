@@ -22,7 +22,7 @@ import { T } from "./T";
 
 export interface BriefPart { text: string; bold?: boolean }
 
-export function PageBrief({ pill, kicker, lead, mark, tail = ".", markTone = "sky", sub, digest, quiet, kickerSep = true, spark }: {
+export function PageBrief({ pill, kicker, lead, mark, tail = ".", markTone = "sky", sub, digest, quiet, kickerSep = true, spark, pillAfter }: {
   /** The date pill; omitted on pages whose web brief has none (Docs). */
   pill?: string | null;
   kicker?: string | null;
@@ -38,6 +38,8 @@ export function PageBrief({ pill, kicker, lead, mark, tail = ".", markTone = "sk
   quiet?: string | null;
   /** The ✦ before DIGEST (Docs). */
   spark?: boolean;
+  /** The label first, then the pill after it (Service's day one: "SERVICE [FA26]"). */
+  pillAfter?: boolean;
 }) {
   const { c } = useTheme();
   const m = useMotion();
@@ -53,13 +55,18 @@ export function PageBrief({ pill, kicker, lead, mark, tail = ".", markTone = "sk
   return (
     <View accessibilityRole="summary">
       <View style={styles.kicker}>
-        {pill ? (
+        {pill && !pillAfter ? (
           <View style={[styles.pill, { backgroundColor: c.card, borderColor: c.line2 }]}>
             <T v="kicker" size={11.5} color={c.ink2}>{pill.toUpperCase()}</T>
           </View>
         ) : null}
-        {kicker && pill ? <T v="kicker" size={11.5} color={c.ink3}>{`${kickerSep ? "·  " : ""}${kicker.toUpperCase()}`}</T> : null}
-        {kicker && !pill ? <T v="label" size={11} ls={0.1} color={c.ink3} style={{ fontWeight: "600" }}>{kicker}</T> : null}
+        {kicker && pill && !pillAfter ? <T v="kicker" size={11.5} color={c.ink3}>{`${kickerSep ? "·  " : ""}${kicker.toUpperCase()}`}</T> : null}
+        {kicker && (!pill || pillAfter) ? <T v="label" size={11} ls={0.1} color={c.ink3} style={{ fontWeight: "600" }}>{kicker}</T> : null}
+        {pill && pillAfter ? (
+          <View style={[styles.pill, { backgroundColor: c.card, borderColor: c.line2 }]}>
+            <T v="kicker" size={11.5} color={c.ink2}>{pill.toUpperCase()}</T>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.greet} accessibilityRole="header" accessibilityLabel={`${lead}${mark}${tail}`}>

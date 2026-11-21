@@ -101,6 +101,11 @@
  *   GET    /api/service-participation          ServiceParticipationRow[] (whole org; filter brotherId for "my hours")
  *   GET    /api/service-events/[id]/participation ServiceParticipationRow[]
  *   POST   /api/service-events/[id]/participation/me ServiceParticipationRow[] (body logMyParticipationInput; DELETE undoes)
+ *   POST   /api/service-events                 ServiceEvent            (201; MANAGE_SERVICE; body createServiceEventInput)
+ *   PATCH  /api/service-events/[id]            ServiceEvent            (MANAGE_SERVICE; body updateServiceEventInput)
+ *   DELETE /api/service-events/[id]            204                     (MANAGE_SERVICE; its hours go with it)
+ *   POST   /api/service-events/[id]/participation ServiceParticipationRow[] (201; MANAGE_SERVICE; body logParticipationInput, the event's sheet after)
+ *   DELETE /api/service-participation/[id]     204                     (MANAGE_SERVICE)
  *   GET    /api/fundraisers                    Fundraiser[]            (read-only for members)
  *   GET    /api/fundraisers/[id]               Fundraiser
  *   GET    /api/docs                           Doc[]                   (read-only for members)

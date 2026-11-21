@@ -337,7 +337,8 @@ export function DayStrip({ value, onChange, today, term, usualDow, taken, editin
   const days = useMemo(() => {
     const out: string[] = [];
     for (let d = start; d <= end && out.length < 200; d = addDays(d, 1)) out.push(d);
-    if (!out.includes(value)) out.unshift(value);
+    // An empty value is a date nobody has picked yet (the web's empty date input).
+    if (value && !out.includes(value)) out.unshift(value);
     return out;
   }, [start, end, value]);
   const center = (i: number, animated: boolean) => ref.current?.scrollTo({ x: Math.max(0, i * (STUB + GAP) - (w - STUB) / 2), animated });
@@ -350,7 +351,7 @@ export function DayStrip({ value, onChange, today, term, usualDow, taken, editin
   const long = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   return (
     <ScrollView keyboardShouldPersistTaps="handled" ref={ref} horizontal showsHorizontalScrollIndicator={false} onLayout={e => setW(e.nativeEvent.layout.width)}
-      contentContainerStyle={{ gap: GAP, paddingVertical: 6, paddingHorizontal: 2 }} accessibilityLabel={`Day, ${long(value)}`}>
+      contentContainerStyle={{ gap: GAP, paddingVertical: 6, paddingHorizontal: 2 }} accessibilityLabel={value ? `Day, ${long(value)}` : "Day, not chosen"}>
       {days.map((d, i) => (
         <DayStub key={d} d={d} on={d === value} first={i === 0 || d.slice(8) === "01"}
           usual={usualDow != null && new Date(`${d}T12:00:00`).getDay() === usualDow} taken={taken.has(d)} label={long(d)}
