@@ -18,7 +18,7 @@ SHARED = (
     "@/lib/thresholds", "@/lib/money", "@/lib/dates", "@/lib/tasks/", "@/lib/workflow-features",
     "@/lib/event-hue", "@/lib/timeline/",
     "@/lib/treasury/", "@/lib/treasury-term", "@/lib/treasury-balance", "@/lib/dues-ledger", "@/lib/dues-targets",
-    "@/lib/docs/", "@/lib/media/", "@/lib/service/", "@/lib/programme/", "@/lib/calendar-feed/legacy-time", "@/lib/state/programming-stage", "@/lib/event-owner", "@/lib/event-fields", "@/lib/meetings/", "@/lib/agenda-template", "@/lib/meeting-summary", "@/lib/collaboration/notes-protocol",
+    "@/lib/docs/", "@/lib/media/", "@/lib/service/", "@/lib/parties/", "@/lib/programme/", "@/lib/calendar-feed/legacy-time", "@/lib/state/programming-stage", "@/lib/event-owner", "@/lib/event-fields", "@/lib/meetings/", "@/lib/agenda-template", "@/lib/meeting-summary", "@/lib/collaboration/notes-protocol",
 )
 SKIP_DIRS = {"node_modules", ".expo", "dist", "ios", "android"}
 STMT = re.compile(

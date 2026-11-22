@@ -99,6 +99,17 @@ function put(saved: Party) {
   });
 }
 
+/**
+ * Change the cached ledger now (the web's optimistic list); the returned undo puts the
+ * list back as it was if the server refuses.
+ */
+export function editParties(fn: (l: Party[]) => Party[]): () => void {
+  const key = partyKeys.list(slugNow());
+  const before = queryClient.getQueryData<Party[]>(key);
+  queryClient.setQueryData<Party[]>(key, l => fn(l ?? []));
+  return () => queryClient.setQueryData(key, before);
+}
+
 /** The Timeline entry and Treasury's door money move with every party write. */
 function elsewhere() {
   const slug = slugNow();

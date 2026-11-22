@@ -1,48 +1,55 @@
 /**
- * Parties (the web's house ledger), reached from More → Parties:
+ * Parties (the web's house ledger, app/org/[slug]/parties at phone width), reached from
+ * More → Parties. Rules and words: lib/parties/ledger (shared with the web).
  *
- *   briefing     "The house ledger.": how many closed out, net positive or in the red,
- *                how many still waiting on numbers; Ask what the door cleared (opens Ask
- *                Chapt with the web's question waiting in the composer)
+ *   briefing     "Fri · Nov 20  Parties · Oozma Kappa", "The house ledger.", how many
+ *                closed out, net positive or in the red, how many still waiting on numbers
+ *   actions      Add party (MANAGE_PARTIES), Ask what the door cleared ⌘K (opens Ask Chapt
+ *                with the web's question waiting)
  *   the one task the oldest party that happened with no figures, as a sealed envelope:
- *                Close it out (officers, MANAGE_PARTIES)
+ *                Close it out (officers)
  *   takings      net this semester over closed parties, door / spent / avg roll / best
- *                night, and the night-by-night strip (a bar opens its party)
- *   the book     every party, newest first; a row opens the party sheet, a due row's
- *                Wrap up opens the wrap-up straight away
- *   day one      nothing yet: the blank ledger, and Add party for officers
+ *                night, and the night-by-night strip (a bar opens its party in the book)
+ *   the book     every party, newest first; a row opens its drawer in place (the till
+ *                receipt, notes, facts, who came, and Wrap up / Open in Timeline / Edit /
+ *                Delete); a due row's "Wrap up →" opens the wrap-up straight away
  *
- * Parties are Treasury's door money too: writes refresh the treasury, the Timeline and
- * home (~/data/parties). "Open in Timeline" shows the Timeline's own event sheet on top.
+ * Writes are optimistic as on the web (a refusal puts the row back and says the web's
+ * sentence). A party's door is Treasury's money too, so writes refresh the treasury, the
+ * Timeline and home (~/data/parties). Once the server has a wrap-up, the night's receipt
+ * feeds out of the till over the page (the signature moment, app-only).
  */
 import type { Party, PartyRollRow } from "@/lib/api-types";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
-import Animated, { FadeIn, FadeInDown, ReduceMotion } from "react-native-reanimated";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { StyleSheet, View, type ScrollViewInstance } from "react-native";
 import { useCalendar, useEventTypes } from "~/data/calendar";
 import { localDay } from "~/data/home";
-import { useParties, usePartyRolls } from "~/data/parties";
+import { createParty, deleteParty, editParties, patchParty, useParties, usePartyRolls, wrapUpParty } from "~/data/parties";
 import { useRoster } from "~/data/tasks";
 import { useEntryOf } from "~/entry/EntryContext";
-import { Icon } from "~/icons/Icon";
+import type { TillSlip } from "~/moments/Till";
 import { navLabel } from "~/more/model";
-import { Highlighter } from "~/paper/stationery";
-import { Book, Hero, TakingsCard } from "~/parties/bits";
-import { briefing, canManage, newestFirst, takings, waiting } from "~/parties/model";
-import { DeleteParty, PartyForm, PartySheet, WrapUp } from "~/parties/sheets";
+import { haptics } from "~/motion/haptics";
+import { Book, Hero, TakingsCard, type BookActs } from "~/parties/bits";
+import {
+  PAGE, SAY, briefing, canManage, dow, fmt$, money, monDay, newestFirst, receiptNet, takings, waiting,
+} from "~/parties/model";
+import { DeleteParty, DoorMoment, PartyForm, WrapUp, type PartyFormBody, type WrapUpForm } from "~/parties/sheets";
 import { Screen } from "~/shell/Screen";
-import { EmptyState, ErrorState, SkeletonCard, SkeletonList } from "~/shell/states";
-import { viewerOf } from "~/tasks/model";
-import { useMotion, useTheme } from "~/theme/PaperProvider";
+import { ErrorState, SkeletonCard, SkeletonList } from "~/shell/states";
+import { toast } from "~/shell/toast";
+import { useTheme } from "~/theme/PaperProvider";
 import { EventSheet as TimelineSheet } from "~/timeline/EventSheet";
+import { viewerOf } from "~/tasks/model";
+import { TrBtn } from "~/treasury/bits";
+import { PageBrief, type BriefPart } from "~/ui/PageBrief";
 import { T } from "~/ui/T";
 
-const ASK = "What did the door clear this semester?";
+const TEMP = 1_000_000_000;
 
 export default function Parties() {
   const { c } = useTheme();
-  const m = useMotion();
   const me = useEntryOf("ready")?.me ?? null;
   const q = useParties();
   const rollsQ = usePartyRolls();
@@ -53,29 +60,99 @@ export default function Parties() {
   const [form, setForm] = useState<{ party: Party | null } | null>(null);
   const [del, setDel] = useState<number | null>(null);
   const [tl, setTl] = useState<number | null>(null);
+  const [slip, setSlip] = useState<TillSlip | null>(null);
+  const scroll = useRef<ScrollViewInstance | null>(null);
+  const bookY = useRef(0);
+  const rowY = useRef(new Map<number, number>());
 
   const all = q.data ?? null;
   const rolls = useMemo(() => new Map((rollsQ.data ?? []).map((r: PartyRollRow) => [r.partyId, r])), [rollsQ.data]);
   const byId = (id: number | null) => (id == null ? null : all?.find(p => p.id === id) ?? null);
 
-  // the Timeline's own sheet for "Open in Timeline"
+  // The roll lists the roster in the web's order; the Timeline's sheet needs it too.
+  const roster = useRoster(officer || tl != null);
+  const people = roster.data ?? [];
+  const rosterMap = useMemo(() => new Map((roster.data ?? []).map(b => [b.id, b])), [roster.data]);
   const cal = useCalendar();
   const types = useEventTypes();
-  const roster = useRoster(tl != null);
-  const rosterMap = useMemo(() => new Map((roster.data ?? []).map(b => [b.id, b])), [roster.data]);
   const tlEvent = tl == null ? null : cal.data?.find(e => e.id === tl) ?? null;
 
+  const org = me?.org?.name ?? "ChaptOS";
+  const sorted = useMemo(() => (all ? newestFirst(all) : []), [all]);
+  const wait = useMemo(() => (all ? waiting(all, today) : []), [all, today]);
+  const t = useMemo(() => takings(all ?? [], rolls.values()), [all, rolls]);
+
+  const refused = (msg: string) => { haptics.error(); toast.error(msg); };
+
+  /* ── writes (the web's handleAdd / handleEdit / handleWrapUp / handleDelete) ── */
+
+  const add = (body: PartyFormBody) => {
+    const tempId = TEMP + Date.now() % TEMP;
+    const draft: Party = {
+      id: tempId, name: body.name, date: body.date, schedule: body.schedule ?? null, partyType: body.partyType, theme: body.theme, collabOrg: body.collabOrg,
+      doorRevenue: 0, attendance: 0, expenses: 0, notes: "", completed: false, completedAt: null, attendanceEventId: null, mandatory: false, time: null,
+    };
+    const undo = editParties(l => [...l, draft]);
+    setForm(null);
+    setOpen(tempId);
+    createParty({ name: body.name, date: body.date, schedule: body.schedule, partyType: body.partyType, theme: body.theme, collabOrg: body.collabOrg })
+      .then(saved => { editParties(l => l.filter(p => p.id !== tempId)); setOpen(o => (o === tempId ? saved.id : o)); haptics.success(); })
+      .catch(() => { undo(); setOpen(o => (o === tempId ? null : o)); refused(SAY.addFailed); });
+  };
+
+  const edit = (party: Party, body: PartyFormBody) => {
+    const undo = editParties(l => l.map(p => (p.id === party.id ? { ...p, ...body, schedule: body.schedule ?? p.schedule } : p)));
+    setForm(null);
+    patchParty(party.id, body)
+      .then(() => haptics.success())
+      .catch(() => { undo(); refused(SAY.editFailed); });
+  };
+
+  const wrapUp = (party: Party, f: WrapUpForm) => {
+    if (party.id >= TEMP) { refused(SAY.stillSaving); return; }
+    const door = money(f.doorRevenue), spent = money(f.expenses);
+    const undo = editParties(l => l.map(p => (p.id === party.id ? { ...p, doorRevenue: door, expenses: spent, notes: f.notes, completed: true, completedAt: new Date().toISOString() } : p)));
+    setWrap(null);
+    wrapUpParty(party.id, {
+      doorRevenue: door, expenses: spent, notes: f.notes,
+      ...(f.attendedIds !== undefined ? { attendedIds: f.attendedIds, mandatory: !!f.mandatory } : {}),
+    })
+      .then(saved => {
+        void rollsQ.refetch();
+        const n = saved.doorRevenue - saved.expenses;
+        // The till's own success haptic lands with the CLOSED OUT stamp.
+        setSlip({ org, name: saved.name, when: `${dow(saved.date)} ${monDay(saved.date)}`, door: fmt$(saved.doorRevenue), spent: `−${fmt$(saved.expenses)}`, net: receiptNet(n), neg: n < 0 });
+      })
+      .catch(() => { undo(); refused(SAY.wrapFailed); });
+  };
+
+  const remove = (party: Party) => {
+    setDel(null);
+    if (open === party.id) setOpen(null);
+    deleteParty(party.id)
+      .then(() => haptics.success())
+      .catch(() => refused(SAY.deleteFailed));
+  };
+
+  /* ── the book's hands ── */
+
+  const acts = useMemo<BookActs>(() => ({
+    onToggle: p => setOpen(id => (id === p.id ? null : p.id)),
+    onWrap: p => setWrap(p.id),
+    onEdit: p => setForm({ party: p }),
+    onDelete: p => setDel(p.id),
+    onTimeline: setTl,
+    onRowY: (id, y) => { rowY.current.set(id, y); },
+  }), []);
+  const jumpTo = useCallback((id: number) => {
+    setOpen(id);
+    requestAnimationFrame(() => scroll.current?.scrollTo({ y: Math.max(0, bookY.current + (rowY.current.get(id) ?? 0) - 120), animated: true }));
+  }, []);
+
   if (!me) return null;
-  const org = me.org?.name ?? "ChaptOS";
   const title = navLabel(me, "Parties");
   const wrapParty = byId(wrap);
-
-  const right = officer ? (
-    <Pressable onPress={() => setForm({ party: null })} accessibilityRole="button" accessibilityLabel="Add party" hitSlop={8}
-      style={({ pressed }) => [styles.plus, { backgroundColor: c.ink, boxShadow: `${pressed ? 1 : 2}px ${pressed ? 1 : 2}px 0 ${c.note.fill.rose}` }, pressed && { transform: [{ translateX: 1 }, { translateY: 1 }] }]}>
-      <Icon name="plus" size={16} color={c.paper} />
-    </Pressable>
-  ) : null;
+  const formParty = form?.party ?? null;
 
   let body: React.ReactNode;
   if (!all) {
@@ -83,86 +160,66 @@ export default function Parties() {
       ? <ErrorState title="Couldn't load the ledger." error={q.error} onRetry={() => void q.refetch()} />
       : <><SkeletonCard height={150} /><SkeletonList count={5} /></>;
   } else {
-    const wait = waiting(all, today);
     const hero = officer ? wait[0] ?? null : null;
-    const t = takings(all, rolls);
-    const b = briefing(t.closed.length, t.net, wait.length);
-    const sorted = newestFirst(all);
-    const rise = (i: number) => (m.reduced ? FadeIn.duration(m.t(160)) : FadeInDown.delay(m.t(i * 60)).duration(m.t(280)).springify().damping(18)).reduceMotion(ReduceMotion.Never);
     body = (
       <>
-        <View style={{ gap: 10 }}>
-          <View style={styles.h1}>
-            <T v="title">The </T>
-            <Highlighter tone="rose"><T v="title">house</T></Highlighter>
-            <T v="title"> ledger.</T>
-          </View>
-          <T v="body" color={c.ink2} style={{ lineHeight: 23 }}>
-            {b.lead}{b.strong ? <T v="body" color={c.ink} style={{ fontWeight: "700" }}>{b.strong}</T> : null}{b.rest}
-          </T>
-          <Pressable onPress={() => router.push({ pathname: "/ask", params: { q: ASK } })} accessibilityRole="button" accessibilityHint="Opens Ask Chapt with the question ready to send"
-            style={({ pressed }) => [styles.ask, { borderColor: pressed ? c.pastel.lilac.ink : c.line2, backgroundColor: pressed ? c.pastel.lilac.soft : "transparent" }]}>
-            <Icon name="spark" size={14} color={c.pastel.lilac.ink} />
-            <T v="callout" color={c.ink2}>Ask what the door cleared</T>
-          </Pressable>
-        </View>
-
-        {hero ? (
-          <Animated.View entering={rise(0)}>
-            <Hero party={hero} more={wait.length - 1} org={org} today={today} onClose={() => setWrap(hero.id)} />
-          </Animated.View>
-        ) : null}
-
-        {t.closed.length ? (
-          <Animated.View entering={rise(1)}>
-            <TakingsCard t={t} onOpen={setOpen} />
-          </Animated.View>
-        ) : null}
-
+        {hero ? <Hero party={hero} more={wait.length - 1} org={org} today={today} onClose={() => setWrap(hero.id)} /> : null}
+        {t.closed.length ? <TakingsCard t={t} onOpen={jumpTo} /> : null}
         <View style={styles.sec} accessibilityRole="header">
-          <T v="heading">Every party</T>
+          <T v="heading">{PAGE.book}</T>
           <View style={[styles.rule, { borderColor: c.line2 }]} />
-          <T v="mono" color={c.ink3} style={{ fontSize: 11.5 }}>{sorted.length ? `${sorted.length} total · newest first` : ""}</T>
+          <T v="mono" color={c.ink3} style={{ fontSize: 11.5 }}>{PAGE.count(sorted.length)}</T>
         </View>
-
         {!sorted.length ? (
-          <EmptyState
-            pictures={[{ icon: "note", tone: "rose", label: "Add the party" }, { icon: "receipt", tone: "butter", label: "Close it out: door + spent" }, { icon: "bars", tone: "mint", label: "The net keeps itself" }]}
-            title="No parties yet."
-            line={officer
-              ? "Add your first party to start tracking the books. After the night, close it out with the door and what you spent, and the semester's net keeps itself."
-              : "Nothing here yet. Once an officer adds a party, it lands in this book."}
-            action={officer ? { label: "Add party", icon: "plus", onPress: () => setForm({ party: null }) } : undefined} />
+          <View style={[styles.empty, { borderColor: c.line2, backgroundColor: c.card }]}>
+            <T v="title">{PAGE.emptyT}<T v="title" color={c.pastel.rose.ink}>.</T></T>
+            <T v="body" color={c.ink2}>{officer ? PAGE.emptyOfficer : PAGE.emptyMember}</T>
+            {officer ? <View style={{ alignSelf: "flex-start" }}><TrBtn label={PAGE.add} icon="plus" onPress={() => setForm({ party: null })} /></View> : null}
+            <View style={[styles.blank, { borderTopColor: c.line2 }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              {PAGE.cols.map(k => <T key={k} v="kicker" color={c.ink3} style={{ fontSize: 9 }}>{k}</T>)}
+            </View>
+          </View>
         ) : (
-          <Animated.View entering={rise(2)}>
-            <Book parties={sorted} today={today} officer={officer} onOpen={p => setOpen(p.id)} onWrap={p => setWrap(p.id)} />
-          </Animated.View>
+          <View onLayout={e => { bookY.current = e.nativeEvent.layout.y; }}>
+            <Book parties={sorted} today={today} officer={officer} org={org} openId={open} rolls={rolls} acts={acts} />
+          </View>
         )}
       </>
     );
   }
 
+  const b = all ? briefing(t.closed.length, t.net, wait.length) : null;
+  const sub: BriefPart[] | null = b ? [{ text: b.lead }, ...(b.strong ? [{ text: b.strong, bold: true }] : []), { text: b.rest }] : null;
+
   return (
-    <Screen title={title} large back="More" right={right} onRefresh={() => Promise.all([q.refetch(), rollsQ.refetch()])} subtitle={me.org?.activeTerm?.label}>
-      {body}
-      <PartySheet party={byId(open)} roll={open != null ? rolls.get(open) ?? null : null} onClose={() => setOpen(null)}
-        onWrap={p => setWrap(p.id)} onEdit={p => setForm({ party: p })} onDelete={p => setDel(p.id)} onTimeline={setTl} />
+    <Screen title={title} back="More" scrollRef={scroll} onRefresh={() => Promise.all([q.refetch(), rollsQ.refetch()])}>
+      <View style={{ gap: 18 }}>
+        <PageBrief pill={`${dow(today)} · ${monDay(today)}`} kicker={PAGE.kicker(org)} kickerSep={false}
+          lead={PAGE.title[0]} mark={PAGE.title[1]} tail={PAGE.title[2]} markTone="rose" sub={sub} />
+        <View style={styles.actions}>
+          {officer ? <TrBtn label={PAGE.add} icon="plus" onPress={() => setForm({ party: null })} /> : null}
+          <TrBtn kind="ask" label={PAGE.ask} icon="spark" kbd="⌘K" hint="Opens Ask Chapt with the question ready to send"
+            onPress={() => router.push({ pathname: "/ask", params: { q: PAGE.askQ } })} />
+        </View>
+        {body}
+      </View>
       {officer ? (
         <>
-          <PartyForm open={!!form} party={form?.party ?? null} onClose={() => setForm(null)} onSaved={p => { if (!form?.party) setOpen(p.id); }} />
-          <WrapUp party={wrapParty} rolled={wrap != null && rolls.has(wrap)} onClose={() => setWrap(null)} />
-          <DeleteParty party={byId(del)} onClose={() => setDel(null)} onDeleted={() => setOpen(null)} />
+          <PartyForm open={!!form} party={formParty} onClose={() => setForm(null)} onSave={bd => (formParty ? edit(formParty, bd) : add(bd))} />
+          <WrapUp party={wrapParty} people={people} rolled={wrap != null && rolls.has(wrap)} onClose={() => setWrap(null)} onSubmit={wrapUp} />
+          <DeleteParty party={byId(del)} onClose={() => setDel(null)} onConfirm={remove} />
         </>
       ) : null}
+      <DoorMoment slip={slip} onDone={() => setSlip(null)} />
       <TimelineSheet event={tlEvent} task={null} types={types.data} viewer={viewerOf(me)} today={today} roster={rosterMap} onClose={() => setTl(null)} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  plus: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-  h1: { flexDirection: "row", alignItems: "flex-end", flexWrap: "wrap" },
-  ask: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderStyle: "dashed", borderRadius: 999, paddingHorizontal: 14, minHeight: 40 },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   sec: { flexDirection: "row", alignItems: "baseline", gap: 10, marginTop: 6 },
   rule: { flex: 1, borderTopWidth: 1.5, borderStyle: "dashed", transform: [{ translateY: -4 }] },
+  empty: { borderWidth: 1.5, borderStyle: "dashed", borderRadius: 16, padding: 18, gap: 12 },
+  blank: { flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1.5, borderStyle: "dashed", paddingTop: 10 },
 });

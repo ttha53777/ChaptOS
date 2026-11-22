@@ -12,18 +12,21 @@
  *               rose-washed, upcoming rows hatched, closed rows carry their net
  */
 import type { Party } from "@/lib/api-types";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
 import Svg, { Defs, Line, Path, Pattern, Polygon, Rect } from "react-native-svg";
-import { Icon } from "~/icons/Icon";
+import { Icon, type IconName } from "~/icons/Icon";
+import { pressedDim } from "~/motion/press";
 import { Button } from "~/paper/Button";
 import { TickingNumber } from "~/paper/TickingNumber";
 import { alpha } from "~/theme/palette";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
-import { daysFrom } from "~/today/time";
 import { T } from "~/ui/T";
-import { cash, dow, isUpcoming, mon, monDay, needsWrapUp, orgInitials, partyTime, profit, signed, subLine, upcomingLabel, type Takings } from "./model";
+import {
+  PAGE, RECEIPT, barPct, dayNum, dow, fmt$, fmtDate, heroTag, isUpcoming, mon, monDay, needsWrapUp, noteFor, orgInitials, partyTime,
+  profit, receiptNet, rollPct, signed$, subLine, upcomingLabel, type Roll, type Takings,
+} from "./model";
 
 /* ── Wristband ────────────────────────────────────────────────────────────────── */
 
@@ -51,8 +54,6 @@ export function Wristband({ type, size = "sm" }: { type: Party["partyType"]; siz
 export function Hero({ party, more, org, today, onClose }: { party: Party; more: number; org: string; today: string; onClose: () => void }) {
   const { c } = useTheme();
   const [w, setW] = useState(0);
-  const ago = Math.max(0, -daysFrom(today, party.date));
-  const meta = subLine(party);
   return (
     <View style={[styles.hero, { backgroundColor: c.card, borderColor: c.ink, boxShadow: `4px 4px 0 ${c.note.fill.rose}` }]} onLayout={e => setW(e.nativeEvent.layout.width)}>
       {w ? (
@@ -61,7 +62,7 @@ export function Hero({ party, more, org, today, onClose }: { party: Party; more:
         </Svg>
       ) : null}
       <View style={[styles.seal, { backgroundColor: c.note.fill.rose, borderColor: c.ink }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <T v="kicker" color={c.note.ink} style={{ fontSize: 10, letterSpacing: 0.5 }}>{orgInitials(org) || "★"}</T>
+        <T v="kicker" color={c.note.ink} style={{ fontSize: 10, letterSpacing: 0.5 }}>{orgInitials(org)}</T>
       </View>
       <View style={styles.heroBody}>
         <View style={styles.heroTop}>
@@ -69,16 +70,15 @@ export function Hero({ party, more, org, today, onClose }: { party: Party; more:
             <Icon name="clock" size={22} color={c.pastel.rose.ink} />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
-            <T v="kicker" color={c.pastel.rose.ink}>{`Needs wrap-up · ${ago} ${ago === 1 ? "day" : "days"} ago`}</T>
+            <T v="kicker" color={c.pastel.rose.ink}>{heroTag(party.date, today)}</T>
             <T v="heading" numberOfLines={2}>{party.name}</T>
           </View>
         </View>
         <T v="meta" color={c.ink2}>
-          {meta ? `${meta} · ` : ""}<T v="meta" color={c.ink} style={{ fontWeight: "600" }}>{`${dow(party.date)}, ${monDay(party.date)}`}</T>
-          {". Add the door and what you spent so the semester's totals are right."}
+          {`${subLine(party)} · `}<T v="meta" color={c.ink} style={{ fontWeight: "600" }}>{`${dow(party.date)}, ${fmtDate(party.date)}`}</T>{PAGE.heroMeta}
         </T>
-        {more > 0 ? <T v="mono" color={c.ink3} style={{ fontSize: 11.5 }}>{`+${more} more waiting below`}</T> : null}
-        <Button label="Close it out" icon="check" tone="rose" block onPress={onClose} />
+        {more > 0 ? <T v="mono" color={c.ink3} style={{ fontSize: 11.5 }}>{PAGE.heroMore(more)}</T> : null}
+        <Button label={PAGE.heroAct} icon="check" tone="rose" block onPress={onClose} />
       </View>
     </View>
   );
@@ -86,26 +86,26 @@ export function Hero({ party, more, org, today, onClose }: { party: Party; more:
 
 /* ── Takings ──────────────────────────────────────────────────────────────────── */
 
-export function TakingsCard({ t, onOpen }: { t: Takings; onOpen: (id: number) => void }) {
+export function TakingsCard({ t, onOpen }: { t: Takings<Party>; onOpen: (id: number) => void }) {
   const { c } = useTheme();
   const neg = t.net < 0;
   return (
     <View style={[styles.takings, { backgroundColor: c.card, borderColor: c.ink, boxShadow: `4px 4px 0 ${c.note.fill.mint}` }]}>
       <View style={[styles.head, { borderBottomColor: c.line2 }]}>
-        <T v="label" color={c.ink3}>Net this semester</T>
-        <TickingNumber value={signed(t.net)} v="figure" color={neg ? c.pastel.rose.ink : c.pastel.mint.ink} accessibilityLabel={`Net ${signed(t.net)}`} />
-        <T v="mono" color={c.ink3} style={{ fontSize: 11.5 }}>{`across ${t.closed.length} closed ${t.closed.length === 1 ? "party" : "parties"}`}</T>
+        <T v="label" color={c.ink3}>{PAGE.netK}</T>
+        <TickingNumber value={signed$(t.net)} v="figure" color={neg ? c.pastel.rose.ink : c.pastel.mint.ink} accessibilityLabel={`${PAGE.netK} ${signed$(t.net)}`} />
+        <T v="mono" color={c.ink3} style={{ fontSize: 11.5 }}>{PAGE.netNote(t.closed.length)}</T>
       </View>
       <View style={styles.grid}>
-        <Cell k="Door taken" v={cash(t.door)} sub="gross revenue" first />
-        <Cell k="Spent" v={cash(t.spent)} sub={`kept ${t.keptPct}%`} right />
-        <Cell k="Avg attendance" v={t.avg != null ? `${t.avg}%` : "–"} sub={t.avg != null ? `of members, ${t.rolled} rolled` : "no roll taken yet"} first bottom />
-        <Cell k="Best night" v={t.best ? signed(profit(t.best)) : "–"} sub={t.best?.name ?? "none yet"} right bottom good />
+        <Cell k={PAGE.door} v={fmt$(t.door)} sub={PAGE.doorSub} first />
+        <Cell k={PAGE.spent} v={fmt$(t.spent)} sub={PAGE.spentSub(t.keptPct)} right />
+        <Cell k={PAGE.avg} v={t.avg != null ? `${t.avg}%` : PAGE.none} sub={PAGE.avgSub(t.avg != null ? t.rolled : null)} first bottom />
+        <Cell k={PAGE.best} v={t.best ? signed$(profit(t.best)) : PAGE.none} sub={t.best?.name ?? PAGE.bestNone} right bottom good />
       </View>
       <View style={[styles.strip, { backgroundColor: c.paper2, borderTopColor: c.ink }]}>
         <View style={styles.stripHead}>
-          <T v="label" color={c.ink3}>Night by night</T>
-          <T v="meta" color={c.ink3} style={{ fontSize: 11.5 }}>net per closed party, tap one to open it</T>
+          <T v="label" color={c.ink3}>{PAGE.strip}</T>
+          <T v="meta" color={c.ink3} style={{ fontSize: 11.5 }}>{PAGE.stripSub}</T>
         </View>
         <Strip chron={t.chron} max={t.maxSwing} onOpen={onOpen} />
       </View>
@@ -140,7 +140,7 @@ function Bar({ p, i, max, onPress }: { p: Party; i: number; max: number; onPress
   const m = useMotion();
   const n = profit(p);
   const pos = n >= 0;
-  const h = Math.max(0.06, Math.abs(n) / max);
+  const h = barPct(n, max) / 100;
   const g = useSharedValue(m.reduced ? 1 : 0);
   const op = useSharedValue(m.reduced ? 0 : 1);
   useEffect(() => {
@@ -150,8 +150,8 @@ function Bar({ p, i, max, onPress }: { p: Party; i: number; max: number; onPress
   const grow = useAnimatedStyle(() => ({ opacity: op.value, transform: [{ scaleY: Math.max(0, g.value) }] }));
   const ink = pos ? c.pastel.mint.ink : c.pastel.rose.ink;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${p.name}, ${signed(n)}`} style={({ pressed }) => [{ width: BAR_W, alignItems: "center" }, pressed && { opacity: 0.7 }]}>
-      <T v="mono" color={ink} style={{ fontSize: 11, fontWeight: "700", paddingBottom: 4 }} numberOfLines={1} adjustsFontSizeToFit>{signed(n)}</T>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${p.name} · ${signed$(n)}`} style={({ pressed }) => [{ width: BAR_W, alignItems: "center" }, pressed && { opacity: 0.7 }]}>
+      <T v="mono" color={ink} style={{ fontSize: 11, fontWeight: "700", paddingBottom: 4 }} numberOfLines={1} adjustsFontSizeToFit>{signed$(n)}</T>
       <View style={[styles.up, { borderBottomColor: c.ink }]}>
         {pos ? <Animated.View style={[styles.barUp, { height: UP * h, backgroundColor: c.note.fill.mint, borderColor: c.ink, transformOrigin: "bottom" }, grow]} /> : null}
       </View>
@@ -165,75 +165,146 @@ function Bar({ p, i, max, onPress }: { p: Party; i: number; max: number; onPress
 
 /* ── the book ─────────────────────────────────────────────────────────────────── */
 
-const DATE_W = 60;
+// At phone width the web drops the column heads, the collab and the day/time (shown in the drawer).
+const DATE_W = 56;
 
-export function Book({ parties, today, officer, onOpen, onWrap }: {
-  parties: Party[]; today: string; officer: boolean; onOpen: (p: Party) => void; onWrap: (p: Party) => void;
+export interface BookActs {
+  onToggle: (p: Party) => void;
+  onWrap: (p: Party) => void;
+  onEdit: (p: Party) => void;
+  onDelete: (p: Party) => void;
+  onTimeline: (eventId: number) => void;
+  /** Where a row sits in the book, for the strip's jump. */
+  onRowY?: (id: number, y: number) => void;
+}
+
+const NOOP_ACTS: BookActs = { onToggle: () => {}, onWrap: () => {}, onEdit: () => {}, onDelete: () => {}, onTimeline: () => {} };
+
+/** Every party as a ledger line; a tap opens its drawer in place (the web's row, at phone width). */
+export function Book({ parties, today, officer, org = "", openId = null, rolls, acts = NOOP_ACTS }: {
+  parties: Party[]; today: string; officer: boolean; org?: string; openId?: number | null; rolls?: Map<number, Roll>; acts?: BookActs;
 }) {
   const { c } = useTheme();
   return (
     <View style={[styles.book, { backgroundColor: c.card, borderColor: c.ink, boxShadow: `5px 5px 0 ${c.note.fill.rose}` }]}>
-      <View style={[styles.cols, { backgroundColor: c.paper2, borderBottomColor: c.pastel.sky.border }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <T v="kicker" color={c.ink3} style={{ width: DATE_W, textAlign: "center", fontSize: 9 }}>Date</T>
-        <T v="kicker" color={c.ink3} style={{ flex: 1, paddingLeft: 14, fontSize: 9 }}>Party</T>
-        <T v="kicker" color={c.ink3} style={{ paddingRight: 14, fontSize: 9 }}>Net</T>
-      </View>
-      {parties.map((p, i) => <Row key={p.id} p={p} today={today} officer={officer} last={i === parties.length - 1} onPress={() => onOpen(p)} onWrap={() => onWrap(p)} />)}
+      {parties.map((p, i) => (
+        <Row key={p.id} p={p} today={today} officer={officer} org={org} last={i === parties.length - 1} open={openId === p.id} roll={rolls?.get(p.id)} acts={acts} />
+      ))}
       <View pointerEvents="none" style={[styles.margin, { backgroundColor: alpha(c.pastel.rose.ink, 0.45) }]} />
     </View>
   );
 }
 
-export function Row({ p, today, officer, last, onPress, onWrap }: { p: Party; today: string; officer: boolean; last?: boolean; onPress: () => void; onWrap: () => void }) {
+const Row = memo(function Row({ p, today, officer, org, last, open, roll, acts }: {
+  p: Party; today: string; officer: boolean; org: string; last: boolean; open: boolean; roll: Roll | undefined; acts: BookActs;
+}) {
   const { c } = useTheme();
   const due = needsWrapUp(p, today);
   const up = isUpcoming(p, today);
   const time = partyTime(p);
   const n = profit(p);
   return (
-    <Pressable onPress={onPress} accessibilityRole="button"
-      accessibilityLabel={`${p.name}, ${monDay(p.date)}${time ? ` at ${time}` : ""}, ${p.completed ? `net ${signed(n)}` : due ? "needs wrap-up" : upcomingLabel(p.date, today)}`}
-      style={({ pressed }) => [styles.row, !last && { borderBottomWidth: 1, borderBottomColor: c.pastel.sky.border }, due && { backgroundColor: alpha(c.pastel.rose.soft, 0.85) }, pressed && { backgroundColor: c.paper2 }]}>
-      {up ? <Hatch color={alpha(c.pastel.sky.border, 0.55)} /> : null}
-      <View style={styles.date}>
-        <T v="title" style={{ fontSize: 22, lineHeight: 24 }}>{String(Number(p.date.slice(8)))}</T>
-        <T v="kicker" color={c.ink3} style={{ fontSize: 9 }}>{mon(p.date)}</T>
-      </View>
-      <View style={styles.main}>
-        <View style={styles.nameLine}>
-          <View style={[styles.vdot, due ? { backgroundColor: c.pastel.rose.ink, boxShadow: `0 0 0 3px ${c.pastel.rose.soft}` } : up ? { borderWidth: 1.5, borderColor: c.pastel.sky.ink } : { backgroundColor: c.pastel.mint.ink }]} />
-          <T v="callout" numberOfLines={1} style={{ flex: 1, fontWeight: "600" }}>{p.name}</T>
-        </View>
-        <View style={styles.sline}>
-          <Wristband type={p.partyType} />
-          {p.theme ? <T v="meta" color={c.ink3} numberOfLines={1} style={{ fontSize: 12 }}>{p.theme}</T> : null}
-          {p.collabOrg ? <T v="meta" color={c.ink3} numberOfLines={1} style={{ fontSize: 12 }}>{`with ${p.collabOrg}`}</T> : null}
-          <T v="meta" color={c.ink3} style={{ fontSize: 12 }}>{`${dow(p.date)}${time ? ` · ${time}` : ""}`}</T>
-        </View>
-      </View>
-      <View style={styles.state}>
-        {p.completed ? (
-          <View style={{ alignItems: "flex-end" }}>
-            <T v="mono" color={n >= 0 ? c.pastel.mint.ink : c.pastel.rose.ink} style={{ fontSize: 14.5, fontWeight: "700" }}>{signed(n)}</T>
-            <T v="kicker" color={c.ink3} style={{ fontSize: 8.5 }}>net</T>
+    <View onLayout={acts.onRowY ? e => acts.onRowY!(p.id, e.nativeEvent.layout.y) : undefined}
+      style={[!last && { borderBottomWidth: 1, borderBottomColor: c.pastel.sky.border }, due && { backgroundColor: alpha(c.pastel.rose.soft, 0.85) }]}>
+      <View style={styles.row}>
+        {up ? <Hatch color={alpha(c.pastel.sky.border, 0.55)} /> : null}
+        <Pressable onPress={() => acts.onToggle(p)} accessibilityRole="button" accessibilityState={{ expanded: open }}
+          accessibilityLabel={`${p.name}, ${monDay(p.date)}${time ? ` · ${time}` : ""}`}
+          style={({ pressed }) => [styles.lead, pressed && pressedDim]}>
+          <View style={styles.date}>
+            <T v="title" style={{ fontSize: 22, lineHeight: 24 }}>{String(dayNum(p.date))}</T>
+            <T v="kicker" color={c.ink3} style={{ fontSize: 9 }}>{mon(p.date)}</T>
           </View>
-        ) : due && officer ? (
-          <Pressable onPress={onWrap} accessibilityRole="button" accessibilityLabel={`Wrap up ${p.name}`} hitSlop={6}
-            style={({ pressed }) => [styles.badge, { backgroundColor: c.pastel.rose.soft, borderColor: c.pastel.rose.ink, boxShadow: `${pressed ? 1 : 2}px ${pressed ? 1 : 2}px 0 ${c.note.fill.rose}` }, pressed && { transform: [{ translateX: 1 }, { translateY: 1 }] }]}>
-            <T v="pill" color={c.pastel.rose.ink}>Wrap up</T>
-            <Icon name="arrow-r" size={12} color={c.pastel.rose.ink} />
+          <View style={styles.main}>
+            <View style={styles.nameLine}>
+              <View style={[styles.vdot, due ? { backgroundColor: c.pastel.rose.ink, boxShadow: `0 0 0 3px ${c.pastel.rose.soft}` } : up ? { borderWidth: 1.5, borderColor: c.pastel.sky.ink } : { backgroundColor: c.pastel.mint.ink }]} />
+              <T v="callout" numberOfLines={1} style={{ flex: 1, fontWeight: "600" }}>{p.name}</T>
+            </View>
+            <View style={styles.sline}>
+              <Wristband type={p.partyType} />
+              {p.theme ? <T v="meta" color={c.ink3} numberOfLines={1} style={{ fontSize: 12 }}>{p.theme}</T> : null}
+            </View>
+          </View>
+        </Pressable>
+        <View style={styles.state}>
+          {p.completed ? (
+            <View style={{ alignItems: "flex-end" }}>
+              <T v="mono" color={n >= 0 ? c.pastel.mint.ink : c.pastel.rose.ink} style={{ fontSize: 14.5, fontWeight: "700" }}>{signed$(n)}</T>
+              <T v="kicker" color={c.ink3} style={{ fontSize: 8.5 }}>{PAGE.net}</T>
+            </View>
+          ) : due && officer ? (
+            <Pressable onPress={() => acts.onWrap(p)} accessibilityRole="button" accessibilityLabel={PAGE.wrap} hitSlop={6}
+              style={({ pressed }) => [styles.badge, { backgroundColor: c.pastel.rose.soft, borderColor: c.pastel.rose.ink, boxShadow: `${pressed ? 1 : 2}px ${pressed ? 1 : 2}px 0 ${c.note.fill.rose}` }, pressed && { transform: [{ translateX: 1 }, { translateY: 1 }] }]}>
+              <T v="pill" color={c.pastel.rose.ink}>{PAGE.wrap}</T>
+            </Pressable>
+          ) : due ? (
+            <View style={[styles.badge, { backgroundColor: c.pastel.rose.soft, borderColor: c.pastel.rose.border }]}>
+              <T v="pill" color={c.pastel.rose.ink}>{PAGE.needs}</T>
+            </View>
+          ) : (
+            <View style={[styles.badge, { backgroundColor: c.pastel.sky.soft, borderColor: c.pastel.sky.border }]}>
+              <T v="kicker" color={c.pastel.sky.ink} style={{ fontSize: 9.5 }}>{upcomingLabel(p.date, today)}</T>
+            </View>
+          )}
+          <Pressable onPress={() => acts.onToggle(p)} hitSlop={8} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+            style={{ transform: [{ rotate: open ? "90deg" : "0deg" }] }}>
+            <Icon name="chev-r" size={14} color={c.ink3} />
           </Pressable>
-        ) : due ? (
-          <View style={[styles.badge, { backgroundColor: c.pastel.rose.soft, borderColor: c.pastel.rose.border }]}>
-            <T v="pill" color={c.pastel.rose.ink}>Needs wrap-up</T>
-          </View>
-        ) : (
-          <View style={[styles.badge, { backgroundColor: c.pastel.sky.soft, borderColor: c.pastel.sky.border }]}>
-            <T v="kicker" color={c.pastel.sky.ink} style={{ fontSize: 9.5 }}>{upcomingLabel(p.date, today)}</T>
-          </View>
-        )}
+        </View>
       </View>
-    </Pressable>
+      {open ? <Drawer p={p} org={org} today={today} officer={officer} roll={roll} acts={acts} /> : null}
+    </View>
+  );
+});
+
+/** The open row: the night's till receipt, then its notes, facts, roll call and actions. */
+function Drawer({ p, org, today, officer, roll, acts }: { p: Party; org: string; today: string; officer: boolean; roll: Roll | undefined; acts: BookActs }) {
+  const { c } = useTheme();
+  const m = useMotion();
+  const due = needsWrapUp(p, today);
+  const rolled = roll && roll.eligible > 0 ? roll : null;
+  return (
+    <Animated.View entering={FadeIn.duration(m.t(180))} style={styles.drawer}>
+      <View style={[styles.receipt, { backgroundColor: c.thermal.paper, borderColor: alpha(c.thermal.ink, 0.18) }]}>
+        <ReceiptLines p={p} org={org} roll={rolled} today={today} />
+      </View>
+      <View style={{ gap: 14 }}>
+        <T v={p.notes ? "heading" : "body"} color={p.notes ? c.ink2 : c.ink3} style={p.notes ? { fontSize: 18, lineHeight: 25 } : undefined}>
+          {p.notes ? <><T v="heading" color={c.pastel.rose.ink} style={{ fontSize: 18 }}>“</T>{p.notes}<T v="heading" color={c.pastel.rose.ink} style={{ fontSize: 18 }}>”</T></> : noteFor(p, today)}
+        </T>
+        <View style={styles.facts}>
+          <Wristband type={p.partyType} />
+          {p.theme ? <Fact icon="star" text={p.theme} /> : null}
+          {p.collabOrg ? <Fact icon="people" text={`with ${p.collabOrg}`} /> : null}
+          {p.mandatory ? <Fact icon="check" text={RECEIPT.mandatory} /> : null}
+        </View>
+        {rolled ? (
+          <View style={{ gap: 6 }}>
+            <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
+              <T v="label" color={c.ink3}>{RECEIPT.whoCame}</T>
+              <T v="mono" color={c.ink} style={{ fontWeight: "700" }}>{RECEIPT.of(rolled)}</T>
+            </View>
+            <RollDots present={rolled.present} eligible={rolled.eligible} />
+          </View>
+        ) : null}
+        <View style={styles.acts}>
+          {due && officer ? <Button label={RECEIPT.wrapUp} size="sm" icon="check" tone="rose" onPress={() => acts.onWrap(p)} /> : null}
+          {p.attendanceEventId != null ? <Button label={RECEIPT.timeline} size="sm" variant="ghost" icon="timeline" onPress={() => acts.onTimeline(p.attendanceEventId!)} /> : null}
+          {officer ? <Button label={RECEIPT.edit} size="sm" variant="ghost" icon="pencil" onPress={() => acts.onEdit(p)} /> : null}
+          {officer ? <View style={{ marginLeft: "auto" }}><Button label={RECEIPT.del} size="sm" variant="ghost" icon="trash" tone="rose" onPress={() => acts.onDelete(p)} /></View> : null}
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
+function Fact({ icon, text }: { icon: IconName; text: string }) {
+  const { c } = useTheme();
+  return (
+    <View style={styles.fact}>
+      <Icon name={icon} size={14} color={c.ink3} />
+      <T v="meta" color={c.ink2} style={{ flexShrink: 1 }}>{text}</T>
+    </View>
   );
 }
 
@@ -251,9 +322,9 @@ function Hatch({ color }: { color: string }) {
   );
 }
 
-/* ── the receipt (party sheet) ────────────────────────────────────────────────── */
+/* ── the receipt ──────────────────────────────────────────────────────────────── */
 
-export function ReceiptLines({ p, org, roll, today }: { p: Party; org: string; roll: { present: number; eligible: number } | null; today: string }) {
+export function ReceiptLines({ p, org, roll, today }: { p: Party; org: string; roll: Roll | null; today: string }) {
   const { c } = useTheme();
   const ink = c.thermal.ink, faint = c.thermal.faint;
   const due = needsWrapUp(p, today);
@@ -262,32 +333,33 @@ export function ReceiptLines({ p, org, roll, today }: { p: Party; org: string; r
   const dash = <View style={[styles.rdash, { borderColor: alpha(ink, 0.35) }]} />;
   const ln = (k: string, v: string, o?: { big?: boolean; color?: string }) => (
     <View style={styles.rline}>
-      <T v="mono" color={ink} style={{ fontSize: o?.big ? 14.5 : 12, fontWeight: o?.big ? "700" : "500", letterSpacing: 0.6 }}>{k.toUpperCase()}</T>
+      <T v="mono" color={ink} style={{ fontSize: o?.big ? 14.5 : 12, fontWeight: o?.big ? "700" : "500", letterSpacing: 0.6 }}>{k}</T>
       <T v="mono" color={o?.color ?? ink} style={{ fontSize: o?.big ? 14.5 : 12, fontWeight: o?.big ? "700" : "500" }}>{v}</T>
     </View>
   );
+  const pct = rollPct(roll);
   return (
     <View style={{ gap: 2 }}>
-      <T v="kicker" color={faint} align="center" style={{ fontSize: 9.5 }} numberOfLines={1}>{`${org} · the house`}</T>
+      <T v="kicker" color={faint} align="center" style={{ fontSize: 9.5 }} numberOfLines={1}>{RECEIPT.head(org)}</T>
       <T v="subhead" color={ink} align="center">{p.name}</T>
       <T v="mono" color={faint} align="center" style={{ fontSize: 11 }}>{`${dow(p.date)} ${monDay(p.date)}${time ? ` · ${time}` : ""}`}</T>
       {dash}
       {p.completed ? (
         <>
-          {ln("Door", cash(p.doorRevenue))}
-          {ln("Spent", `−${cash(p.expenses)}`)}
+          {ln(RECEIPT.door, fmt$(p.doorRevenue))}
+          {ln(RECEIPT.spent, `−${fmt$(p.expenses)}`)}
           {dash}
-          {ln("Net", `${n >= 0 ? "+" : "−"}${cash(Math.abs(n))}`, { big: true, color: n < 0 ? c.thermal.neg : ink })}
+          {ln(RECEIPT.net, receiptNet(n), { big: true, color: n < 0 ? c.thermal.neg : ink })}
         </>
       ) : (
         <View style={{ alignItems: "center", gap: 3, paddingVertical: 2 }}>
-          <T v="mono" color={due ? c.thermal.neg : ink} style={{ fontSize: 16, fontWeight: "700", letterSpacing: 3 }}>{due ? "NO FIGURES" : "TAB OPEN"}</T>
-          <T v="meta" color={faint} align="center" style={{ fontSize: 11.5 }}>{due ? "Happened already. No figures recorded yet." : "Numbers open until it's wrapped up."}</T>
+          <T v="mono" color={due ? c.thermal.neg : ink} style={{ fontSize: 16, fontWeight: "700", letterSpacing: 3 }}>{due ? RECEIPT.noFigures : RECEIPT.tabOpen}</T>
+          <T v="meta" color={faint} align="center" style={{ fontSize: 11.5 }}>{due ? RECEIPT.dueLine : RECEIPT.openLine}</T>
         </View>
       )}
-      {roll && roll.eligible > 0 ? <>{dash}{ln("Members", `${roll.present}/${roll.eligible} · ${Math.round((roll.present / roll.eligible) * 100)}%`)}</> : null}
-      {p.attendance > 0 ? ln("Thru door", String(p.attendance)) : null}
-      <T v="mono" color={faint} align="center" style={{ fontSize: 10, letterSpacing: 2, marginTop: 8 }}>{p.completed ? "*** CLOSED OUT ***" : "*** OPEN TAB ***"}</T>
+      {roll && pct != null ? <>{dash}{ln(RECEIPT.members, `${roll.present}/${roll.eligible} · ${pct}%`)}</> : null}
+      {p.attendance > 0 ? ln(RECEIPT.thru, String(p.attendance)) : null}
+      <T v="mono" color={faint} align="center" style={{ fontSize: 10, letterSpacing: 2, marginTop: 8 }}>{p.completed ? RECEIPT.closed : RECEIPT.open}</T>
     </View>
   );
 }
@@ -330,14 +402,20 @@ const styles = StyleSheet.create({
   cols: { flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1.5 },
   margin: { position: "absolute", left: DATE_W, top: 0, bottom: 0, width: 1.5 },
   row: { flexDirection: "row", alignItems: "center", minHeight: 68, overflow: "hidden" },
+  lead: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center" },
   date: { width: DATE_W, alignItems: "center", gap: 1 },
   main: { flex: 1, minWidth: 0, paddingLeft: 14, paddingRight: 8, paddingVertical: 10, gap: 5 },
   nameLine: { flexDirection: "row", alignItems: "center", gap: 8 },
   vdot: { width: 8, height: 8, borderRadius: 4 },
   sline: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 3 },
-  state: { paddingRight: 12, alignItems: "flex-end" },
+  state: { paddingRight: 12, flexDirection: "row", alignItems: "center", gap: 8 },
   badge: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 10, minHeight: 28 },
 
+  drawer: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20, gap: 16 },
+  receipt: { maxWidth: 280, borderWidth: 1, borderRadius: 4, paddingHorizontal: 18, paddingVertical: 16, transform: [{ rotate: "-0.6deg" }], boxShadow: "0 8px 14px rgba(0,0,0,0.12)" },
+  facts: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 18, rowGap: 6 },
+  fact: { flexDirection: "row", alignItems: "center", gap: 6 },
+  acts: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   rline: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
   rdash: { borderTopWidth: 1.5, borderStyle: "dashed", marginVertical: 7 },
   dots: { flexDirection: "row", flexWrap: "wrap", gap: 4 },

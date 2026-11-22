@@ -41,7 +41,7 @@ Legend: ✅ matches the web phone · 🟡 built, but from the paper mocks rather
 | Media | `more/media` | ✅ | Phase 8b: brief, Add post / Ask, measures that jump, lanes, month, detail with in-place dates, form, delete, day one. See "Media (Phase 8b)" below. |
 | Programming | `more/programming` | ✅ | Phase 8c: brief with tappable clauses, measures, Board/Calendar, the four gated lanes, timeline strip, the event sheet in panel order, fix step, wrap-up, day one. See "Programming (Phase 8c)" below. |
 | Service | `more/service` | ✅ | Phase 8d: brief and digest, measures, Events/Members, event cards opening onto the sign-in sheet, punch cards, the wide forms, Log hours, Log my hours with the punch, day one. See "Service (Phase 8d)" below. |
-| Parties | `more/parties` | 🟡 | The ledger and wrap-ups exist. Diff the roll and wrap-up door. |
+| Parties | `more/parties` | ✅ | Phase 8e: the house ledger at phone width, the one task, takings and the strip, drawers in place, the web's forms and two-step wrap-up with the roll, the door moment. See "Parties (Phase 8e)" below. |
 | Fundraisers | `more/fundraisers` | 🟡 | Web has jars over the ledger and the wrap-up total. |
 | Treasury (Overview, Transactions, Dues, Reports, Reimbursements) | `more/treasury` | ✅ | Phase 7: the five tabs, the open-books gate and member lock, every sheet, Dues with its drawer, Hand out and charge editor. See "Treasury (Phase 7)" below. |
 | Settings (15 sections) | — | ⬜ | Phase 9. |
@@ -531,4 +531,68 @@ Built 2026-11-20.
   - The app's own "my punch card leads" layout, the next-shift ticket, "Shifts so far" and the stepper sheet with "Punch it" / "Change it".
   - The undo on Log my hours, which the web doesn't have.
   - `setMyHours` and `unlogMyHours` in `data/more.ts`, which nothing uses now. `lab/` doesn't import the old screen.
+
+## Parties (Phase 8e), what landed
+
+Built 2026-11-20.
+
+- **Shared rules:** `lib/parties/ledger.ts` (SHARED now whitelists `@/lib/parties/`). "Today" is passed in.
+  - Dates: `todayOf`, `daysFrom`, `dow`, `monDay`, `mon`, `dayNum`, `partyTime`, `upcomingLabel`.
+  - States and money: `profit`, `needsWrapUp`, `isUpcoming`, `subLine`, `signed$`, `receiptNet`, `money`, with `fmt$`/`fmtDate` from `lib/treasury/ledger`.
+  - Lists and numbers: `newestFirst`, `waiting`, `takings`, `barPct`, `rollPct`, `canTakeRoll`.
+  - Words: `briefing`, `heroTag`, `noteFor`, and `PAGE`, `RECEIPT`, `FORM`, `WRAP`, `DELETE`, plus the five refusal sentences in `SAY`.
+  - `parties/page.tsx` renders from it. Pixdiff before/after: all 44 frames are IDENTICAL.
+    - Frames: full, fold, the three drawers, the strip jump, add, edit, wrap, wrap-roll and delete, for busy and day one, admin and member, day and night.
+    - The roll heading keeps the web's text-node split ("Who came? (" then the counts), because merging them moved antialiasing.
+    - busy-admin-night-full differs only at the floating Ask button's sparkle. The unchanged original page gives the same 1,635 px against the before frame.
+- **Wire:** none needed. The routes, contract entry and smoke probes were already there. The bearer static test passes on 125 routes.
+- **Page** (`more/parties.tsx`, the web phone's order):
+  - Brief: "FRI · NOV 20", "Parties · Oozma Kappa", "The house ledger.", then "4 parties closed out and the books are **net positive**. 2 parties are still waiting on numbers — close them out and you're square."
+  - Actions: Add party (MANAGE_PARTIES) and Ask what the door cleared ⌘K.
+  - The one task (officers): the sealed envelope with "Needs wrap-up · 12 days ago", "Open · **Sun, Nov 8** — add the door & expenses so the semester totals are right.", "+1 more waiting below" and Close it out.
+  - Takings: Net this semester, Door taken, Spent (kept %), Avg attendance, Best night, and Night by night. A bar opens its party in the book and scrolls to it.
+  - Every party ("8 total · newest first"):
+    - As at the web's ≤480px, the rows drop the column heads, the collab and the day/time.
+    - States: net / "Wrap up →" (officers) / "Needs wrap-up" (members) / Today, Tomorrow, In N days, Upcoming.
+    - A row opens its drawer in place: the till receipt (Door, Spent, Net, or NO FIGURES / TAB OPEN; Members n/m · %; Thru door; *** CLOSED OUT *** / *** OPEN TAB ***), the note or its fallback, the facts (wristband, theme, with, Mandatory), "Who came n of m" with dots, then Wrap up / Open in Timeline / Edit / Delete.
+  - Empty: "No parties yet." with the officer or member line, Add party, and the blank Date / Party / Net.
+- **Sheets:**
+  - Add Party / Edit Party: Party name, When (the shared stacked schedule; a new party starts today), Party type as two wristband cards with their blurbs, Theme opt, Collab org opt, the foot line, Cancel, then Add Party / Save Changes.
+  - Mark Completed, step 1: the party and "Nov 8 · Open", the step dots, Door Revenue ($) *, Expenses ($) *, Net preview, Post-event notes, the foot line, then "Next: Who came? →" (or Mark Completed when there's no one to roll or the roll is already in).
+  - Mark Completed, step 2: "Who came? (12/13)" with All / None, Find a member… past 8, tick rows (box and name, as on the web), Nobody by that name., "**Mandatory** — count this toward each brother’s attendance %", the foot line, ← Back and Mark Completed.
+  - Delete Party: the web's confirm sentence, Cancel, Delete.
+- **Writes** are optimistic as on the web: add opens the new row, edit merges, wrap-up marks the row completed, delete removes it.
+  - A refusal rolls back and shows the web's sentence as an error toast (in place of its banner).
+  - A wrap-up on a still-saving party gets "Party is still saving. Wait a moment, then try again."
+  - The success haptic follows the server; the error haptic follows a refusal.
+  - Writes refresh the Timeline, home and Treasury.
+- **Signature moment:** once the server has the wrap-up, the night's receipt feeds out of the till and CLOSED OUT stamps across it (`~/moments/Till`, its own success haptic on the stamp), over the page. It clears itself, or on a tap. It is app-only.
+- **Shared form fields:** Service's schedule fields moved to `mobile/src/ui/WhenFields.tsx` (with `FormLabel`, `FormField`, `Chip`, `initialWhen`, `scheduleOf`, `timingOf`) and both forms use them. Service's add and legacy-edit sheets re-read word for word afterwards.
+- **Verified on :3100.** `/api/auth/me` returned ok-today first; a data-only dump was taken first and restored in one transaction after; the diff showed only the `\restrict` tokens.
+  - Add "Parity Night" (Tue Nov 24, 7:00 PM, Closed, Neon). It made its Timeline entry (category party) and opened in place.
+  - Edit it to Neon Glow / KDF.
+  - Wrap up Game Day Tailgate: door 300, spent 90, Cyrus Pak unticked. Result: completed, 12 present and 1 absent; the door moment played; net went from +$1,170 to +$1,380, 4 rolled.
+  - Delete Parity Night; its Timeline entry went too.
+  - Member 12: no Add party, no envelope, "Needs wrap-up" in place of "Wrap up →", and no Wrap up / Edit / Delete in the drawers.
+  - Gated off: with `parties` removed from ok-today's workflows, More has no Parties tile and the web sidebar has no entry (restored).
+  - Text matches the web word for word for:
+    - admin 2, member 12, day-one 14 and 16;
+    - the closed, rolled, due and upcoming drawers (officer and member);
+    - Add, Edit, both wrap-up steps and Delete.
+- **Deviations:**
+  - The zone's "Change" link and the DST choosers are not offered. Date and time use the day strip and clock.
+  - The web's dismissible error banner is an error toast.
+  - The door moment is app-only.
+  - The header "+" button the old app screen had is gone, because the web has none. Add party sits in the actions.
+- **Observed (server behaviour, same on the web):** during the run, Treasury's "in the account" rose by the door ($300), not the party's net ($210): $2,288 → $2,588, and back after the restore.
+- **Not exercised:**
+  - A money-only wrap-up (it needs a past, open party whose roll is already in; the seed has none).
+  - Refused writes and the still-saving guard.
+  - All day / several-day party saves.
+  - The live bearer smoke (it needs a Supabase token).
+- **Removed:**
+  - The app's party sheet (now the in-place drawer).
+  - The old wrap-up's in-sheet till and its invented captions ("Wrap it up", "Ringing it up…", "The money" / "Who came" step names, the success toasts).
+  - The term-gated roll (the web only asks whether anyone is on the roster and no roll is in).
+  - `lab/parties` still imports `Till`, `Book`, `Strip` and `Wristband`, so they stay.
 

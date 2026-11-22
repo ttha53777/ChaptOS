@@ -7,48 +7,26 @@ import { Sidebar } from "../../../components/Sidebar";
 import { Modal, FieldLabel, ConfirmDialog } from "../../../components/dashboard/primitives";
 import { inputDuskCls } from "../../../components/dashboard/styles";
 import { useChapter } from "../../../context/ChapterContext";
-import { PartyEvent, Brother, fmt$, fmtDate } from "../../../data";
+import { PartyEvent, Brother } from "../../../data";
 import { requestJson } from "../../../lib/api";
-import { todayStr, daysFromToday } from "../../../lib/dates";
+import { todayStr } from "../../../lib/dates";
 import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue } from "../../../components/timeline/ScheduleFields";
 import { scheduleDate, type Schedule } from "@/lib/calendar-feed/schedule";
 import { PaperIcon } from "../../../components/paper/PaperIcon";
 import "../../../components/dashboard/dashboard-ledger.css";
 import "./parties-ledger.css";
+import {
+  profit, subLine, partyTime, dow, monDay, mon, dayNum, signed$, upcomingLabel, orgInitials, PARTY_TYPES,
+  needsWrapUp as due$, isUpcoming as up$, newestFirst, waiting, takings, barPct, rollPct, briefing, heroTag, noteFor,
+  receiptNet, canTakeRoll as canRoll, money, fmt$, fmtDate, todayOf, FIND_AFTER,
+  PAGE, RECEIPT, FORM, WRAP, DELETE, SAY,
+} from "@/lib/parties/ledger";
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+// ─── helpers (rules and words: lib/parties/ledger) ──────────────────────────────
 
-function profit(p: PartyEvent) { return p.doorRevenue - p.expenses; }
-function needsWrapUp(p: PartyEvent) { return !p.completed && p.date < todayStr(); }
-function isUpcoming(p: PartyEvent) { return !p.completed && p.date >= todayStr(); }
-
-// "Open · All White · with KDF" — only the parts that exist.
-function subLine(p: PartyEvent) {
-  return [p.partyType, p.theme, p.collabOrg ? `with ${p.collabOrg}` : ""].filter(Boolean).join(" · ");
-}
-
-// ─── paper-look helpers ─────────────────────────────────────────────────────────
-
-/** "9:00 PM" from the linked calendar entry, else its legacy free text. */
-function partyTime(p: PartyEvent): string {
-  const s = p.schedule;
-  if (s && s.kind === "timed") {
-    return new Date(s.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: s.timeZone });
-  }
-  return p.time ?? "";
-}
-const dow = (date: string) => new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
-const monDay = (date: string) => new Date(date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
-/** "+$1,240" / "−$80", whole dollars. */
-function signed$(n: number) { return `${n >= 0 ? "+" : "−"}$${Math.round(Math.abs(n)).toLocaleString("en-US")}`; }
-function upcomingLabel(date: string) {
-  const n = daysFromToday(date);
-  return n <= 0 ? "Today" : n === 1 ? "Tomorrow" : n <= 7 ? `In ${n} days` : "Upcoming";
-}
-/** The seal on the wrap-up envelope: the org's initials. */
-function orgInitials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => [...w][0]).join("").toUpperCase();
-}
+const localToday = () => todayOf(new Date());
+function needsWrapUp(p: PartyEvent) { return due$(p, localToday()); }
+function isUpcoming(p: PartyEvent) { return up$(p, localToday()); }
 
 /** Open/Closed as the wristband you'd get at the door. */
 function Wristband({ type }: { type: PartyEvent["partyType"] }) {
@@ -87,16 +65,12 @@ function partyWhen(value: ScheduleValue): PartyWhen | { error: string } {
   return result.schedule ? { date: scheduleDate(result.schedule), schedule: result.schedule } : { date: value.date };
 }
 
-const PARTY_TYPES: { v: "Open" | "Closed"; blurb: string }[] = [
-  { v: "Open",   blurb: "Anyone with a wristband. Door money counts." },
-  { v: "Closed", blurb: "Members and their plus-ones." },
-];
 
 // The type is picked off two wristband cards.
 function PartyTypeField({ value, onChange }: { value: "Open" | "Closed"; onChange: (v: "Open" | "Closed") => void }) {
   return (
     <div className="cef-field pty-type-field">
-      <label className="cef-label">Party type</label>
+      <label className="cef-label">{FORM.type}</label>
       <div className="pty-types" role="radiogroup" aria-label="Party type">
         {PARTY_TYPES.map(t => (
           <label key={t.v}>
@@ -112,7 +86,7 @@ function PartyTypeField({ value, onChange }: { value: "Open" | "Closed"; onChang
 function PartyWhenField({ value, onChange, error }: { value: ScheduleValue; onChange: (v: ScheduleValue) => void; error: string }) {
   return (
     <div className="cef-field">
-      <span className="cef-label">When</span>
+      <span className="cef-label">{FORM.when}</span>
       <ScheduleFields value={value} onChange={onChange} legacyReadOnly />
       {error && <p role="alert" className="cef-hint sched-warn">{error}</p>}
     </div>
@@ -140,30 +114,30 @@ function AddPartyForm({ onSubmit, onClose }: {
       onSubmit({ ...form, ...timing });
     }} className="cef-root cef">
       <div className="cef-field">
-        <label className="cef-label" htmlFor="party-name">Party name</label>
-        <input id="party-name" className="cef-input" required value={form.name} onChange={set("name")} placeholder="Spring Rush Social" />
+        <label className="cef-label" htmlFor="party-name">{FORM.name}</label>
+        <input id="party-name" className="cef-input" required value={form.name} onChange={set("name")} placeholder={FORM.namePh} />
       </div>
       <PartyWhenField value={when} onChange={setWhen} error={whenError} />
       <div className="pty-form-grid grid grid-cols-2 gap-3">
         <PartyTypeField value={form.partyType} onChange={partyType => setForm(f => ({ ...f, partyType }))} />
         <div className="cef-field">
-          <label className="cef-label" htmlFor="party-theme">Theme<span className="opt">opt</span></label>
-          <input id="party-theme" className="cef-input" value={form.theme} onChange={set("theme")} placeholder="All White, Black & Gold…" />
+          <label className="cef-label" htmlFor="party-theme">{FORM.theme}<span className="opt">{FORM.opt}</span></label>
+          <input id="party-theme" className="cef-input" value={form.theme} onChange={set("theme")} placeholder={FORM.themePhAdd} />
         </div>
         <div className="cef-field">
-          <label className="cef-label" htmlFor="party-collab">Collab org<span className="opt">opt</span></label>
-          <input id="party-collab" className="cef-input" value={form.collabOrg} onChange={set("collabOrg")} placeholder="KDF, DSP…" />
+          <label className="cef-label" htmlFor="party-collab">{FORM.collab}<span className="opt">{FORM.opt}</span></label>
+          <input id="party-collab" className="cef-input" value={form.collabOrg} onChange={set("collabOrg")} placeholder={FORM.collabPh} />
         </div>
       </div>
       <div className="pty-foot flex gap-2 justify-end pt-1">
-        <span className="pty-fnote">Lands on the Timeline as a party.</span>
+        <span className="pty-fnote">{FORM.addFoot}</span>
         <button type="button" onClick={onClose}
           className="ui-btn-ghost rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[color:var(--ink-soft)] hover:bg-[rgba(var(--ink-rgb),0.04)] transition-colors">
-          Cancel
+          {FORM.cancel}
         </button>
         <button type="submit"
           className="rounded-lg bg-[color:var(--vio-deep)] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">
-          Add Party
+          {FORM.add}
         </button>
       </div>
     </form>
@@ -192,30 +166,30 @@ function EditPartyForm({ party, onSubmit, onClose }: {
       onSubmit({ name, ...timing, partyType, theme, collabOrg });
     }} className="cef-root cef">
       <div className="cef-field">
-        <label className="cef-label" htmlFor="party-name">Party name</label>
+        <label className="cef-label" htmlFor="party-name">{FORM.name}</label>
         <input id="party-name" className="cef-input" required value={name} onChange={e => setName(e.target.value)} />
       </div>
       <PartyWhenField value={when} onChange={setWhen} error={whenError} />
       <div className="pty-form-grid grid grid-cols-2 gap-3">
         <PartyTypeField value={partyType} onChange={setPartyType} />
         <div className="cef-field">
-          <label className="cef-label" htmlFor="party-theme">Theme<span className="opt">opt</span></label>
-          <input id="party-theme" className="cef-input" value={theme} onChange={e => setTheme(e.target.value)} placeholder="All White…" />
+          <label className="cef-label" htmlFor="party-theme">{FORM.theme}<span className="opt">{FORM.opt}</span></label>
+          <input id="party-theme" className="cef-input" value={theme} onChange={e => setTheme(e.target.value)} placeholder={FORM.themePhEdit} />
         </div>
         <div className="cef-field">
-          <label className="cef-label" htmlFor="party-collab">Collab org<span className="opt">opt</span></label>
-          <input id="party-collab" className="cef-input" value={collabOrg} onChange={e => setCollabOrg(e.target.value)} placeholder="KDF, DSP…" />
+          <label className="cef-label" htmlFor="party-collab">{FORM.collab}<span className="opt">{FORM.opt}</span></label>
+          <input id="party-collab" className="cef-input" value={collabOrg} onChange={e => setCollabOrg(e.target.value)} placeholder={FORM.collabPh} />
         </div>
       </div>
       <div className="pty-foot flex gap-2 justify-end pt-1">
-        <span className="pty-fnote">Changes carry to its Timeline entry.</span>
+        <span className="pty-fnote">{FORM.editFoot}</span>
         <button type="button" onClick={onClose}
           className="ui-btn-ghost rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[color:var(--ink-soft)] hover:bg-[rgba(var(--ink-rgb),0.04)] transition-colors">
-          Cancel
+          {FORM.cancel}
         </button>
         <button type="submit"
           className="rounded-lg bg-[color:var(--vio-deep)] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">
-          Save Changes
+          {FORM.save}
         </button>
       </div>
     </form>
@@ -256,8 +230,8 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
     setPresent(prev => { const n = new Set(prev); for (const b of shown) on ? n.add(b.id) : n.delete(b.id); return n; });
   }
 
-  const profitPreview = (Number(form.doorRevenue) || 0) - (Number(form.expenses) || 0);
-  const canTakeRoll = brothers.length > 0 && !alreadyRolled;
+  const profitPreview = money(form.doorRevenue) - money(form.expenses);
+  const canTakeRoll = canRoll(brothers.length, alreadyRolled);
 
   function submitMoneyOnly() { onSubmit(form); }
   function submitWithRoll()  { onSubmit({ ...form, attendedIds: [...present], mandatory }); }
@@ -270,10 +244,10 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
       <div className="pty-wrap-head rounded-lg bg-[rgba(var(--ink-rgb),0.04)] px-4 py-3 mb-1 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[13px] font-semibold text-[color:var(--ink)]">{party.name}</p>
-          <p className="text-[11px] text-[color:var(--muted)] mt-0.5">{fmtDate(party.date)} · {subLine(party)}</p>
+          <p className="text-[11px] text-[color:var(--muted)] mt-0.5">{WRAP.head(party)}</p>
         </div>
         {canTakeRoll && (
-          <div className="pty-steps flex gap-1.5 shrink-0" aria-label={`Step ${step} of 2`}>
+          <div className="pty-steps flex gap-1.5 shrink-0" aria-label={WRAP.step(step)}>
             <span className={`h-1.5 w-1.5 rounded-full ${step === 1 ? "on bg-[color:var(--vio)]" : "bg-[color:var(--faint)]"}`} />
             <span className={`h-1.5 w-1.5 rounded-full ${step === 2 ? "on bg-[color:var(--vio)]" : "bg-[color:var(--faint)]"}`} />
           </div>
@@ -284,29 +258,29 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
         <form onSubmit={e => { e.preventDefault(); canTakeRoll ? setStep(2) : submitMoneyOnly(); }} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <FieldLabel tone="dusk">Door Revenue ($) *</FieldLabel>
-              <div className="pty-amt"><input type="number" min="0" step="0.01" inputMode="decimal" className={inputDuskCls} required autoFocus value={form.doorRevenue} onChange={set("doorRevenue")} placeholder="0.00" /></div>
+              <FieldLabel tone="dusk">{WRAP.door}</FieldLabel>
+              <div className="pty-amt"><input type="number" min="0" step="0.01" inputMode="decimal" className={inputDuskCls} required autoFocus value={form.doorRevenue} onChange={set("doorRevenue")} placeholder={WRAP.amtPh} /></div>
             </div>
             <div>
-              <FieldLabel tone="dusk">Expenses ($) *</FieldLabel>
-              <div className="pty-amt"><input type="number" min="0" step="0.01" inputMode="decimal" className={inputDuskCls} required value={form.expenses} onChange={set("expenses")} placeholder="0.00" /></div>
+              <FieldLabel tone="dusk">{WRAP.spent}</FieldLabel>
+              <div className="pty-amt"><input type="number" min="0" step="0.01" inputMode="decimal" className={inputDuskCls} required value={form.expenses} onChange={set("expenses")} placeholder={WRAP.amtPh} /></div>
             </div>
           </div>
           <div className="pty-pv rounded-lg bg-[rgba(var(--ink-rgb),0.04)] px-3 py-2.5 text-center">
-            <p className="text-[10px] text-[color:var(--faint)] mb-0.5">Net preview</p>
+            <p className="text-[10px] text-[color:var(--faint)] mb-0.5">{WRAP.preview}</p>
             <p className={`text-[18px] font-bold tabular-nums ${profitPreview >= 0 ? "text-[color:var(--ok)]" : "neg text-[color:var(--rose)]"}`}>
               <span>{signed$(profitPreview)}</span>
             </p>
           </div>
           <div>
-            <FieldLabel tone="dusk">Post-event notes</FieldLabel>
-            <textarea className={`${inputDuskCls} resize-none`} rows={2} value={form.notes} onChange={set("notes")} placeholder="How did it go?" />
+            <FieldLabel tone="dusk">{WRAP.notes}</FieldLabel>
+            <textarea className={`${inputDuskCls} resize-none`} rows={2} value={form.notes} onChange={set("notes")} placeholder={WRAP.notesPh} />
           </div>
           <div className="pty-foot flex gap-2 justify-end pt-1">
-            <span className="pty-fnote">{canTakeRoll ? "Next you’ll tick off who came." : "The roll’s already in — this just saves the money."}</span>
-            <button type="button" onClick={onClose} className={ghostCls}>Cancel</button>
+            <span className="pty-fnote">{canTakeRoll ? WRAP.footRoll : WRAP.footMoney}</span>
+            <button type="button" onClick={onClose} className={ghostCls}>{WRAP.cancel}</button>
             <button type="submit" className={primaryCls}>
-              {canTakeRoll ? "Next: Who came? →" : "Mark Completed"}
+              {canTakeRoll ? WRAP.next : WRAP.done}
             </button>
           </div>
         </form>
@@ -315,17 +289,17 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
       {step === 2 && (
         <form onSubmit={e => { e.preventDefault(); submitWithRoll(); }} className="space-y-3">
           <div className="pty-rh flex items-center justify-between">
-            <FieldLabel tone="dusk">Who came? ({present.size}/{brothers.length})</FieldLabel>
+            <FieldLabel tone="dusk">{WRAP.whoOpen}{present.size}/{brothers.length})</FieldLabel>
             <div className="sp flex gap-2">
               <button type="button" onClick={() => markShown(true)}
-                className="text-[10px] uppercase tracking-wider text-[color:var(--muted)] hover:text-[color:var(--ink)]">All</button>
+                className="text-[10px] uppercase tracking-wider text-[color:var(--muted)] hover:text-[color:var(--ink)]">{WRAP.all}</button>
               <button type="button" onClick={() => markShown(false)}
-                className="text-[10px] uppercase tracking-wider text-[color:var(--muted)] hover:text-[color:var(--ink)]">None</button>
+                className="text-[10px] uppercase tracking-wider text-[color:var(--muted)] hover:text-[color:var(--ink)]">{WRAP.none}</button>
             </div>
           </div>
-          {brothers.length > 8 && (
+          {brothers.length > FIND_AFTER && (
             <input type="search" className={`${inputDuskCls} pty-find`} value={find} onChange={e => setFind(e.target.value)}
-              placeholder="Find a member…" aria-label="Find a member" autoComplete="off" />
+              placeholder={WRAP.find} aria-label="Find a member" autoComplete="off" />
           )}
           <div className="pty-rl max-h-[220px] overflow-y-auto rounded-lg border border-[rgba(var(--ink-rgb),0.08)] divide-y divide-[rgba(var(--ink-rgb),0.05)]">
             {shown.map(b => {
@@ -340,17 +314,17 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
                 </button>
               );
             })}
-            {shown.length === 0 && <p className="pty-rl-none px-3 py-3 text-[12px] text-[color:var(--muted)]">Nobody by that name.</p>}
+            {shown.length === 0 && <p className="pty-rl-none px-3 py-3 text-[12px] text-[color:var(--muted)]">{WRAP.nobody}</p>}
           </div>
           <label className="pty-req flex items-center gap-2.5 rounded-lg bg-[rgba(var(--ink-rgb),0.03)] px-3 py-2.5 cursor-pointer">
             <input type="checkbox" checked={mandatory} onChange={e => setMandatory(e.target.checked)}
               className="h-4 w-4 accent-[color:var(--vio)]" />
-            <span className="text-[12px] text-[color:var(--ink-soft)]"><b>Mandatory</b> — count this toward each brother&rsquo;s attendance %</span>
+            <span className="text-[12px] text-[color:var(--ink-soft)]"><b>{WRAP.mandatory[0]}</b>{WRAP.mandatory[1]}</span>
           </label>
           <div className="pty-foot flex gap-2 justify-end pt-1">
-            <span className="pty-fnote">Everyone starts ticked — untick the no-shows.</span>
-            <button type="button" onClick={() => setStep(1)} className={ghostCls}>← Back</button>
-            <button type="submit" className={primaryCls}>Mark Completed</button>
+            <span className="pty-fnote">{WRAP.footTick}</span>
+            <button type="button" onClick={() => setStep(1)} className={ghostCls}>{WRAP.back}</button>
+            <button type="submit" className={primaryCls}>{WRAP.done}</button>
           </div>
         </form>
       )}
@@ -377,18 +351,16 @@ function LedgerRow({ party, orgName, attendance, expanded, onToggle, onWrapUp, o
   const p = profit(party);
   const due = needsWrapUp(party);
   const upcoming = isUpcoming(party);
-  const day = Number(party.date.split("-")[2]);
+  const day = dayNum(party.date);
   const time = partyTime(party);
-  const attPct = attendance && attendance.eligible > 0
-    ? Math.round((attendance.present / attendance.eligible) * 100)
-    : null;
+  const attPct = rollPct(attendance);
 
   return (
     <div className={`pty-row${expanded ? " open" : ""}${upcoming ? " future" : ""}${due ? " due" : ""}`} data-id={party.id}>
       <button type="button" className="lead" onClick={onToggle} aria-expanded={expanded}>
         <div className="led-date">
           <div className="dnum">{day}</div>
-          <div className="mon">{new Date(party.date + "T12:00:00").toLocaleString("en-US", { month: "short" })}</div>
+          <div className="mon">{mon(party.date)}</div>
         </div>
         <div className="led-main">
           <div className="t">
@@ -410,14 +382,14 @@ function LedgerRow({ party, orgName, attendance, expanded, onToggle, onWrapUp, o
             <div className={`nv ${p >= 0 ? "pos" : "neg"}`}>
               <span>{signed$(p)}</span>
             </div>
-            <div className="nk">net</div>
+            <div className="nk">{PAGE.net}</div>
           </div>
         ) : due && canParties ? (
-          <button type="button" className="pty-badge wrap" onClick={onWrapUp}>Wrap up →</button>
+          <button type="button" className="pty-badge wrap" onClick={onWrapUp}>{PAGE.wrap}</button>
         ) : due ? (
-          <span className="pty-badge wrap" style={{ cursor: "default" }}>Needs wrap-up</span>
+          <span className="pty-badge wrap" style={{ cursor: "default" }}>{PAGE.needs}</span>
         ) : (
-          <span className="pty-badge up"><span>{upcomingLabel(party.date)}</span></span>
+          <span className="pty-badge up"><span>{upcomingLabel(party.date, localToday())}</span></span>
         )}
         <span className="chev" onClick={onToggle} aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 6l6 6-6 6" /></svg>
@@ -430,48 +402,48 @@ function LedgerRow({ party, orgName, attendance, expanded, onToggle, onWrapUp, o
           <div className="pty-dr">
             <div className="pty-rw">
               <div className="pty-rc">
-                <p className="hd">{orgName} · the house<b>{party.name}</b>{dow(party.date)} {monDay(party.date)}{time && ` · ${time}`}</p>
+                <p className="hd">{RECEIPT.head(orgName)}<b>{party.name}</b>{dow(party.date)} {monDay(party.date)}{time && ` · ${time}`}</p>
                 <hr />
                 {party.completed ? <>
-                  <p className="ln"><span>Door</span><span>{fmt$(party.doorRevenue)}</span></p>
-                  <p className="ln"><span>Spent</span><span>−{fmt$(party.expenses)}</span></p>
+                  <p className="ln"><span>{RECEIPT.door}</span><span>{fmt$(party.doorRevenue)}</span></p>
+                  <p className="ln"><span>{RECEIPT.spent}</span><span>−{fmt$(party.expenses)}</span></p>
                   <hr />
-                  <p className={`ln tot${p < 0 ? " neg" : ""}`}><span>Net</span><span>{p >= 0 ? "+" : "−"}{fmt$(Math.abs(p))}</span></p>
+                  <p className={`ln tot${p < 0 ? " neg" : ""}`}><span>{RECEIPT.net}</span><span>{receiptNet(p)}</span></p>
                 </> : <>
-                  <p className={`open${due ? " due" : ""}`}>{due ? "NO FIGURES" : "TAB OPEN"}</p>
-                  <p className="sm">{due ? "Happened already — no figures recorded yet." : "Numbers open until it’s wrapped up."}</p>
+                  <p className={`open${due ? " due" : ""}`}>{due ? RECEIPT.noFigures : RECEIPT.tabOpen}</p>
+                  <p className="sm">{due ? RECEIPT.dueLine : RECEIPT.openLine}</p>
                 </>}
                 {attendance && attendance.eligible > 0 && <>
                   <hr />
-                  <p className="ln"><span>Members</span><span>{attendance.present}/{attendance.eligible} · {attPct}%</span></p>
+                  <p className="ln"><span>{RECEIPT.members}</span><span>{attendance.present}/{attendance.eligible} · {attPct}%</span></p>
                 </>}
-                {party.attendance > 0 && <p className="ln"><span>Thru door</span><span>{party.attendance}</span></p>}
-                <p className="ft">{party.completed ? "*** CLOSED OUT ***" : "*** OPEN TAB ***"}</p>
+                {party.attendance > 0 && <p className="ln"><span>{RECEIPT.thru}</span><span>{party.attendance}</span></p>}
+                <p className="ft">{party.completed ? RECEIPT.closed : RECEIPT.open}</p>
               </div>
             </div>
             <div className="pty-side">
               <p className={`pty-note${party.notes ? " q" : " quiet"}`}>
-                {party.notes || (upcoming ? "Numbers open until it’s wrapped up." : due ? "Happened already — no figures recorded yet." : "No notes.")}
+                {noteFor(party, localToday())}
               </p>
               <div className="pty-facts">
                 <Wristband type={party.partyType} />
                 {party.theme && <span><PaperIcon name="star" />{party.theme}</span>}
                 {party.collabOrg && <span><PaperIcon name="people" />with {party.collabOrg}</span>}
-                {party.mandatory && <span><PaperIcon name="check" />Mandatory — counts toward attendance</span>}
+                {party.mandatory && <span><PaperIcon name="check" />{RECEIPT.mandatory}</span>}
               </div>
               {attendance && attendance.eligible > 0 && (
                 <div className="pty-roll">
-                  <p className="pty-k">Who came<b>{attendance.present} of {attendance.eligible}</b></p>
+                  <p className="pty-k">{RECEIPT.whoCame}<b>{RECEIPT.of(attendance)}</b></p>
                   <div className="pty-dots" aria-hidden="true">
                     {Array.from({ length: attendance.eligible }, (_, i) => <i key={i} className={i < attendance.present ? "p" : ""} />)}
                   </div>
                 </div>
               )}
               <div className="pty-acts">
-                {due && canParties && <button type="button" className="pb" onClick={onWrapUp}><PaperIcon name="check" />Wrap up</button>}
-                {party.attendanceEventId != null && <button type="button" className="pb soft" onClick={onOpenTimeline}><PaperIcon name="timeline" />Open in Timeline</button>}
-                {canParties && <button type="button" className="pb soft" onClick={onEdit}><PaperIcon name="pencil" />Edit</button>}
-                {canParties && <button type="button" className="pb del" onClick={onDelete}><PaperIcon name="trash" />Delete</button>}
+                {due && canParties && <button type="button" className="pb" onClick={onWrapUp}><PaperIcon name="check" />{RECEIPT.wrapUp}</button>}
+                {party.attendanceEventId != null && <button type="button" className="pb soft" onClick={onOpenTimeline}><PaperIcon name="timeline" />{RECEIPT.timeline}</button>}
+                {canParties && <button type="button" className="pb soft" onClick={onEdit}><PaperIcon name="pencil" />{RECEIPT.edit}</button>}
+                {canParties && <button type="button" className="pb del" onClick={onDelete}><PaperIcon name="trash" />{RECEIPT.del}</button>}
               </div>
             </div>
           </div>
@@ -534,24 +506,10 @@ export default function PartiesPage() {
   }, []);
 
   // ── derived lists (all from partyList, newest first) ───────────────────────────
-  const sorted = useMemo(
-    () => [...partyList].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id),
-    [partyList],
-  );
+  const sorted = useMemo(() => newestFirst(partyList), [partyList]);
 
   const wrapUpParty = useMemo(() => partyList.find(p => p.id === wrapUpId)  ?? null, [partyList, wrapUpId]);
   const editParty   = useMemo(() => partyList.find(p => p.id === editingId) ?? null, [partyList, editingId]);
-
-  // ── takings summary (completed parties only) ───────────────────────────────────
-  const completed   = useMemo(() => partyList.filter(p => p.completed), [partyList]);
-  const totalRevenue  = useMemo(() => completed.reduce((s, p) => s + p.doorRevenue, 0), [completed]);
-  const totalExpenses = useMemo(() => completed.reduce((s, p) => s + p.expenses,    0), [completed]);
-  const totalNet      = totalRevenue - totalExpenses;
-  const keptPct       = totalRevenue > 0 ? Math.round((totalNet / totalRevenue) * 100) : 0;
-  const bestParty     = useMemo(() => {
-    if (!completed.length) return null;
-    return completed.reduce((a, b) => profit(b) > profit(a) ? b : a);
-  }, [completed]);
 
   // ── avg member attendance across parties that have roll logged ─────────────────
   // partyAttendance maps partyId → { present, eligible } from the summary endpoint.
@@ -561,17 +519,8 @@ export default function PartiesPage() {
     for (const r of attendanceRows) m[r.partyId] = { present: r.present, eligible: r.eligible };
     return m;
   }, [attendanceRows]);
-  const rolledCount = useMemo(() => Object.values(partyAttendance).filter(a => a.eligible > 0).length, [partyAttendance]);
-  const avgAttendance = useMemo(() => {
-    const rolled = Object.values(partyAttendance).filter(a => a.eligible > 0);
-    if (rolled.length === 0) return null;
-    const sum = rolled.reduce((s, a) => s + a.present / a.eligible, 0);
-    return Math.round((sum / rolled.length) * 100);
-  }, [partyAttendance]);
-
-  // Paper's night-by-night strip: closed parties oldest → newest, bars scaled to the biggest swing.
-  const chron = useMemo(() => [...completed].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id), [completed]);
-  const maxSwing = useMemo(() => Math.max(1, ...chron.map(p => Math.abs(profit(p)))), [chron]);
+  const t = useMemo(() => takings(partyList, Object.values(partyAttendance)), [partyList, partyAttendance]);
+  const { closed: completed, door: totalRevenue, spent: totalExpenses, net: totalNet, keptPct, best: bestParty, avg: avgAttendance, rolled: rolledCount, chron, maxSwing } = t;
   function jumpTo(id: number) {
     setExpandedId(id);
     requestAnimationFrame(() => {
@@ -580,10 +529,7 @@ export default function PartiesPage() {
   }
 
   // ── needs-wrap-up (past, not completed) — the one task ─────────────────────────
-  const needWrap = useMemo(
-    () => partyList.filter(needsWrapUp).sort((a, b) => a.date.localeCompare(b.date)), // most overdue first
-    [partyList],
-  );
+  const needWrap = useMemo(() => waiting(partyList, localToday()), [partyList]); // most overdue first
   const heroParty = needWrap[0] ?? null;
 
   const orgName = currentUser?.org?.name ?? "ChaptOS";
@@ -607,7 +553,7 @@ export default function PartiesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: form.name, date: form.date, schedule: form.schedule, partyType: form.partyType, theme: form.theme, collabOrg: form.collabOrg }),
       }),
-      "Could not save party. Changes reverted.",
+      SAY.addFailed,
       () => { setPartyList(prev => prev.filter(p => p.id !== tempId)); setExpandedId(null); },
       saved => {
         const s = saved as PartyEvent;
@@ -629,7 +575,7 @@ export default function PartiesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
       }),
-      "Could not save changes. Changes reverted.",
+      SAY.editFailed,
       () => { if (prev) setPartyList(list => list.map(p => p.id === editingId ? prev : p)); },
     );
   }
@@ -638,14 +584,14 @@ export default function PartiesPage() {
     if (!wrapUpId) return;
     const id = wrapUpId;
     if (id > 1_000_000_000) {
-      setPageError("Party is still saving. Wait a moment, then try again.");
+      setPageError(SAY.stillSaving);
       return;
     }
     const prev = partyList.find(p => p.id === id);
     // Optimistic money/completed; roll persists server-side and is reflected after refetch.
     const optimistic = {
-      doorRevenue: Number(form.doorRevenue) || 0,
-      expenses:    Number(form.expenses)    || 0,
+      doorRevenue: money(form.doorRevenue),
+      expenses:    money(form.expenses),
       notes:       form.notes,
       completed:   true,
     };
@@ -661,13 +607,13 @@ export default function PartiesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           wrapUp:      true,
-          doorRevenue: Number(form.doorRevenue) || 0,
-          expenses:    Number(form.expenses)    || 0,
+          doorRevenue: money(form.doorRevenue),
+          expenses:    money(form.expenses),
           notes:       form.notes,
           ...(form.attendedIds !== undefined ? { attendedIds: form.attendedIds, mandatory: !!form.mandatory } : {}),
         }),
       }),
-      "Could not mark party completed. Changes reverted.",
+      SAY.wrapFailed,
       () => { if (prev) setPartyList(list => list.map(p => p.id === id ? prev : p)); },
       saved => { setPartyList(list => list.map(p => p.id === id ? saved as PartyEvent : p)); loadAttendance(); },
     );
@@ -679,7 +625,7 @@ export default function PartiesPage() {
     if (expandedId === id) setExpandedId(null);
     persist(
       requestJson<void>(`/api/parties/${id}`, { method: "DELETE" }),
-      "Could not delete party. Changes reverted.",
+      SAY.deleteFailed,
       () => { if (prev) setPartyList(list => [...list, prev].sort((a, b) => a.id - b.id)); },
     );
   }
@@ -704,7 +650,7 @@ export default function PartiesPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="pty-crumb truncate">Parties</span>
+          <span className="pty-crumb truncate">{PAGE.crumb}</span>
         </header>
 
         {/* ── Scrollable dusk ledger pane ── */}
@@ -729,30 +675,26 @@ export default function PartiesPage() {
                   <span className="today">
                     <span>{dow(todayStr())} · {monDay(todayStr())}</span>
                   </span>
-                  Parties&ensp;·&ensp;{orgName}
+                  {PAGE.kicker(orgName).replace(" · ", "\u2002·\u2002")}
                 </p>
-                <h1>The <em>house</em> ledger.</h1>
-                {!isLoading && <p className="sub">
-                  {completed.length > 0
-                    ? <>{completed.length} {completed.length === 1 ? "party" : "parties"} closed out and the books are <b>{totalNet >= 0 ? "net positive" : "in the red"}</b>.</>
-                    : "No parties closed out yet."}
-                  {needWrap.length > 0
-                    ? ` ${needWrap.length} ${needWrap.length === 1 ? "party is" : "parties are"} still waiting on numbers — close ${needWrap.length === 1 ? "it" : "them"} out and you're square.`
-                    : " Everything's accounted for."}
-                </p>}
+                <h1>{PAGE.title[0]}<em>{PAGE.title[1]}</em>{PAGE.title[2]}</h1>
+                {!isLoading && (() => {
+                  const b = briefing(completed.length, totalNet, needWrap.length);
+                  return <p className="sub">{b.strong ? <>{b.lead}<b>{b.strong}</b></> : b.lead}{b.rest}</p>;
+                })()}
               </div>
               <div className="pty-actions">
                 {canParties && (
                   <button className="pty-add" onClick={() => setModal("add")}>
                     <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                    Add party
+                    {PAGE.add}
                   </button>
                 )}
                 <button
                   className="pty-ask"
-                  onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: "What did the door clear this semester?" } }))}
+                  onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: PAGE.askQ } }))}
                 >
-                  <PaperIcon name="spark" />Ask what the door cleared<kbd>⌘K</kbd>
+                  <PaperIcon name="spark" />{PAGE.ask}<kbd>⌘K</kbd>
                 </button>
               </div>
             </section>
@@ -760,7 +702,7 @@ export default function PartiesPage() {
             {isLoading ? (
               <>
                 <div className="pty-skel glance" />
-                <div className="pty-sec" style={{ marginTop: 32 }}><h2>Every party</h2><span className="rule" /></div>
+                <div className="pty-sec" style={{ marginTop: 32 }}><h2>{PAGE.book}</h2><span className="rule" /></div>
                 <div className="pty-skel">
                   {[...Array(5)].map((_, i) => (
                     <div className="ln" key={i}><span className="bar w1" /><span className="bar w2" /></div>
@@ -778,14 +720,14 @@ export default function PartiesPage() {
                       <PaperIcon name="clock" className="pp-ic" />
                     </div>
                     <div className="nd-body">
-                      <div className="nd-tag">Needs wrap-up · {Math.max(0, -daysFromToday(heroParty.date))} {-daysFromToday(heroParty.date) === 1 ? "day" : "days"} ago</div>
+                      <div className="nd-tag">{heroTag(heroParty.date, localToday())}</div>
                       <div className="nd-title">{heroParty.name}</div>
-                      <div className="nd-meta">{subLine(heroParty)} · <b><span>{dow(heroParty.date)}, </span>{fmtDate(heroParty.date)}</b> — add the door &amp; expenses so the semester totals are right.</div>
-                      {needWrap.length > 1 && <div className="nd-more">+{needWrap.length - 1} more waiting below</div>}
+                      <div className="nd-meta">{subLine(heroParty)} · <b><span>{dow(heroParty.date)}, </span>{fmtDate(heroParty.date)}</b>{PAGE.heroMeta}</div>
+                      {needWrap.length > 1 && <div className="nd-more">{PAGE.heroMore(needWrap.length - 1)}</div>}
                     </div>
                     <button className="pty-do" onClick={() => openWrapUp(heroParty.id)}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                      Close it out
+                      {PAGE.heroAct}
                     </button>
                   </div>
                 )}
@@ -794,29 +736,29 @@ export default function PartiesPage() {
                 {completed.length > 0 && (
                   <div className="pty-takings">
                     <div className="head-num">
-                      <div className="k">Net this semester</div>
+                      <div className="k">{PAGE.netK}</div>
                       <div className={`v${totalNet >= 0 ? "" : " neg"}`}>
                         <span>{signed$(totalNet)}</span>
                       </div>
-                      <div className="note">across {completed.length} closed {completed.length === 1 ? "party" : "parties"}</div>
+                      <div className="note">{PAGE.netNote(completed.length)}</div>
                     </div>
                     <div className="vrule" />
                     <div className="breakdown">
-                      <div className="bd"><div className="k">Door taken</div><div className="v">{fmt$(totalRevenue)}</div><div className="sub">gross revenue</div></div>
-                      <div className="bd"><div className="k">Spent</div><div className="v">{fmt$(totalExpenses)}</div><div className="sub">kept {keptPct}%</div></div>
-                      <div className="bd"><div className="k">Avg attendance</div><div className="v">{avgAttendance !== null ? `${avgAttendance}%` : "—"}</div><div className="sub">
-                        <span>{avgAttendance !== null ? `of members, ${rolledCount} rolled` : "no roll taken yet"}</span>
+                      <div className="bd"><div className="k">{PAGE.door}</div><div className="v">{fmt$(totalRevenue)}</div><div className="sub">{PAGE.doorSub}</div></div>
+                      <div className="bd"><div className="k">{PAGE.spent}</div><div className="v">{fmt$(totalExpenses)}</div><div className="sub">{PAGE.spentSub(keptPct)}</div></div>
+                      <div className="bd"><div className="k">{PAGE.avg}</div><div className="v">{avgAttendance !== null ? `${avgAttendance}%` : PAGE.none}</div><div className="sub">
+                        <span>{PAGE.avgSub(avgAttendance !== null ? rolledCount : null)}</span>
                       </div></div>
-                      <div className="bd best"><div className="k">Best night</div><div className="v">
-                        <span>{bestParty ? signed$(profit(bestParty)) : "—"}</span>
-                      </div><div className="sub">{bestParty?.name ?? "none yet"}</div></div>
+                      <div className="bd best"><div className="k">{PAGE.best}</div><div className="v">
+                        <span>{bestParty ? signed$(profit(bestParty)) : PAGE.none}</span>
+                      </div><div className="sub">{bestParty?.name ?? PAGE.bestNone}</div></div>
                     </div>
                     <div className="pty-strip">
-                      <div className="hh"><p className="pty-k">Night by night</p><small>net per closed party — tap one to open it</small></div>
+                      <div className="hh"><p className="pty-k">{PAGE.strip}</p><small>{PAGE.stripSub}</small></div>
                       <div className="bars">
                         {chron.map(p => {
                           const n = profit(p);
-                          const h = Math.max(6, Math.round(Math.abs(n) / maxSwing * 100));
+                          const h = barPct(n, maxSwing);
                           return (
                             <button type="button" key={p.id} className={`bar ${n >= 0 ? "pos" : "neg"}`} onClick={() => jumpTo(p.id)} title={`${p.name} · ${signed$(n)}`}>
                               <b>{signed$(n)}</b>
@@ -833,29 +775,27 @@ export default function PartiesPage() {
 
                 {/* ── 3 · The ledger ── */}
                 <div className="pty-sec">
-                  <h2>Every party</h2>
+                  <h2>{PAGE.book}</h2>
                   <span className="rule" />
-                  <span className="cnt">{sorted.length} total · newest first</span>
+                  <span className="cnt">{PAGE.count(sorted.length)}</span>
                 </div>
 
                 {sorted.length === 0 ? (
                   <div className="pty-empty">
                     <div className="pty-empty-copy">
-                      <div className="t">No parties yet<span>.</span></div>
-                      <div className="h">{canParties
-                        ? "Add your first party to start tracking the books — after the night, close it out with the door and what you spent, and the semester’s net keeps itself."
-                        : "Nothing here yet. Once an officer adds a party, it lands in this book."}</div>
+                      <div className="t">{PAGE.emptyT}<span>.</span></div>
+                      <div className="h">{canParties ? PAGE.emptyOfficer : PAGE.emptyMember}</div>
                       {canParties && (
                         <button className="pty-add" onClick={() => setModal("add")}>
-                          <PaperIcon name="plus" />Add party
+                          <PaperIcon name="plus" />{PAGE.add}
                         </button>
                       )}
                     </div>
-                    <div className="pty-blank" aria-hidden="true"><span style={{ left: 14 }}>Date</span><span style={{ left: 68 }}>Party</span><span style={{ right: 16 }}>Net</span></div>
+                    <div className="pty-blank" aria-hidden="true"><span style={{ left: 14 }}>{PAGE.cols[0]}</span><span style={{ left: 68 }}>{PAGE.cols[1]}</span><span style={{ right: 16 }}>{PAGE.cols[2]}</span></div>
                   </div>
                 ) : (
                   <div className="pty-ledger">
-                    <div className="pty-cols" aria-hidden="true"><span>Date</span><span>Party</span><span>Net</span><span /></div>
+                    <div className="pty-cols" aria-hidden="true"><span>{PAGE.cols[0]}</span><span>{PAGE.cols[1]}</span><span>{PAGE.cols[2]}</span><span /></div>
                     {sorted.map(p => (
                       <LedgerRow
                         key={p.id}
@@ -882,17 +822,17 @@ export default function PartiesPage() {
 
       {/* modals */}
       {modal === "add" && (
-        <Modal title="Add Party" onClose={closeModal} tone="dusk" icon="note" accent="rose">
+        <Modal title={FORM.addTitle} onClose={closeModal} tone="dusk" icon="note" accent="rose">
           <AddPartyForm onSubmit={handleAdd} onClose={closeModal} />
         </Modal>
       )}
       {modal === "edit" && editParty && (
-        <Modal title="Edit Party" onClose={closeModal} tone="dusk" icon="note" accent="rose">
+        <Modal title={FORM.editTitle} onClose={closeModal} tone="dusk" icon="note" accent="rose">
           <EditPartyForm party={editParty} onSubmit={handleEdit} onClose={closeModal} />
         </Modal>
       )}
       {modal === "wrap-up" && wrapUpParty && (
-        <Modal title="Mark Completed" onClose={closeModal} tone="dusk" icon="receipt" accent="rose">
+        <Modal title={WRAP.title} onClose={closeModal} tone="dusk" icon="receipt" accent="rose">
           <WrapUpForm
             party={wrapUpParty}
             brothers={brotherList}
@@ -906,8 +846,8 @@ export default function PartiesPage() {
         const party = partyList.find(p => p.id === confirmDeleteId);
         return party ? (
           <ConfirmDialog
-            title="Delete Party"
-            message={<>Delete <span className="font-semibold text-[color:var(--ink)]">{party.name}</span>? Its timeline entry, financial totals, attendance records, and excuses will also be removed. This cannot be undone.</>}
+            title={DELETE.title}
+            message={<>{DELETE.message(party.name)[0]}<span className="font-semibold text-[color:var(--ink)]">{party.name}</span>{DELETE.message(party.name)[2]}</>}
             onCancel={() => setConfirmDeleteId(null)}
             onConfirm={() => { handleDelete(confirmDeleteId); setConfirmDeleteId(null); }}
             tone="dusk"

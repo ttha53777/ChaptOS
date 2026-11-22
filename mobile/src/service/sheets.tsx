@@ -9,16 +9,13 @@
  *   PunchMoment   the signature: my card punches the new holes once the server has them
  */
 import type { Brother, ServiceEvent, ServiceParticipationRow } from "@/lib/api-types";
-import { parseLegacyTime, timeIsClear } from "@/lib/calendar-feed/legacy-time";
-import { durationLabel, suspectLength } from "@/lib/timeline/schedule-length";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, StyleSheet, TextInput, View } from "react-native";
 import Animated, { FadeIn, FadeOut, ZoomIn } from "react-native-reanimated";
 import { localDay } from "~/data/home";
 import { useEntryOf } from "~/entry/EntryContext";
 import { Icon } from "~/icons/Icon";
-import { Clock, DayStrip } from "~/meetings/EventForm";
-import { addDays, deviceZone, wallOf, wallToInstant, zoneName } from "~/meetings/model";
+import { deviceZone } from "~/meetings/model";
 import { PunchHoles } from "~/moments/Punch";
 import { haptics } from "~/motion/haptics";
 import { pressedDim } from "~/motion/press";
@@ -29,34 +26,13 @@ import { alpha } from "~/theme/palette";
 import { useFontScale, useMotion, useTheme } from "~/theme/PaperProvider";
 import { resolveType } from "~/theme/type";
 import { T } from "~/ui/T";
+import { Chip, FormField, FormLabel, WhenFields, initialWhen, timingOf, type When } from "~/ui/WhenFields";
 import { DeskDate } from "./bits";
 import { FORM, LOG, MEMBER, MINE, MINE_CHIPS, dayLabel, logTally, memberGoalLine, memberLedger, r1 } from "./model";
 
 type Schedule = NonNullable<ServiceEvent["schedule"]>;
 
 /* ── shared bits ──────────────────────────────────────────────────────────────── */
-
-function Label({ text, opt, id }: { text: string; opt?: string; id?: string }) {
-  const { c } = useTheme();
-  return (
-    <T v="callout" nativeID={id} style={{ fontWeight: "600", marginBottom: 6 }}>
-      {text}{opt ? <T v="meta" color={c.ink3}>{`  ${opt}`}</T> : null}
-    </T>
-  );
-}
-
-function Field({ value, onChange, placeholder, label, multiline, autoFocus, readOnly }: {
-  value: string; onChange?: (t: string) => void; placeholder?: string; label: string; multiline?: boolean; autoFocus?: boolean; readOnly?: boolean;
-}) {
-  const { c } = useTheme();
-  const scale = useFontScale();
-  return (
-    <TextInput value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={c.faint} accessibilityLabel={label}
-      multiline={multiline} autoFocus={autoFocus} editable={!readOnly}
-      style={[resolveType("body", scale), styles.input, { color: readOnly ? c.ink2 : c.ink, borderColor: c.line2, backgroundColor: readOnly ? c.paper2 : c.card },
-        multiline && { minHeight: 110, textAlignVertical: "top" }]} />
-  );
-}
 
 function Foot({ note, cancel, go, ok, busy, onCancel, onGo }: { note?: string; cancel: string; go: string; ok: boolean; busy?: boolean; onCancel: () => void; onGo: () => void }) {
   const { c } = useTheme();
@@ -72,45 +48,6 @@ function Foot({ note, cancel, go, ok, busy, onCancel, onGo }: { note?: string; c
 }
 
 /* ── Log service event / Edit service event ───────────────────────────────────── */
-
-type Mode = "timed" | "allDay" | "legacy";
-interface When { mode: Mode; date: string; start: number | null; end: number | null; lastDay: string; legacy: string }
-
-const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-const minutesOf = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
-/** lib/event-time clock12, from minutes. */
-const clock12 = (m: number) => `${Math.floor(m / 60) % 12 || 12}:${String(m % 60).padStart(2, "0")} ${m < 720 ? "AM" : "PM"}`;
-
-/** ScheduleFields.initialSchedule for this page: new is timed with no date; a saved one opens as what it is. */
-function initialWhen(e: ServiceEvent | null, zone: string): When {
-  const base: When = { mode: "timed", date: e?.date ?? "", start: null, end: null, lastDay: "", legacy: "" };
-  const s = e?.schedule;
-  if (s?.kind === "timed") {
-    const w = wallOf(s.start, s.timeZone || zone), we = s.end ? wallOf(s.end, s.timeZone || zone) : null;
-    return { ...base, date: w?.date ?? base.date, start: w?.minutes ?? null, end: we?.minutes ?? null };
-  }
-  if (s?.kind === "allDay") {
-    const last = addDays(s.end, -1);
-    return { ...base, mode: "allDay", date: s.start, lastDay: last === s.start ? "" : last };
-  }
-  if (e?.time?.trim()) return { ...base, mode: "legacy", legacy: e.time.trim() };
-  return e ? { ...base, mode: "allDay" } : base;
-}
-
-/** ScheduleFields.scheduleFromValue. */
-function scheduleOf(w: When, zone: string): { schedule: Schedule | null } | { error: string } {
-  if (!w.date) return { error: "Choose a date." };
-  if (w.mode === "legacy") return { schedule: null };
-  if (w.mode === "allDay") {
-    if (w.lastDay && w.lastDay < w.date) return { error: "The last day can't be before the first." };
-    return { schedule: { kind: "allDay", start: w.date, end: addDays(w.lastDay || w.date, 1) } };
-  }
-  if (w.start == null) return { error: "Add a start time, or make it an all-day event." };
-  if (w.end != null && w.end === w.start) return { error: "The end time is the same as the start. Clear it or pick a later time." };
-  const start = wallToInstant(w.date, w.start, zone);
-  const end = w.end != null ? wallToInstant(w.end <= w.start ? addDays(w.date, 1) : w.date, w.end, zone) : undefined;
-  return { schedule: { kind: "timed", start, ...(end ? { end } : {}), timeZone: zone } };
-}
 
 export interface ServiceFormBody { title: string; date: string; location: string; notes: string; schedule?: Schedule | null }
 
@@ -136,26 +73,10 @@ export function ServiceForm({ open, editing, onClose, onSave }: {
     setWhen(initialWhen(editing, zone));
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const set = (p: Partial<When>) => setWhen(w => ({ ...w, ...p }));
-  const timed = when.mode === "timed";
-  const hasEnd = timed && when.start != null && when.end != null;
-  const sameAsStart = hasEnd && when.end === when.start;
-  const overnight = hasEnd && when.end! <= when.start!;
-  const suspect = hasEnd ? suspectLength(hhmm(when.start!), hhmm(when.end!)) : null;
-  const legacyRead = when.mode === "legacy" ? parseLegacyTime(when.legacy).start : undefined;
-  const convertLegacy = () => {
-    const g = parseLegacyTime(when.legacy);
-    set({ mode: "timed", start: g.start ? minutesOf(g.start) : null, end: g.end ? minutesOf(g.end) : null });
-  };
-  const link = (t: string, onPress: () => void) => <T v="meta" color={c.pastel.lilac.ink} style={styles.u} onPress={onPress} accessibilityRole="button">{t}</T>;
-  const city = (zone.split("/").pop() ?? zone).replace(/_/g, " ");
-
   const save = () => {
     if (!title) return;
-    const r = scheduleOf(when, zone);
-    if ("error" in r) { setErr(r.error); return; }
-    // A legacy free-text time is left as written until someone sets real times.
-    const timing = r.schedule ? { date: r.schedule.kind === "allDay" ? r.schedule.start : when.date, schedule: r.schedule } : { date: when.date };
+    const timing = timingOf(when, zone);
+    if ("error" in timing) { setErr(timing.error); return; }
     onSave({ title, location, notes, ...timing });
   };
 
@@ -164,104 +85,23 @@ export function ServiceForm({ open, editing, onClose, onSave }: {
       footer={<Foot note={FORM.foot(term?.label ?? null)} cancel={FORM.cancel} go={FORM.save(!editing)} ok={!!title} onCancel={onClose} onGo={save} />}>
       <View style={{ gap: 18 }}>
         <View>
-          <Label text={FORM.title} />
-          <Field value={title} onChange={setTitle} placeholder={FORM.titlePh} label={FORM.title} autoFocus={!editing} />
+          <FormLabel text={FORM.title} />
+          <FormField value={title} onChange={setTitle} placeholder={FORM.titlePh} label={FORM.title} autoFocus={!editing} />
         </View>
 
-        <View style={{ gap: 12 }}>
-          <Label text={FORM.when} />
-          <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel="Schedule">
-            {when.mode === "legacy" ? <Chip label="As written" on onPress={() => {}} /> : null}
-            {(["timed", "allDay"] as const).map(mode => (
-              <Chip key={mode} label={mode === "timed" ? "Set a time" : "All day"} on={when.mode === mode}
-                onPress={() => { haptics.select(); if (mode === "timed" && when.mode === "legacy") convertLegacy(); else set({ mode }); }} />
-            ))}
-          </View>
-          <View>
-            <Label text={when.mode === "allDay" && when.lastDay ? "First day" : "Date"} />
-            <DayStrip value={when.date} onChange={date => set({ date })} today={localDay()} term={term} usualDow={null} taken={new Set()} editing={!!editing} open={open} />
-          </View>
-          {timed ? (
-            <View style={styles.times}>
-              <View style={{ gap: 2 }}>
-                <Label text="Starts" />
-                {when.start == null ? (
-                  <Pressable onPress={() => set({ start: 19 * 60 })} accessibilityRole="button" accessibilityLabel="Starts"
-                    style={({ pressed }) => [styles.pick, { borderColor: c.line2, backgroundColor: c.card }, pressed && pressedDim]}>
-                    <T v="mono" color={c.faint}>--:-- --</T>
-                  </Pressable>
-                ) : <View accessibilityLabel="Starts"><Clock minutes={when.start} onChange={m => set(m == null ? { start: null, end: null } : { start: m })} tone="mint" /></View>}
-              </View>
-              {when.start != null || when.end != null ? (
-                <View style={{ gap: 2 }}>
-                  <Label text="Ends" opt="opt" />
-                  {when.end == null ? (
-                    <Pressable onPress={() => set({ end: ((when.start ?? 1140) + 120) % 1440 })} accessibilityRole="button" accessibilityLabel="Ends (optional)"
-                      style={({ pressed }) => [styles.pick, { borderColor: c.line2, backgroundColor: c.card }, pressed && pressedDim]}>
-                      <T v="mono" color={c.faint}>--:-- --</T>
-                    </Pressable>
-                  ) : <View accessibilityLabel="Ends (optional)"><Clock minutes={when.end} onChange={m => set({ end: m })} tone="mint" /></View>}
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-          {when.mode === "allDay" ? (
-            <View>
-              <Label text="Last day" opt="opt" />
-              <DayStrip value={when.lastDay} onChange={lastDay => set({ lastDay })} today={when.date || localDay()} term={term} usualDow={null} taken={new Set()} editing={!!editing} open={open} />
-            </View>
-          ) : null}
-          {when.mode === "legacy" ? (
-            <View>
-              <Label text="Time" opt="as written" />
-              <Field value={when.legacy} label="Time" readOnly />
-            </View>
-          ) : null}
-          {when.mode === "legacy" ? (
-            <T v="meta" color={c.ink3}>
-              {legacyRead
-                ? `Calendars show this at ${clock12(minutesOf(legacyRead))}${timeIsClear(when.legacy) ? "" : " (no AM/PM was typed, so it's read as PM)"}. `
-                : "Calendar subscriptions show this as an all-day event until it has a start time. "}
-              {link("Set a time", convertLegacy)}
-            </T>
-          ) : null}
-          {timed ? (
-            <>
-              {hasEnd && !sameAsStart && !suspect ? <T v="meta" color={c.ink3}>{`${durationLabel(hhmm(when.start!), hhmm(when.end!))}${overnight ? " · ends the next day" : ""}`}</T> : null}
-              {sameAsStart ? <T v="meta" color={c.pastel.rose.ink} accessibilityRole="alert">The end is the same as the start. Clear it or pick a later time.</T> : null}
-              {suspect && when.end != null ? (
-                <T v="meta" color={c.pastel.rose.ink} accessibilityRole="alert">
-                  {`This runs ${suspect.hours} hours, ending the next day at ${clock12(when.end)}. `}
-                  {suspect.suggest ? link(`Change to ${clock12(minutesOf(suspect.suggest))}`, () => set({ end: minutesOf(suspect.suggest!) })) : null}
-                </T>
-              ) : null}
-              <T v="meta" color={c.ink3}>{`Times in ${city} (${zoneName(zone)})${!orgZone && zone === deviceZone() ? " · this device's zone" : ""}.`}</T>
-            </>
-          ) : null}
-          {err ? <T v="meta" color={c.pastel.rose.ink} accessibilityRole="alert">{err}</T> : null}
-        </View>
+        <WhenFields value={when} onChange={setWhen} label={FORM.when} err={err} open={open} editing={!!editing} term={term} orgZone={orgZone} tone="mint" />
 
         <View>
-          <Label text={FORM.location} opt={FORM.opt} />
-          <Field value={location} onChange={setLocation} placeholder={FORM.locationPh} label={FORM.location} />
+          <FormLabel text={FORM.location} opt={FORM.opt} />
+          <FormField value={location} onChange={setLocation} placeholder={FORM.locationPh} label={FORM.location} />
         </View>
         <View>
-          <Label text={FORM.notes} opt={FORM.opt} />
+          <FormLabel text={FORM.notes} opt={FORM.opt} />
           <TextInput value={notes} onChangeText={setNotes} placeholder={FORM.notesPh} placeholderTextColor={c.faint} accessibilityLabel={FORM.notes} multiline
             style={[resolveType("body", scale), styles.input, { color: c.ink, borderColor: c.line2, backgroundColor: c.card, minHeight: 110, textAlignVertical: "top" }]} />
         </View>
       </View>
     </Sheet>
-  );
-}
-
-function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
-  const { c } = useTheme();
-  return (
-    <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected: on }}
-      style={[styles.chip, { borderColor: on ? c.ink : c.line2, backgroundColor: on ? c.pastel.lilac.soft : c.card }]}>
-      <T v="buttonSm" color={c.ink}>{label}</T>
-    </Pressable>
   );
 }
 

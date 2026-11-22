@@ -45,7 +45,7 @@ export function PartiesLab() {
       </View>
       <Strip key={`s${s}`} chron={CLOSED} max={630} onOpen={() => undefined} />
       <Button label="Grow again" variant="soft" size="sm" onPress={() => setS(x => x + 1)} />
-      <Book parties={PARTIES} today={today} officer onOpen={() => undefined} onWrap={() => undefined} />
+      <Book parties={PARTIES} today={today} officer org="Oozma Kappa" />
     </Section>
   );
 }

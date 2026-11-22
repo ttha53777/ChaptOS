@@ -17,7 +17,7 @@ import type { CalendarEvent, Doc, Fundraiser, InstagramPost, MeResponse, MemberD
 import type { IconName } from "~/icons/Icon";
 import { days as mediaDays, summary as mediaSummary } from "~/media/model";
 import { money, trackedOf } from "~/members/model";
-import { isUpcoming, monDay, profit, signed, upcomingLabel, waiting } from "~/parties/model";
+import { isUpcoming, monDay, profit, signed$ as signed, upcomingLabel, waiting } from "~/parties/model";
 import { isMine, pileOf, type Viewer } from "~/tasks/model";
 import type { Tone } from "~/theme/palette";
 
