@@ -141,7 +141,20 @@ const PAGES: PageSpec[] = [
     { name: "wrap-roll", adminOnly: true, act: async p => { await tap(".pty-needs .pty-do", 1400)(p); const i = p.locator('[role="dialog"] input[type="number"]'); await i.nth(0).fill("300"); await i.nth(1).fill("90"); await tap('[role="dialog"] button[type="submit"]', 1200)(p); } },
     { name: "delete", adminOnly: true, act: async p => { await tap(".pty-row.future .lead", 1400)(p); await tap(".pty-acts .pb.del", 1200)(p); } },
   ] },
-  { id: "fundraisers", path: "/fundraisers", ready: ".mtb", scenes: [full] },
+  { id: "fundraisers", path: "/fundraisers", ready: ".mtb", scenes: [full, fold,
+    // GET only: the composer opens but never submits.
+    { name: "new", adminOnly: true, act: tap(".fz-brief .fz-btn", 1400) },
+    { name: "new-typed", adminOnly: true, act: async p => { await tap(".fz-brief .fz-btn", 1400)(p); await p.locator(".fz-nf-name").fill("Bake sale"); await p.waitForTimeout(500); } },
+  ] },
+  // The seed's two (busy org): Bake Sale wrapped, Car Wash coming up. Day one has neither (the missing state).
+  { id: "fundraisers-wrapped", path: "/fundraisers/1", ready: ".mtb", scenes: [full,
+    { name: "edit", adminOnly: true, act: tap(".fz-dhead .acts .fz-btn", 1400) },
+    { name: "delete-ask", adminOnly: true, act: tap(".fz-dhead .acts .fz-link") },
+  ] },
+  { id: "fundraisers-planning", path: "/fundraisers/2", ready: ".mtb", scenes: [full,
+    { name: "edit", adminOnly: true, act: tap(".fz-dhead .acts .fz-btn", 1400) },
+    { name: "typed", adminOnly: true, act: async p => { await p.locator(".fz-amt input").fill("620"); await p.waitForTimeout(700); } },
+  ] },
   // The page as it opens (day one has no tabs: the open-books question or the member lock),
   // and its two forms.
   { id: "treasury", path: "/treasury", ready: ".mtb", scenes: [

@@ -177,7 +177,7 @@ export function PlateCard({ items, today, data, hasData, roleNames, duesWord, me
       case "fundraiser": {
         icon = "jar"; tone = "butter"; title = `Count up ${it.name}`;
         meta = it.daysAgo === 0 ? [{ text: "Today · type in what came in once it's over" }] : [{ text: `Happened ${when(it.date, today)} · ` }, { text: "not counted yet", late: true }];
-        action = <Btn label="Wrap up" after="arrow-r" onPress={() => router.push("/more/fundraisers" as Href)} />;
+        action = <Btn label="Wrap up" after="arrow-r" onPress={() => router.push(`/more/fundraiser/${it.id}?wrap=1` as Href)} />;
         break;
       }
       case "reimbursement": {

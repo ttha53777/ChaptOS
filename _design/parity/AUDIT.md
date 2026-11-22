@@ -42,7 +42,7 @@ Legend: ✅ matches the web phone · 🟡 built, but from the paper mocks rather
 | Programming | `more/programming` | ✅ | Phase 8c: brief with tappable clauses, measures, Board/Calendar, the four gated lanes, timeline strip, the event sheet in panel order, fix step, wrap-up, day one. See "Programming (Phase 8c)" below. |
 | Service | `more/service` | ✅ | Phase 8d: brief and digest, measures, Events/Members, event cards opening onto the sign-in sheet, punch cards, the wide forms, Log hours, Log my hours with the punch, day one. See "Service (Phase 8d)" below. |
 | Parties | `more/parties` | ✅ | Phase 8e: the house ledger at phone width, the one task, takings and the strip, drawers in place, the web's forms and two-step wrap-up with the roll, the door moment. See "Parties (Phase 8e)" below. |
-| Fundraisers | `more/fundraisers` | 🟡 | Web has jars over the ledger and the wrap-up total. |
+| Fundraisers | `more/fundraisers`, `more/fundraiser/[id]` | ✅ | Phase 8f: list, page, composer, shopping list, jar, wrap-up and the jar moment. |
 | Treasury (Overview, Transactions, Dues, Reports, Reimbursements) | `more/treasury` | ✅ | Phase 7: the five tabs, the open-books gate and member lock, every sheet, Dues with its drawer, Hand out and charge editor. See "Treasury (Phase 7)" below. |
 | Settings (15 sections) | — | ⬜ | Phase 9. |
 | Sidebar profile menu | More → You block, toolbar stamp | ✅ Phase 1 | — |
@@ -595,4 +595,89 @@ Built 2026-11-20.
   - The old wrap-up's in-sheet till and its invented captions ("Wrap it up", "Ringing it up…", "The money" / "Who came" step names, the success toasts).
   - The term-gated roll (the web only asks whether anyone is on the roster and no roll is in).
   - `lab/parties` still imports `Till`, `Book`, `Strip` and `Wristband`, so they stay.
+
+## Fundraisers (Phase 8f), what landed
+
+Built 2026-11-20.
+
+- **Shared rules:** `lib/fundraising/ledger.ts`. SHARED now whitelists `@/lib/fundraising/`, `@/lib/fundraisers` and `@/lib/state/fundraiser-kind`, all pure. "Today" is passed in.
+  - Dates and clocks: `todayOf`, `daysFrom`, `fmtD`, `dow3`, `mon3`, `dayOf`, `cap1`, `rel`, `clock`, `hours`, `dateRel`.
+  - Numbers: `num`, `inV`, `spentOf`, `dotsOn`, `tiltAt`, `lists` (ready / coming up / wrapped this term / earlier, and the term total), `briefBits`, `steps`, `suggestionsFor`, `composeBody`, `goalLine`, `copyText`.
+  - The jar: `JAR` (the body path, top, height), `jarCap`, `jarY`, `goalClose`, `jarLabel`.
+  - Words: `LIST`, `DAY_ONE`, `COMPOSE`, `DETAIL`, and every toast and refusal in `SAY`.
+  - The web's list, `parts.tsx`, `NewFundraiserDialog.tsx` and `[id]/page.tsx` render from it.
+    - Pixdiff: 53 frames, covering full, fold, new and new-typed on the list, plus full, edit and delete-ask on a wrapped page and full, edit and typed on a planning page. Each was captured busy and day one, admin and member, day and night.
+    - Every frame is IDENTICAL to a capture of the original code.
+    - Some runs differed, always somewhere new. In each case, either the "before" frame or the "after" frame had caught an animation: a fading org ghost behind the page, or the jar stamp mid-slam in the edit frames.
+    - Two control captures of the unchanged original code (HEAD) closed this. Every after-frame matches the before set or a control pixel for pixel.
+    - The goal chip and the date chip keep the web's text-node splits ("Goal " and the figure; "Nov 2" and " · Yesterday").
+- **Wire:**
+  - Route map: eight lines (POST /api/fundraisers; PATCH and DELETE /[id]; POST /[id]/supplies; PATCH and DELETE /[id]/supplies/[supplyId]; POST and DELETE /[id]/wrap). All need MANAGE_FUNDRAISING.
+  - Contract: seven `Widen<Fundraiser>` entries, one for each service.
+  - Smoke: eight probes with NONE ids.
+  - The mobile and contracts suites pass on t6 (148 tests).
+- **List** (`more/fundraisers.tsx`, the web phone's order):
+  - Brief:
+    - "FUNDRAISING [FA26]".
+    - "You’ve made **$354** this term". On day one it reads "Fundraising, the easy way"; before anything wraps, "Nothing counted yet".
+    - "1 wrapped up · 1 waiting to be counted · 1 coming up. Every fundraiser is the same two steps…"
+    - New fundraiser (MANAGE_FUNDRAISING).
+  - Ready: a hero with the empty jar for each fundraiser whose day has come. It reads "READY TO WRAP UP", "<name> was today. How much came in?", then the officer or member line, then Wrap it up (officers) or Open.
+  - Coming up / Wrapped up "1 · $354 made" / Earlier terms.
+    - Cards: the desk-calendar day, name, kind chip and when chip, the price tag (ghost "?" until wrapped), the step dots, and "2 supplies · $42 / Open", "Sale’s over · count the money / Wrap up" or "Made $354 on $58 of supplies".
+  - Day one: the three figures (the shopping pad, the jar, the price tag), then "Plan your first fundraiser" (officers) or "Nothing planned yet. An officer can start the first one."
+  - The Timeline's "Open in Fundraisers" now passes `?event=`, which lands on its fundraiser as on the web.
+  - Home's plate "Wrap up" opens the fundraiser with `?wrap=1`, as the web's does.
+- **A fundraiser** (`more/fundraiser/[id].tsx`, new):
+  - Head: the day, name, and chips for kind, date (with "· Today" until wrapped), hours, place and Goal. Officers get Edit and Delete; Delete becomes "Delete for good?" for 4s.
+  - Steps: Shopping list → Wrap up → What you made, with the web's states and subs.
+  - Shopping list:
+    - Numbered lines, each saved when you leave it. Someone else's mid-edit line survives a save, as on the web.
+    - "Add a supply…" with its cost. The usual supplies for the kind are chips ("Usually on a drink sale list:", "~$16").
+    - The empty sentences, then Supplies · n items · total.
+    - Locked once wrapped ("Locked when you wrapped up."); read-only for members ("What the chapter is buying for this.").
+  - The jar before wrapping:
+    - "How much came in?" or "After the sale: count it up", then the lede (officer, ready or member).
+    - The jar over the running list total. Legend: Pays back supplies / What you made / Goal.
+    - Total that came in, and the live subtraction ("$60 came in − $15 on supplies = $45 made").
+    - Wrap it up, with the starting-change note.
+  - After wrapping: We made / Came up short, the figure, the stamped jar (WRAPPED / SHORT), the receipt (Came in, Supplies −, Made/Short), the goal line, the loss line, Copy for the group chat, and Reopen (officers). Reopen puts the old total back in the field.
+  - Arrivals: `?created=1` says "Created. Now, what are you buying?" and focuses the list. `?wrap=1`, or a ready one for an officer, focuses the total.
+  - The missing and load-failed states use the web's sentences.
+- **Composer** (New fundraiser / Edit fundraiser):
+  - Name it. The kind hint reads "We’ll suggest flour & sugar, butter & eggs, chocolate chips…" with the kind chip, or one of the two other sentences.
+  - The desk-calendar day.
+  - Fields: Day, Time optional, "to" (once a start is set), Where optional ("Add a place"), Goal optional ("No goal").
+  - The foot note, Cancel, and "Start the shopping list" / "Creating…" / "Save" / "Saving…".
+  - It sends this device's zone, and a refusal stays in the sheet in the web's words.
+- **Signature moment:** once the server has the wrap-up, the jar pours over the page, then the WRAPPED / SHORT stamp slams onto it with the success haptic on impact. The figure and "We made" sit above it. It clears itself (2.8s), or on a tap. It is app-only.
+- **Haptics and motion:**
+  - Haptics: success follows the server; error follows a refusal; select on the day strip.
+  - The jar layers ride `withTiming` from the effect, not inside worklets. The suggestion chips' horizontal scroll uses `keyboardShouldPersistTaps="handled"`.
+- **Verified on :3100.** `/api/auth/me` returned ok-today first; a data-only dump was taken first and restored in one transaction after; "diff done" (only `\restrict` differs).
+  - Created "Lemonade stand" (today, Quad, goal 100). It got kind Drink sale and its Timeline entry, then opened with the created toast and showed as the ready hero on the list.
+  - Added Cups $12 by typing; added Tea from the chip; edited Cups to $15 (PATCH); removed Tea.
+  - Wrapped with $60: $45 made, the jar moment played, and the toast read "Wrapped up: $45 made". Reopen put $60 back; a second wrap landed.
+  - Edited the name to "Lemonade stand two" (PATCH), then Delete → Delete for good? removed it and its Timeline entry ("Deleted Lemonade stand two").
+  - Member 12: no New fundraiser, no Edit/Delete/Reopen, no add row or chips, and "Waiting for an officer to count it."
+  - Gated off: with `fundraisers` removed from ok-today's workflows, More has no Fundraisers tile (restored).
+    - The web hides its sidebar entry but still serves the page at its URL.
+    - The app reaches the page only through links (Timeline, plate).
+  - Text matches the web word for word for the list (admin 2, member 12, day-one 14 and 16), both detail pages (officer and member) and the composer (new, typed, edit).
+    - The "$" before each cost is the web's CSS glyph, drawn as text here.
+    - The last suggestion chip can sit past the scroll edge.
+- **Deviations:**
+  - Day is the day strip and Time is the shared clock. With no start set, the clock reads its own "All day" where the web's time input is blank.
+  - The suggestion chips scroll sideways instead of wrapping.
+  - The wrapped figure is static; the jar moment carries the motion in place of the web's count-up and confetti burst.
+  - "All fundraisers" is the back button.
+  - On react-native-web, line saves use `onBlur` (`onEndEditing` doesn't fire there). The first drive found this.
+- **Not exercised:**
+  - A short wrap-up (the SHORT stamp and the loss line).
+  - The Earlier terms section (the seed has nothing before FA26).
+  - Refused writes.
+  - The copy toast (the clipboard in the headless preview).
+  - The 404 page.
+  - The live bearer smoke (it needs a Supabase token).
+- **Removed:** the read-only app screen and its invented captions ("No fundraisers yet.", "A jar each", "$X made" as the title, "Across N wrapped fundraisers, after supplies.", "No goal set"). `~/moments/Jar` stays because `lab/more` imports it.
 

@@ -174,7 +174,7 @@ export default function Timeline() {
     const go = (path: string) => () => { setOpenId(null); router.push(path as Href); };
     const links = sheetEvent ? {
       party: sheetEvent.partyEventId != null ? go("/more/parties") : undefined,
-      fundraiser: sheetEvent.category === "fundraising" ? go("/more/fundraisers") : undefined,
+      fundraiser: sheetEvent.category === "fundraising" ? go(`/more/fundraisers?event=${sheetEvent.id}`) : undefined,
       programming: sheetEvent.programmingEventId != null ? go("/more/programming") : undefined,
       media: isNavVisible("Instagram", workflows) ? go("/more/media") : undefined,
     } : sheetPost ? { media: go("/more/media") } : undefined;

@@ -55,7 +55,7 @@ import type { listSemesters } from "@/lib/services/semester-service";
 import type { listTransactionCategories } from "@/lib/services/transaction-category-service";
 import type { listServiceEvents, createServiceEvent, updateServiceEvent } from "@/lib/services/service-event-service";
 import type { listParticipationForOrg, listParticipationForEvent, logMyParticipation, removeMyParticipation, logParticipation } from "@/lib/services/service-participation-service";
-import type { listFundraisers, getFundraiser } from "@/lib/services/fundraiser-service";
+import type { listFundraisers, getFundraiser, createFundraiser, updateFundraiser, addSupply, updateSupply, removeSupply, wrapUpFundraiser, reopenFundraiser } from "@/lib/services/fundraiser-service";
 import type { listDocs, createDoc, updateDoc, setDocPinned, refreshDocMetadata } from "@/lib/services/doc-service";
 import type { listProgrammingTasks, createProgrammingTask, updateProgrammingTask, setStage, listProgrammingEventDocs, attachProgrammingDoc } from "@/lib/services/programming-service";
 import type { listRoles } from "@/lib/services/role-service";
@@ -166,6 +166,13 @@ export const serviceLogged: Widen<ServiceParticipationRow[]> = served<Served<typ
 
 export const fundraisers: Widen<Fundraiser[]> = served<Served<typeof listFundraisers>>();
 export const fundraiser: Widen<Fundraiser> = served<Served<typeof getFundraiser>>();
+export const fundraiserCreated: Widen<Fundraiser> = served<Served<typeof createFundraiser>>();
+export const fundraiserUpdated: Widen<Fundraiser> = served<Served<typeof updateFundraiser>>();
+export const fundraiserSupplyAdded: Widen<Fundraiser> = served<Served<typeof addSupply>>();
+export const fundraiserSupplyUpdated: Widen<Fundraiser> = served<Served<typeof updateSupply>>();
+export const fundraiserSupplyRemoved: Widen<Fundraiser> = served<Served<typeof removeSupply>>();
+export const fundraiserWrapped: Widen<Fundraiser> = served<Served<typeof wrapUpFundraiser>>();
+export const fundraiserReopened: Widen<Fundraiser> = served<Served<typeof reopenFundraiser>>();
 
 export const docs: Widen<Doc[]> = served<Served<typeof listDocs>>();
 export const docCreated: Widen<DocSaved> = served<Served<typeof createDoc>>();

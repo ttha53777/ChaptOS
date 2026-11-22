@@ -108,6 +108,14 @@
  *   DELETE /api/service-participation/[id]     204                     (MANAGE_SERVICE)
  *   GET    /api/fundraisers                    Fundraiser[]            (read-only for members)
  *   GET    /api/fundraisers/[id]               Fundraiser
+ *   POST   /api/fundraisers                    Fundraiser              (201; MANAGE_FUNDRAISING; body createFundraiserInput; makes its Timeline entry)
+ *   PATCH  /api/fundraisers/[id]               Fundraiser              (MANAGE_FUNDRAISING; body updateFundraiserInput)
+ *   DELETE /api/fundraisers/[id]               204                     (MANAGE_FUNDRAISING; takes its Timeline entry)
+ *   POST   /api/fundraisers/[id]/supplies      Fundraiser              (201; MANAGE_FUNDRAISING; body addSupplyInput, the fundraiser after)
+ *   PATCH  /api/fundraisers/[id]/supplies/[supplyId] Fundraiser        (MANAGE_FUNDRAISING; body updateSupplyInput)
+ *   DELETE /api/fundraisers/[id]/supplies/[supplyId] Fundraiser        (MANAGE_FUNDRAISING; the fundraiser after)
+ *   POST   /api/fundraisers/[id]/wrap          Fundraiser              (MANAGE_FUNDRAISING; body wrapFundraiserInput: the came-in total)
+ *   DELETE /api/fundraisers/[id]/wrap          Fundraiser              (MANAGE_FUNDRAISING; reopens it)
  *   GET    /api/docs                           Doc[]                   (read-only for members)
  *   GET    /api/docs/folders                   DocFolder[]
  *   POST   /api/docs                           DocSaved                (201; MANAGE_DOCS; body createDocInput)

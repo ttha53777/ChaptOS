@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-11-20T11:44:27.846Z",
+  "capturedAt": "2026-11-20T12:45:29.796Z",
   "who": {
     "busy": {
       "org": {
@@ -370,7 +370,70 @@
       "dayone-member-day-full.png",
       "dayone-member-night-fold.png",
       "dayone-member-night-full.png"
+    ],
+    "fundraisers": [
+      "busy-admin-day-fold.png",
+      "busy-admin-day-full.png",
+      "busy-admin-day-new-typed.png",
+      "busy-admin-day-new.png",
+      "busy-admin-night-fold.png",
+      "busy-admin-night-full.png",
+      "busy-admin-night-new-typed.png",
+      "busy-admin-night-new.png",
+      "busy-member-day-fold.png",
+      "busy-member-day-full.png",
+      "busy-member-night-fold.png",
+      "busy-member-night-full.png",
+      "dayone-admin-day-fold.png",
+      "dayone-admin-day-full.png",
+      "dayone-admin-day-new-typed.png",
+      "dayone-admin-day-new.png",
+      "dayone-admin-night-fold.png",
+      "dayone-admin-night-full.png",
+      "dayone-admin-night-new-typed.png",
+      "dayone-admin-night-new.png",
+      "dayone-member-day-fold.png",
+      "dayone-member-day-full.png",
+      "dayone-member-night-fold.png",
+      "dayone-member-night-full.png"
+    ],
+    "fundraisers-wrapped": [
+      "busy-admin-day-delete-ask.png",
+      "busy-admin-day-edit.png",
+      "busy-admin-day-full.png",
+      "busy-admin-night-delete-ask.png",
+      "busy-admin-night-edit.png",
+      "busy-admin-night-full.png",
+      "busy-member-day-full.png",
+      "busy-member-night-full.png",
+      "dayone-admin-day-full.png",
+      "dayone-admin-night-full.png",
+      "dayone-member-day-full.png",
+      "dayone-member-night-full.png"
+    ],
+    "fundraisers-planning": [
+      "busy-admin-day-edit.png",
+      "busy-admin-day-full.png",
+      "busy-admin-day-typed.png",
+      "busy-admin-night-edit.png",
+      "busy-admin-night-full.png",
+      "busy-admin-night-typed.png",
+      "busy-member-day-full.png",
+      "busy-member-night-full.png",
+      "dayone-admin-day-full.png",
+      "dayone-admin-night-full.png",
+      "dayone-member-day-full.png",
+      "dayone-member-night-full.png"
     ]
   },
-  "problems": []
+  "problems": [
+    "_design/parity/web/fundraisers-wrapped/dayone-admin-night-edit.png: missing .fz-dhead .acts .fz-btn",
+    "_design/parity/web/fundraisers-wrapped/dayone-admin-night-delete-ask.png: missing .fz-dhead .acts .fz-link",
+    "_design/parity/web/fundraisers-planning/dayone-admin-night-edit.png: missing .fz-dhead .acts .fz-btn",
+    "_design/parity/web/fundraisers-planning/dayone-admin-night-typed.png: locator.fill: Timeout 30000ms exceeded.",
+    "_design/parity/web/fundraisers-wrapped/dayone-admin-day-edit.png: missing .fz-dhead .acts .fz-btn",
+    "_design/parity/web/fundraisers-wrapped/dayone-admin-day-delete-ask.png: missing .fz-dhead .acts .fz-link",
+    "_design/parity/web/fundraisers-planning/dayone-admin-day-edit.png: missing .fz-dhead .acts .fz-btn",
+    "_design/parity/web/fundraisers-planning/dayone-admin-day-typed.png: locator.fill: Timeout 30000ms exceeded."
+  ]
 }
