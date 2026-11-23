@@ -24,7 +24,7 @@ import { roleTitle, type RosterKpis, type StatusFilter } from "@/lib/dashboard/r
 import type { Thresholds } from "@/lib/thresholds";
 import type { TrackedMetrics } from "@/lib/tracked-metrics";
 import { fmtUsd } from "@/lib/money";
-import { memo, useEffect } from "react";
+import { memo, useEffect, useMemo } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
 import { Icon, type IconName } from "~/icons/Icon";
@@ -181,7 +181,10 @@ export function StandingCard({ roster, counts, t, measured, nothingMeasured, hin
 /** Opacity for what a filter leaves out. */
 function Dim({ on, style, children }: { on: boolean; style?: object; children: React.ReactNode }) {
   const m = useMotion();
-  const s = useAnimatedStyle(() => ({ opacity: withTiming(on ? 1 : 0.32, m.timing(m.reduced ? 0 : 200, "out")) }), [on]);
+  // Built on the JS thread: m.timing is a plain function, and calling it inside the worklet
+  // is a fatal non-worklet call on the UI thread (it crashed the app on opening Members).
+  const fade = useMemo(() => m.timing(m.reduced ? 0 : 200, "out"), [m]);
+  const s = useAnimatedStyle(() => ({ opacity: withTiming(on ? 1 : 0.32, fade) }), [on, fade]);
   return <Animated.View style={[style, s]}>{children}</Animated.View>;
 }
 
