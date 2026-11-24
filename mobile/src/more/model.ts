@@ -116,6 +116,23 @@ export function pagesFor(me: MeResponse): Page[] {
     .map(l => ({ ...NATIVE[l]!, title: navLabel(me, l) }));
 }
 
+/** More's page map: the same pages as pagesFor, kept in the web sidebar's groups (its
+ *  "Members" group reads "Chapter" here, since Members is a tab of its own). Empty
+ *  groups drop out. */
+export function pageGroupsFor(me: MeResponse): { label: string; pages: Page[] }[] {
+  const wf = me.org?.enabledWorkflows ?? [];
+  const order = me.org?.navOrder ?? [];
+  const LABEL: Record<string, string> = { Members: "Chapter", Operations: "Operations" };
+  return NAV_GROUPS
+    .map(g => ({
+      label: LABEL[g.label] ?? g.label,
+      pages: applyNavOrder(g.items, order)
+        .filter(l => !ON_TAB_BAR.has(l) && navVisible(l, wf) && NATIVE[l])
+        .map(l => ({ ...NATIVE[l]!, title: navLabel(me, l) })),
+    }))
+    .filter(g => g.pages.length);
+}
+
 /** The web sidebar's "Needs you" dots and the phone bar's More badge, as tile badges:
  *  my overdue tasks (rose), wrap-ups due (Programming), fundraisers to count up, and
  *  reimbursements waiting (Treasury). Each count is already gated by the server on /me. */
