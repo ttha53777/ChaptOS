@@ -1015,7 +1015,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         "(never alongside read tools — finish your reads first), INSTEAD of writing a prose answer. " +
         "Use it for BOTH data answers and ADVISORY answers (recommendations, 'how do we improve X', product how-to that lists several steps or features). " +
         "verdict: ONE short sentence carrying the judgment AND the headline number, with the single most important figure or phrase wrapped in *asterisks* — never a count of the rows below ('here are 3 ideas'). " +
-        "rows: up to 6 records backing the verdict (the people/events/transactions the question is about) — put each row's figure in value, and give each row an `ask` " +
+        "rows: up to 6 records backing the verdict (the people/events/transactions the question is about; for a lowest/highest/most question, only the record(s) holding that spot) — put each row's figure in value, and give each row an `ask` " +
         "(the natural follow-up question tapping it should send). follows: up to 3 short follow-up suggestions. " +
         "For an ADVISORY answer, each row is one recommendation: title = the change, subtitle = why it matters, `tier` = its impact, and `screen` = where it lives. " +
         "Rows MUST be ordered best-first, and tiers must not improve as you go down the list. " +

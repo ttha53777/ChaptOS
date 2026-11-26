@@ -119,6 +119,8 @@ interface EvalCase {
   verdictMustInclude?: string[];
   /** clarify cases, answer kit only: the question back must tag its chips with `areas` (drawn as tiles). */
   expectAreas?: boolean;
+  /** data cases: the rows the user sees (after any server-built shape) must number at most this — superlatives list only the tie, not the field. */
+  maxRows?: number;
 }
 
 interface ToolCallRecord {
@@ -572,6 +574,9 @@ function grade_case(
       // what the Spotlight UI renders. Prose here means the model skipped
       // compose_answer and the user would get the fallback note style.
       if (!obs.answer && !c.allowProse) reasons.push("expected compose_answer (structured verdict+rows), got prose");
+      if (obs.answer && c.maxRows != null && obs.answer.rows.length > c.maxRows) {
+        reasons.push(`expected at most ${c.maxRows} rows, got ${obs.answer.rows.length}: ${obs.answer.rows.map(r => [r.title, r.subtitle, r.value].filter(Boolean).join(" ")).join(" | ")}`);
+      }
       if (!obs.finalText.trim() && obs.proposals.length === 0) reasons.push("empty answer");
       // A decline that answers the in-scope part in its verdict is a data answer
       // (verdictMustInclude checks that part); anything else that refuses isn't.
