@@ -485,6 +485,12 @@ export interface PeekCard {
   sections: PeekSection[];
   /** Event and dated-task cards: the record's own YYYY-MM-DD, for a date stub. */
   date?: string;
+  /**
+   * Event cards: the same counts as the "Attendance" section, as numbers, so the
+   * card can draw them (all zeros = nothing logged). The section stays for
+   * clients that read it.
+   */
+  turnout?: AnswerRowTurnout;
 }
 
 /** A lookup for one thing (or the pair that share a job): the peek card itself, inline. cards[i] is rows[i]'s. */

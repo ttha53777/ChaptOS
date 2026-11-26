@@ -29,6 +29,8 @@ export interface PeekSeed {
   subtitle?: string;
   kind: AnswerRow["kind"];
   ask?: string;
+  /** An event row's attested date — the stub shows before the card loads. */
+  date?: string;
 }
 
 /** Where the full record lives, for the "open the real page" escape hatch. */
@@ -74,7 +76,7 @@ export function PeekSheet({ refr, seed, slug, onBack, onAsk }: {
       </div>
 
       <div className="peek-body">
-        <PeekCardBody card={card} title={title} subtitle={subtitle} kind={seed.kind} />
+        <PeekCardBody card={card} title={title} subtitle={subtitle} kind={seed.kind} date={seed.date} />
 
         {!card && !failed && <div className="peek-wait">Reading the records…</div>}
         {failed && <div className="peek-wait">Couldn&apos;t load this record.</div>}

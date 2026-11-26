@@ -16,7 +16,8 @@ import { DrawerBlock, isDrawerRows } from "./shapes/Drawers";
 import { CitationChips } from "./CitationChips";
 import { answerTone } from "./tone";
 import { AREA_TILE, AreaGlyph } from "./area-glyphs";
-import { initialsOf, rowAction, type AnswerCitation, type AnswerData, type AnswerRow, type AnswerRowEvent, type AnswerRowTurnout, type AskBack, type AskBackQuestion, type LedgerStep } from "./types";
+import { initialsOf, rowAction, type AnswerCitation, type AnswerData, type AnswerRow, type AskBack, type AskBackQuestion, type LedgerStep } from "./types";
+import { EventStub, TurnoutStrip, eventState, titleWithoutDate } from "./EventBits";
 
 function Verdict({ text }: { text: string }) {
   const m = /\*([^*]+)\*/.exec(text);
@@ -40,77 +41,6 @@ function glyphKind(row: AnswerRow): string {
   return row.kind;
 }
 
-// ── Event rows ──────────────────────────────────────────────────────────────
-// A meeting row is a date and a turnout, so it draws both instead of a flag:
-// Tasks' tear-off stub for the date, and one pip per person for the turnout
-// (present · excused · absent, in the colours the attendance screens use).
-// Everything drawn here is server-attested (row.event, from this turn's reads);
-// the model's own subtitle is only hidden when it just restates the counts.
-
-const PIPS_MAX = 30;
-
-function localDay(iso: string): Date {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
-function todayIso(): string {
-  const t = new Date();
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-}
-
-type EventState = "logged" | "unlogged" | "upcoming" | "dated";
-
-function eventState(ev: AnswerRowEvent): EventState {
-  if (ev.date > todayIso()) return "upcoming";
-  if (!ev.turnout) return "dated";
-  return ev.turnout.attended + ev.turnout.absent + ev.turnout.excused > 0 ? "logged" : "unlogged";
-}
-
-function EventStub({ date, state }: { date: string; state: EventState }) {
-  const d = localDay(date);
-  return (
-    <span className={`ev-stub ${state}`} aria-hidden="true">
-      <span className="mon">{d.toLocaleString("en-US", { month: "short" })}</span>
-      <span className="dnum">{d.getDate()}</span>
-      <span className="dow">{d.toLocaleString("en-US", { weekday: "short" })}</span>
-    </span>
-  );
-}
-
-function TurnoutStrip({ t }: { t: AnswerRowTurnout }) {
-  const counted = t.attended + t.absent;
-  const pct = counted > 0 ? Math.round((t.attended / counted) * 100) : null;
-  const total = t.attended + t.excused + t.absent;
-  const label = `${t.attended} attended, ${t.absent} absent${t.excused ? `, ${t.excused} excused` : ""}`;
-  const parts: Array<[keyof AnswerRowTurnout, string]> = [["attended", "in"], ["excused", "ex"], ["absent", "out"]];
-  return (
-    <span className="ev-turn" role="img" aria-label={label}>
-      {total <= PIPS_MAX ? (
-        <span className="pips">
-          {parts.flatMap(([k, cls]) => Array.from({ length: t[k] }, (_, i) => <i key={`${k}${i}`} className={cls} />))}
-        </span>
-      ) : (
-        <span className="bar">
-          {parts.map(([k, cls]) => t[k] > 0 && <i key={k} className={cls} style={{ flexGrow: t[k] }} />)}
-        </span>
-      )}
-      <span className="cap">
-        {pct != null && <b>{pct}%</b>}
-        {t.absent > 0 ? <span className="out">{t.absent} absent</span> : <span className="in">none absent</span>}
-        {t.excused > 0 && <span>{t.excused} excused</span>}
-      </span>
-    </span>
-  );
-}
-
-/** "Chapter Meeting 11/10" next to an Nov 10 stub says the date twice. */
-function titleWithoutDate(title: string): string {
-  return title
-    .replace(/\s*[-–—·,]?\s*(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(\/\d{2,4})?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(st|nd|rd|th)?)\s*$/i, "")
-    .trim() || title;
-}
-
 const COUNTS_ONLY = /^[\s\d·•,|/%-]*(attended|present|absent|excused|logged|of)[\s\w·•,|/%-]*$/i;
 
 function ResultRow({ row, selected, onAsk, onPeek, onNav, onIdea }: {
@@ -131,7 +61,7 @@ function ResultRow({ row, selected, onAsk, onPeek, onNav, onIdea }: {
   // swallowing the tap.
   const action = rowAction(row);
   const ev = row.kind === "event" || row.ref?.type === "event" ? row.event : undefined;
-  const state = ev ? eventState(ev) : null;
+  const state = ev ? eventState(ev.date, ev.turnout) : null;
   const t = ev?.turnout;
   const turnoutTotal = t ? t.attended + t.absent + t.excused : 0;
   const title = ev ? titleWithoutDate(row.title) : row.title;

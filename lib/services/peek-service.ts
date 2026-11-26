@@ -202,6 +202,7 @@ async function eventPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
     title: event.title,
     subtitle: prettyDate(event.date),
     date: event.date,
+    turnout: { attended: attended.length, absent: absent.length, excused: excusedIds.size },
     ...(event.mandatory ? { badge: { label: "Mandatory", tone: "warn" as PeekTone } } : {}),
     facts,
     sections,

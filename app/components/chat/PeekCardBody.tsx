@@ -8,25 +8,36 @@
 import type { ReactNode } from "react";
 
 import { KindGlyph } from "./icons";
+import { EventStub, TurnoutStrip, eventState } from "./EventBits";
 import { initialsOf, type AnswerRow, type PeekCard, type PeekTone } from "./types";
 
 export function toneClass(tone?: PeekTone): string {
   return tone ? ` t-${tone}` : "";
 }
 
-export function PeekCardBody({ card, title, subtitle, kind, aside }: {
+export function PeekCardBody({ card, title, subtitle, kind, date, aside }: {
   /** Null while the fetch is in flight: the header alone is drawn. */
   card: PeekCard | null;
   title: string;
   subtitle?: string;
   kind: AnswerRow["kind"];
+  /** The row's attested date, so an event's stub is drawn before the fetch lands. */
+  date?: string;
   /** Extra in the header, after the badge — the inline record puts the asked-for figure here. */
   aside?: ReactNode;
 }) {
+  const isEvent = card ? card.type === "event" : kind === "event";
+  const evDate = isEvent ? card?.date ?? date : undefined;
+  const turnout = card?.turnout;
+  const state = evDate ? eventState(evDate, card ? turnout ?? null : undefined) : null;
+  // The seats say what the Present / Absent / Excused rows say; draw them instead.
+  const drawSeats = state === "logged" && !!turnout;
   return (
     <>
       <div className="peek-id">
-        {kind === "person"
+        {evDate && state
+          ? <EventStub date={evDate} state={state} />
+          : kind === "person"
           ? <span className="av">{initialsOf(title)}</span>
           : <span className="glyph"><KindGlyph kind={kind} /></span>}
         <span className="peek-name">
@@ -53,7 +64,9 @@ export function PeekCardBody({ card, title, subtitle, kind, aside }: {
       {card?.sections.map(sec => (
         <div key={sec.label} className="peek-sec in in-3">
           <div className="sec-lbl">{sec.label}</div>
-          {sec.rows.length === 0
+          {drawSeats && sec.label === "Attendance"
+            ? <div className="peek-seats"><TurnoutStrip t={turnout!} size="lg" /></div>
+            : sec.rows.length === 0
             ? <div className="sec-empty">{sec.empty ?? "Nothing here."}</div>
             : (
               <div className="sec-rows">

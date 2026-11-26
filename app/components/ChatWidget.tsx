@@ -325,7 +325,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
     setPeek({
       refr: row.ref,
       // The row's own text carries the sheet until the fetch lands.
-      seed: { title: row.title, subtitle: row.subtitle, kind: row.kind, ask: row.ask },
+      seed: { title: row.title, subtitle: row.subtitle, kind: row.kind, ask: row.ask, ...(row.event ? { date: row.event.date } : {}) },
     });
   }, []);
 
