@@ -8,6 +8,7 @@ import { can } from "@/lib/permissions";
 import { prismaPrivileged } from "@/lib/prisma-privileged"; // lint-direct-prisma:ignore cross-org membership count, see countMemberships
 import type { UpdateBrotherInput } from "@/lib/validation/brother";
 import { removeReceiptObjects } from "@/lib/supabase/receipts";
+import { deleteForAccount } from "@/lib/push/devices";
 import {
   sanitizeCustomFields,
   type CustomMemberFieldDef,
@@ -417,7 +418,11 @@ export async function deleteBrother(ctx: RequestContext, brotherId: number) {
   });
 
   if (orgCount <= 1) {
+    // Their phones are keyed by the Google account, which no FK from Brother
+    // reaches; read it before the row goes.
+    const identity = await ctx.db.identity.findByBrotherId(brotherId);
     await ctx.db.identity.deleteAccount(brotherId);
+    await deleteForAccount(identity?.authUserId);
   } else {
     await eraseOrgScopedRecords(ctx, brotherId);
     await ctx.db.member.deleteByBrotherId(brotherId);
@@ -483,6 +488,10 @@ async function eraseOrgScopedRecords(ctx: RequestContext, brotherId: number): Pr
     await tx.chatApproval.deleteMany({ where: { approvedById: brotherId, organizationId: orgId } });
     // Files they attached to Ask Chapt here. Keyed by ownerId, like ChatApproval.
     await tx.chatAttachment.deleteMany({ where: { ownerId: brotherId, organizationId: orgId } });
+    // Push: their choices here and anything still queued for them here. Their
+    // devices stay, because they still get pushes from their other orgs.
+    await tx.notificationPreference.deleteMany({ where: scoped });
+    await tx.pushMessage.deleteMany({ where: scoped });
 
     // InviteRedemption has no organizationId of its own — reach the org through
     // the invite it redeemed.

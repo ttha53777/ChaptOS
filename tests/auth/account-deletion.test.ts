@@ -111,6 +111,22 @@ describe("deleteOwnAccount", () => {
     expect(await testPrisma.joinRequest.count({ where: { authUserId } })).toBe(0);
   });
 
+  it("forgets the person's phones, preferences and queued pushes", async () => {
+    const { a, me, authUserId } = await seedTwoOrgMember();
+    await testPrisma.pushDevice.create({ data: { authUserId, token: "ExponentPushToken[leaving]", platform: "ios" } });
+    await testPrisma.pushDevice.create({ data: { authUserId: "someone-else", token: "ExponentPushToken[stays]", platform: "ios" } });
+    await testPrisma.notificationPreference.create({ data: { organizationId: a.id, brotherId: me.id, category: "dues", enabled: false } });
+    await testPrisma.pushMessage.create({ data: {
+      organizationId: a.id, brotherId: me.id, category: "tasks", dedupeKey: "t:1", title: "New task", body: "x",
+      url: "chaptos://org/alpha-chapter/tasks/1", expiresAt: new Date(Date.now() + 60_000),
+    } });
+
+    await deleteOwnAccount(authUserId);
+    expect(await testPrisma.pushDevice.findMany({ select: { token: true } })).toEqual([{ token: "ExponentPushToken[stays]" }]);
+    expect(await testPrisma.notificationPreference.count()).toBe(0);
+    expect(await testPrisma.pushMessage.count()).toBe(0);
+  });
+
   it("works for someone with no roster row at all", async () => {
     const authUserId = randomUUID();
     await testPrisma.$executeRaw`INSERT INTO auth.users (id) VALUES (${authUserId}::uuid)`;

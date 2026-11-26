@@ -19,70 +19,72 @@ datasource db {
 // with a FK constraint to avoid a circular Brother↔Organization dependency
 // during fresh provisioning (the Brother row is created in the same transaction).
 model Organization {
-  id                 Int      @id @default(autoincrement())
-  name               String
-  slug               String   @unique
-  orgType            String?
+  id                   Int                   @id @default(autoincrement())
+  name                 String
+  slug                 String                @unique
+  orgType              String?
   // Public URL of the org's profile picture in Supabase Storage (org-logos
   // bucket), or null for orgs that never set one (they fall back to a gradient
   // initials badge in the sidebar/login). Set via /api/orgs/logo. Lives on the
   // hot row, not OrganizationConfig, because the sidebar reads it in the same
   // /api/auth/me round-trip as name/slug.
-  timeZone           String? // Officer-confirmed IANA zone; never inferred from server time.
+  timeZone             String? // Officer-confirmed IANA zone; never inferred from server time.
   calendarSubscription CalendarSubscription?
-  calendarFeedItems CalendarFeedItem[]
-  calendarFeedWork CalendarFeedWork?
-  logoUrl            String?
-  createdByBrotherId Int?
-  createdAt          DateTime @default(now())
+  calendarFeedItems    CalendarFeedItem[]
+  calendarFeedWork     CalendarFeedWork?
+  logoUrl              String?
+  createdByBrotherId   Int?
+  createdAt            DateTime              @default(now())
 
-  memberships               Membership[]
-  brothers                  Brother[]
-  roles                     Role[]
-  semesters                 Semester[]
-  attendanceExemptions      AttendanceExemption[]
-  calendarEvents            CalendarEvent[]
-  serviceEvents             ServiceEvent[]
-  serviceParticipations     ServiceParticipation[]
-  partyEvents               PartyEvent[]
-  tasks                     Task[]
-  taskAssignments           TaskAssignment[]
-  taskCompletions           TaskCompletion[]
-  polls                     Poll[]
-  pollOptions               PollOption[]
-  pollAssignments           PollAssignment[]
-  pollVotes                 PollVote[]
-  instagramTasks            InstagramTask[]
-  docs                      Doc[]
-  docFolders                DocFolder[]
-  programmingEvents         ProgrammingEvent[]
-  programmingEventDocs      ProgrammingEventDoc[]
-  eventFieldDefinitions     EventFieldDefinition[]
-  transactions              Transaction[]
-  transactionCategories     TransactionCategory[]
-  agendaTemplates           AgendaTemplate[]
-  reimbursements            Reimbursement[]
-  duesPayments              DuesPayment[]
-  duesCharges               DuesCharge[]
-  duesChargeLines           DuesChargeLine[]
-  fundraisers               Fundraiser[]
-  fundraiserSupplies        FundraiserSupply[]
-  duesWaivers               DuesWaiver[]
-  chatApprovals             ChatApproval[]
-  chatAttachments           ChatAttachment[]
-  budgets                   Budget[]
-  activityLogs              ActivityLog[]
-  announcements             ChapterAnnouncement[]
-  operationalEvents         OperationalEvent[]
-  brotherRoles              BrotherRole[]
-  config                    OrganizationConfig?
-  invites                   OrgInvite[]
-  joinRequests              JoinRequest[]
-  termsAcceptances          TermsAcceptance[]
-  metricDefinitions         OrgMetricDefinition[]
-  calendarEventTypes        CalendarEventType[]
-  subscription              Subscription?
-  salesLeads                SalesLead[]
+  memberships             Membership[]
+  brothers                Brother[]
+  roles                   Role[]
+  semesters               Semester[]
+  attendanceExemptions    AttendanceExemption[]
+  calendarEvents          CalendarEvent[]
+  serviceEvents           ServiceEvent[]
+  serviceParticipations   ServiceParticipation[]
+  partyEvents             PartyEvent[]
+  tasks                   Task[]
+  taskAssignments         TaskAssignment[]
+  taskCompletions         TaskCompletion[]
+  polls                   Poll[]
+  pollOptions             PollOption[]
+  pollAssignments         PollAssignment[]
+  pollVotes               PollVote[]
+  instagramTasks          InstagramTask[]
+  docs                    Doc[]
+  docFolders              DocFolder[]
+  programmingEvents       ProgrammingEvent[]
+  programmingEventDocs    ProgrammingEventDoc[]
+  eventFieldDefinitions   EventFieldDefinition[]
+  transactions            Transaction[]
+  transactionCategories   TransactionCategory[]
+  agendaTemplates         AgendaTemplate[]
+  reimbursements          Reimbursement[]
+  duesPayments            DuesPayment[]
+  duesCharges             DuesCharge[]
+  duesChargeLines         DuesChargeLine[]
+  fundraisers             Fundraiser[]
+  fundraiserSupplies      FundraiserSupply[]
+  duesWaivers             DuesWaiver[]
+  chatApprovals           ChatApproval[]
+  chatAttachments         ChatAttachment[]
+  budgets                 Budget[]
+  activityLogs            ActivityLog[]
+  announcements           ChapterAnnouncement[]
+  operationalEvents       OperationalEvent[]
+  brotherRoles            BrotherRole[]
+  config                  OrganizationConfig?
+  invites                 OrgInvite[]
+  joinRequests            JoinRequest[]
+  termsAcceptances        TermsAcceptance[]
+  metricDefinitions       OrgMetricDefinition[]
+  calendarEventTypes      CalendarEventType[]
+  subscription            Subscription?
+  salesLeads              SalesLead[]
+  notificationPreferences NotificationPreference[]
+  pushMessages            PushMessage[]
 }
 
 // Per-org configuration extracted from Organization to keep the hot row small.
@@ -202,31 +204,33 @@ model Membership {
   // ── Roster fields (moved off Brother by 20260806000000_phase2_membership_roster) ──
   // Free-text office / committee label. Only shown when this member holds no
   // relational Role rows — see roleTitle() in app/data.ts.
-  role           String   @default("Member")
+  role         String    @default("Member")
   // Attendance %, or the ATTENDANCE_EXEMPT sentinel (-1). A recomputed cache,
   // derived from this org's AttendanceRecords for the active semester; never
   // written directly. lib/attendance.ts owns it.
-  attendance     Float    @default(0)
+  attendance   Float     @default(0)
   // Money this member owes THIS org. Mirrored by the Transaction ledger, so it
   // moves only through dues-service / transaction-service — never a raw write.
-  duesOwed       Float    @default(0)
-  gpa            Float    @default(0)
+  duesOwed     Float     @default(0)
+  gpa          Float     @default(0)
   // Recomputed cache of this org's ServiceParticipation rows. lib/service-hours.ts.
-  serviceHours   Float    @default(0)
+  serviceHours Float     @default(0)
   // When THIS org archived them, or null. Archiving is not deletion: every
   // attendance record, dues payment and metric value survives, but the member
   // drops out of the default roster read and out of the billable headcount
   // (lib/billing/seats.ts). Per-org, so graduating out of one chapter leaves a
   // member active in another.
-  archivedAt     DateTime?
+  archivedAt   DateTime?
   // Values for this org's custom member fields (Major, Pledge Class, …). Sparse
   // map { fieldId → value }; definitions live in OrganizationConfig.customMemberFields,
   // which is already per-org — the values had to follow or two orgs' field sets
   // would collide on one JSON blob.
-  customFields   Json     @default("{}")
+  customFields Json      @default("{}")
 
   brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  notificationPrefs NotificationPreference[]
 
   @@unique([brotherId, organizationId])
   @@index([organizationId])
@@ -246,7 +250,7 @@ model PlatformAdmin {
 // Membership, which is the roster row. If you are adding a column here, ask
 // whether a second org should see it; if not, it belongs on Membership.
 model Brother {
-  id                    Int                    @id @default(autoincrement())
+  id                    Int                      @id @default(autoincrement())
   // The ORIGIN org — where this account first appeared. A hint, not a
   // membership: it grants nothing, and no roster / attendance / dues /
   // reporting read may scope by it (they scope by Membership). Its only two
@@ -259,13 +263,13 @@ model Brother {
   // back here when it is null. This name's remaining jobs are to seed a new
   // org's Membership.name, and to be the string /api/auth/claim matches against.
   name                  String
-  authUserId            String?                @unique @map("auth_user_id")
-  avatarUrl             String?                @map("avatar_url")
+  authUserId            String?                  @unique @map("auth_user_id")
+  avatarUrl             String?                  @map("avatar_url")
   email                 String?
-  isAdmin               Boolean                @default(false)
+  isAdmin               Boolean                  @default(false)
   // "Ghost" members provisioned via the Atomic Samurai backdoor: full app access
   // but hidden from every brother listing, count, and attendance enrollment.
-  isGhost               Boolean                @default(false)
+  isGhost               Boolean                  @default(false)
   attendanceRecords     AttendanceRecord[]
   attendanceExcuses     AttendanceExcuse[]
   attendanceExemptions  AttendanceExemption[]
@@ -273,13 +277,13 @@ model Brother {
   roles                 BrotherRole[]
   memberships           Membership[]
   platformAdmin         PlatformAdmin?
-  createdInvites        OrgInvite[]            @relation("InviteCreator")
+  createdInvites        OrgInvite[]              @relation("InviteCreator")
   inviteRedemptions     InviteRedemption[]
   // Join requests this person DECIDED (as an officer), and the one they were
   // the SUBJECT of. Both nullable on the JoinRequest side, so neither keeps a
   // member from being erased.
-  decidedJoinRequests   JoinRequest[]          @relation("JoinRequestDecider")
-  joinRequest           JoinRequest[]          @relation("JoinRequestSubject")
+  decidedJoinRequests   JoinRequest[]            @relation("JoinRequestDecider")
+  joinRequest           JoinRequest[]            @relation("JoinRequestSubject")
   metricValues          BrotherMetricValue[]
   serviceParticipations ServiceParticipation[]
   reimbursements        Reimbursement[]
@@ -297,7 +301,9 @@ model Brother {
   pollVotes             PollVote[]
   // Programming events this person owns. SetNull, not Cascade: leaving one org
   // must never delete another org's events (see ProgrammingEvent.ownerBrotherId).
-  ownedProgramming      ProgrammingEvent[]     @relation("ProgrammingOwner")
+  ownedProgramming      ProgrammingEvent[]       @relation("ProgrammingOwner")
+  notificationPrefs     NotificationPreference[]
+  pushMessages          PushMessage[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -425,22 +431,22 @@ model JoinRequest {
 // Discord-style role: a named bundle of permission bits with a hierarchy rank.
 // name is unique per org (not globally) — two orgs may both have a "President" role.
 model Role {
-  id              Int              @id @default(autoincrement())
-  organizationId  Int
-  name            String
+  id               Int                @id @default(autoincrement())
+  organizationId   Int
+  name             String
   // Optional hex color (e.g. "#5865F2") for the UI chip; null = neutral.
-  color           String?
+  color            String?
   // Hierarchy rank. A caller can only grant/edit roles whose rank is STRICTLY
   // LESS than their own highest assigned role's rank. Higher = more authority.
-  rank            Int              @default(0)
+  rank             Int                @default(0)
   // Bitfield of PERMISSIONS flags (see lib/permissions.ts).
-  permissions     Int              @default(0)
+  permissions      Int                @default(0)
   // System roles are seeded by migration and protected from deletion/rename.
-  isSystem        Boolean          @default(false)
-  createdAt       DateTime         @default(now())
-  brothers        BrotherRole[]
-  taskAssignments TaskAssignment[]
-  pollAssignments PollAssignment[]
+  isSystem         Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+  brothers         BrotherRole[]
+  taskAssignments  TaskAssignment[]
+  pollAssignments  PollAssignment[]
   // Programming events owned by the standing duty rather than a person. The
   // whole point of a role owner is that a rename propagates here for free.
   ownedProgramming ProgrammingEvent[] @relation("ProgrammingOwner")
@@ -584,7 +590,7 @@ model Task {
   completedAt    DateTime?
   createdAt      DateTime  @default(now())
 
-  organization Organization      @relation(fields: [organizationId], references: [id])
+  organization Organization     @relation(fields: [organizationId], references: [id])
   assignments  TaskAssignment[]
   completions  TaskCompletion[]
 
@@ -827,49 +833,49 @@ model PartyEvent {
 }
 
 model CalendarEvent {
-  schedule          Json? // Validated Schedule: all-day dates or UTC instants + source IANA zone.
-  id                Int                        @id @default(autoincrement())
-  organizationId    Int
-  title             String
-  date              String
-  time              String?
-  category          String
-  mandatory         Boolean
-  description       String?
-  location          String?
-  notesSummary      String?
-  notesSummaryAt    DateTime?
-  notesUpdatedAt    DateTime?
-  notesDoc          Bytes?
-  notesDocSeq       Int                          @default(0)
-  notesContentRevision Int                       @default(0)
-  notesSummaryRevision Int?
+  schedule                Json? // Validated Schedule: all-day dates or UTC instants + source IANA zone.
+  id                      Int                        @id @default(autoincrement())
+  organizationId          Int
+  title                   String
+  date                    String
+  time                    String?
+  category                String
+  mandatory               Boolean
+  description             String?
+  location                String?
+  notesSummary            String?
+  notesSummaryAt          DateTime?
+  notesUpdatedAt          DateTime?
+  notesDoc                Bytes?
+  notesDocSeq             Int                        @default(0)
+  notesContentRevision    Int                        @default(0)
+  notesSummaryRevision    Int?
   // Structured AI summary: { gist, decisions[], actions[] } — action items carry
   // an owner and a done flag officers tick off. notesSummary keeps the rendered
   // markdown for every other reader (Timeline, Ask Chapt). lib/meeting-summary.ts.
-  notesSummaryData  Json?
-  notesProtocolVersion Int                       @default(1)
+  notesSummaryData        Json?
+  notesProtocolVersion    Int                        @default(1)
   // The agenda template this meeting's notes were started from, and the filled
   // copy exactly as written into `description` at creation. `notesSeed` is how
   // "has minutes" tells an untouched agenda from real minutes (hasMinutes() in
   // lib/agenda-template.ts). The template link survives as null on delete; the
   // notes never change when a template is edited later.
-  agendaTemplateId  Int?
-  agendaTemplate    AgendaTemplate?            @relation(fields: [agendaTemplateId], references: [id], onDelete: SetNull)
-  notesSeed         String?
+  agendaTemplateId        Int?
+  agendaTemplate          AgendaTemplate?            @relation(fields: [agendaTemplateId], references: [id], onDelete: SetNull)
+  notesSeed               String?
   // Used by the Programming page (events workflow). Chapter/Timeline rows keep defaults.
-  owner             String                     @default("")
-  status            String                     @default("Upcoming")
+  owner                   String                     @default("")
+  status                  String                     @default("Upcoming")
   // Live check-in window. Null checkInOpenedAt = never opened (the 99% case).
   // Open when opened != null && closed == null && now < opened + CHECKIN_WINDOW_MS.
   // date/time stay the display fields; these are the only computable timestamps
   // on this model (date is a String, time is free text an officer types), which
   // is why the window is opened by hand rather than on a schedule.
   // The *ById columns are plain Ints, not FKs — same as AttendanceExcuse.decidedById.
-  checkInOpenedAt   DateTime?
-  checkInOpenedById Int?
-  checkInClosedAt   DateTime?
-  checkInClosedById Int?
+  checkInOpenedAt         DateTime?
+  checkInOpenedById       Int?
+  checkInClosedAt         DateTime?
+  checkInClosedById       Int?
   // Set when an officer CANCELS the window instead of closing it ("it didn't
   // happen"): closedAt/closedById are stamped too, no absences are written, and
   // every AttendanceRecord for the event moves into checkInCancelledRecords so
@@ -879,14 +885,14 @@ model CalendarEvent {
   // "More details" from the event form: an ordered list of typed details
   // (checklist, budget, who's bringing what, contact, …). Shape and parse live in
   // lib/event-details.ts; every read goes through parseEventDetails.
-  details           Json?
-  attendanceRecords AttendanceRecord[]
-  attendanceExcuses AttendanceExcuse[]
-  programmingEvent  ProgrammingEvent?
-  partyEvent        PartyEvent?                @relation("PartyAttendance")
-  transactionLinks  TransactionCalendarEvent[]
-  instagramTasks    InstagramTask[]
-  fundraiser        Fundraiser?
+  details                 Json?
+  attendanceRecords       AttendanceRecord[]
+  attendanceExcuses       AttendanceExcuse[]
+  programmingEvent        ProgrammingEvent?
+  partyEvent              PartyEvent?                @relation("PartyAttendance")
+  transactionLinks        TransactionCalendarEvent[]
+  instagramTasks          InstagramTask[]
+  fundraiser              Fundraiser?
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -986,31 +992,31 @@ model CalendarEventType {
 // / itineraryNotNeeded) were one fraternity's ops list hardcoded for every org,
 // and every one of them was self-attested. A date and a location are facts.
 model ProgrammingEvent {
-  schedule          Json? // Validated Schedule: all-day dates or UTC instants + source IANA zone.
-  id                 Int      @id @default(autoincrement())
-  organizationId     Int
+  schedule                Json? // Validated Schedule: all-day dates or UTC instants + source IANA zone.
+  id                      Int     @id @default(autoincrement())
+  organizationId          Int
   // Reserved after first publication, even while the mirror row is absent.
   // No FK: demotion deletes CalendarEvent; re-confirmation recreates THIS id,
   // preserving the canonical feed identity without retaining an unpublished row.
-  reservedCalendarEventId Int? @unique
-  calendarEventId    Int?     @unique
+  reservedCalendarEventId Int?    @unique
+  calendarEventId         Int?    @unique
   // Owning planning fields. A CalendarEvent is created only once the event
   // reaches "confirmed"; until then these live here alone.
-  title              String
-  date               String?
-  category           String
-  location           String?
-  time               String?
-  description        String?
-  status             String   @default("Upcoming")
-  stage              String   @default("idea")
-  mandatory          Boolean  @default(false)
-  collabOrg          String   @default("")
-  attachmentUrl      String?
-  attachmentDocId    Int?
-  spendingCents      Int      @default(0)
-  successRating      Int?
-  wrapUpNotes        String?
+  title                   String
+  date                    String?
+  category                String
+  location                String?
+  time                    String?
+  description             String?
+  status                  String  @default("Upcoming")
+  stage                   String  @default("idea")
+  mandatory               Boolean @default(false)
+  collabOrg               String  @default("")
+  attachmentUrl           String?
+  attachmentDocId         Int?
+  spendingCents           Int     @default(0)
+  successRating           Int?
+  wrapUpNotes             String?
 
   // Owner is either a roster member or a ROLE — a standing duty (mixers belong
   // to the Social Chair) shouldn't freeze on whoever held the title when the card
@@ -1047,8 +1053,8 @@ model ProgrammingEvent {
   // and a table would add a second fetch to serve a mostly-empty set.
   detachedFields Json @default("[]")
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   organization  Organization          @relation(fields: [organizationId], references: [id])
   calendarEvent CalendarEvent?        @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
@@ -1231,15 +1237,15 @@ model ActivityLog {
 // projected. Free-text ActivityLog rows are dual-written from logActivity()
 // for backwards-compat until Phase 3 cuts the UI over to event projections.
 model OperationalEvent {
-  id             BigInt   @id @default(autoincrement())
-  organizationId Int
-  requestId      String
-  actorId        Int?
-  action         String // verb.subject e.g. "excuse.approved", "transaction.created"
-  subjectType    String // model name e.g. "AttendanceExcuse", "Transaction"
-  subjectId      Int
-  metadata       Json     @default("{}")
-  occurredAt     DateTime @default(now())
+  id                  BigInt    @id @default(autoincrement())
+  organizationId      Int
+  requestId           String
+  actorId             Int?
+  action              String // verb.subject e.g. "excuse.approved", "transaction.created"
+  subjectType         String // model name e.g. "AttendanceExcuse", "Transaction"
+  subjectId           Int
+  metadata            Json      @default("{}")
+  occurredAt          DateTime  @default(now())
   // Transactional delivery for admission decisions. Older telemetry-only
   // events default to not pending and are never accidentally replayed.
   deliveryPending     Boolean   @default(false)
@@ -1699,16 +1705,16 @@ model Subscription {
   stripePriceId        String?
 
   // SubscriptionStatus (lib/state/subscription-status.ts) — CHECK-constrained.
-  status String @default("free")
+  status        String    @default("free")
   // BillingTier (lib/state/billing-tier.ts) — CHECK-constrained. Derived from
   // usage in automatic mode or selectedPlan, stored so admin lists can filter without
   // recomputing a headcount per org.
-  tier   String @default("free")
+  tier          String    @default("free")
   // Explicit plan choice survives roster changes. Existing rows stay automatic.
-  billingMode String @default("automatic")
-  selectedPlan String?
+  billingMode   String    @default("automatic")
+  selectedPlan  String?
   scheduledPlan String?
-  planChangeAt DateTime?
+  planChangeAt  DateTime?
 
   // Last computed billable headcount (lib/billing/seats.ts).
   billableMembers   Int       @default(0)
@@ -1745,13 +1751,13 @@ model Subscription {
 // organizationId is set only for `create`, where the founder agrees for the new
 // org too; SetNull so deleting that org never blocks on this table.
 model TermsAcceptance {
-  id             Int           @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   authUserId     String
   version        String
   // TermsAcceptanceContext (@/lib/state) — CHECK-constrained in the DB.
   context        String
   organizationId Int?
-  acceptedAt     DateTime      @default(now())
+  acceptedAt     DateTime @default(now())
 
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
@@ -1846,49 +1852,129 @@ model SalesLead {
 
 // Shared bearer credential. Null credentials are disabled, unprovisioned rows.
 model CalendarSubscription {
-  id Int @id @default(autoincrement())
-  organizationId Int @unique
-  publicId String @unique @default(uuid())
-  tokenDigest String?
-  tokenCiphertext String?
-  enabled Boolean @default(false)
-  generation Int @default(0)
-  validatedAt DateTime?
+  id                    Int          @id @default(autoincrement())
+  organizationId        Int          @unique
+  publicId              String       @unique @default(uuid())
+  tokenDigest           String?
+  tokenCiphertext       String?
+  enabled               Boolean      @default(false)
+  generation            Int          @default(0)
+  validatedAt           DateTime?
   // An admin asked for a readiness check; the worker settles it after a full projection.
   validationRequestedAt DateTime?
   // The pending request also turns the calendar on for members if it passes.
-  enableOnValidation Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enableOnValidation    Boolean      @default(false)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 model CalendarFeedItem {
-  id Int @id @default(autoincrement())
+  id             Int          @id @default(autoincrement())
   organizationId Int
-  sourceType String
-  sourceId Int
-  uid String @unique @default(uuid())
-  published Json?
-  contentHash String?
-  revision Int @default(0)
-  changedAt DateTime @default(now())
-  cancelledAt DateTime?
-  retainUntil DateTime?
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sourceType     String
+  sourceId       Int
+  uid            String       @unique @default(uuid())
+  published      Json?
+  contentHash    String?
+  revision       Int          @default(0)
+  changedAt      DateTime     @default(now())
+  cancelledAt    DateTime?
+  retainUntil    DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   @@unique([organizationId, sourceType, sourceId])
 }
 
 // One lockable durable work slot per org. Triggers enqueue in the source transaction.
 // Failed workers leave version > appliedVersion; retry reads current source state.
 model CalendarFeedWork {
-  id Int @id @default(autoincrement())
-  organizationId Int @unique
-  version Int @default(1)
-  appliedVersion Int @default(0)
-  enqueuedAt DateTime @default(now())
-  processedAt DateTime?
-  failedAt DateTime?
-  failures Int @default(0)
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @unique
+  version        Int          @default(1)
+  appliedVersion Int          @default(0)
+  enqueuedAt     DateTime     @default(now())
+  processedAt    DateTime?
+  failedAt       DateTime?
+  failures       Int          @default(0)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// ── Push notifications (app plan Phase 5) ──────────────────────────────────────
+
+// A phone the native app registered for push. IDENTITY-level, keyed by the
+// Google account (authUserId) rather than Brother: one device serves every org
+// the person is in, and someone waiting on a join request has no Brother yet but
+// still needs "You're in". Not org-scoped, so RLS is on with NO policy (the
+// TermsAcceptance posture): only lib/push/devices.ts touches it, through
+// prismaPrivileged, always filtered to the caller's own authUserId or to the
+// accounts behind an org-scoped recipient list.
+model PushDevice {
+  id         Int      @id @default(autoincrement())
+  authUserId String
+  // The Expo push token (ExponentPushToken[...]). One row per token: a phone
+  // that changes hands re-registers and the row moves to the new account.
+  token      String   @unique
+  // PushPlatform (@/lib/state) — CHECK-constrained in the DB.
+  platform   String
+  appVersion String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([authUserId])
+}
+
+// One member's choice for one push category in one org. Sparse: no row means
+// the category's default (lib/push/categories.ts). Keyed to the Membership, so
+// leaving an org takes its preferences with it.
+model NotificationPreference {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  brotherId      Int
+  // PushCategory (@/lib/state) — CHECK-constrained in the DB.
+  category       String
+  enabled        Boolean
+  updatedAt      DateTime @updatedAt
+
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+  membership   Membership   @relation(fields: [brotherId, organizationId], references: [brotherId, organizationId], onDelete: Cascade)
+
+  @@unique([organizationId, brotherId, category])
+  @@index([brotherId])
+}
+
+// The push outbox. A handler writes one row per recipient (cheap, inside the 3s
+// handler budget) and lib/push/sender.ts delivers them after the response.
+// dedupeKey is unique, so a retried event (the admission outbox) or a re-run
+// handler can never queue the same push twice.
+model PushMessage {
+  id                Int       @id @default(autoincrement())
+  organizationId    Int
+  brotherId         Int
+  // PushCategory, or "membership" for the always-on "You're in".
+  category          String
+  dedupeKey         String    @unique
+  title             String
+  body              String
+  // chaptos://org/<slug>/… — the screen a tap opens.
+  url               String
+  // PushMessageStatus (@/lib/state) — CHECK-constrained in the DB.
+  status            String    @default("pending")
+  attempts          Int       @default(0)
+  leaseUntil        DateTime?
+  // Past this, an unsent push is dropped rather than delivered late.
+  expiresAt         DateTime
+  // Expo ticket ids from the send, checked for receipts ~15 min later.
+  ticketIds         Json?
+  error             String?
+  createdAt         DateTime  @default(now())
+  sentAt            DateTime?
+  receiptsCheckedAt DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([organizationId, brotherId, category, createdAt])
 }

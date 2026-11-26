@@ -35,6 +35,15 @@
  *   lib/auth/terms-acceptance.ts  Terms of Service acceptance records: a global
  *                                 table with RLS on and no policy, keyed by the
  *                                 Google account rather than any org.
+ *   lib/push/devices.ts           PushDevice: a global table (keyed by the
+ *                                 Google account) with RLS on and no policy.
+ *                                 Register/unregister only the caller's own
+ *                                 verified account; reads only for accounts
+ *                                 behind an org-scoped recipient list.
+ *   lib/push/sender.ts            the push outbox drain: a trusted worker that
+ *                                 runs after the response / from the daily cron
+ *                                 with no org context, and must read devices.
+ *                                 Delivers each row only to its own recipient.
  *   lib/billing/webhook.ts        Stripe deliveries, which carry no session and
  *                                 no org cookie, so there is no app.org_id to
  *                                 SET LOCAL and the enforcing org_isolation

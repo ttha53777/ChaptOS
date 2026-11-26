@@ -1827,6 +1827,50 @@ function scopedChatApproval(orgId: number, run: Run) {
 }
 
 /**
+ * Push preferences, one sparse row per (member, category) in this org. Narrow
+ * on purpose: reads by brotherId set, and an upsert that pins organizationId.
+ */
+function scopedNotificationPreference(orgId: number, run: Run) {
+  return {
+    /** Every stored choice for these members in this org. */
+    forBrothers: (brotherIds: number[]) =>
+      brotherIds.length === 0 ? Promise.resolve([]) :
+      run(p => p.notificationPreference.findMany({
+        where: { organizationId: orgId, brotherId: { in: brotherIds } },
+        select: { brotherId: true, category: true, enabled: true },
+      })),
+    /** Set one member's choice for one category. */
+    set: (brotherId: number, category: string, enabled: boolean) =>
+      run(p => p.notificationPreference.upsert({
+        where:  { organizationId_brotherId_category: { organizationId: orgId, brotherId, category } },
+        create: { organizationId: orgId, brotherId, category, enabled },
+        update: { enabled },
+        select: { category: true, enabled: true },
+      })),
+  };
+}
+
+/**
+ * The push outbox, write side. Handlers only ever enqueue; delivery is the
+ * sender's job (lib/push/sender.ts, privileged, because it must also read the
+ * global PushDevice table).
+ */
+function scopedPushMessage(orgId: number, run: Run) {
+  return {
+    /** Queue pushes. skipDuplicates on the unique dedupeKey makes a retry a no-op. */
+    enqueue: async (rows: Omit<Prisma.PushMessageCreateManyInput, "organizationId">[]): Promise<number> =>
+      rows.length === 0 ? 0 :
+      (await run(p => p.pushMessage.createMany({ data: rows.map(r => ({ ...r, organizationId: orgId })), skipDuplicates: true }))).count,
+    /** Members who already got a push in this category since `since` with a key starting `prefix`. */
+    recentRecipients: async (prefix: string, since: Date): Promise<number[]> =>
+      (await run(p => p.pushMessage.findMany({
+        where: { organizationId: orgId, dedupeKey: { startsWith: prefix }, createdAt: { gte: since } },
+        select: { brotherId: true },
+      }))).map(r => r.brotherId),
+  };
+}
+
+/**
  * Files a member attached to Ask Chapt. Private to the uploader, so there is
  * deliberately no generic findMany/findFirst: every per-row method hangs off
  * forOwner(ownerId) and filters by org AND owner AND not-removed AND
@@ -2229,6 +2273,8 @@ export function db(orgId: number) {
     duesWaiver:          scopedDuesWaiver(orgId, run),
     chatApproval:        scopedChatApproval(orgId, run),
     chatAttachment:      scopedChatAttachment(orgId, run),
+    notificationPreference: scopedNotificationPreference(orgId, run),
+    pushMessage:         scopedPushMessage(orgId, run),
     joinRequest:         scopedJoinRequest(orgId, run),
     subscription:        scopedSubscription(orgId, run),
     salesLead:           scopedSalesLead(orgId, run),
@@ -2361,6 +2407,8 @@ export function _dbWithClient(orgId: number, client: P) {
     duesWaiver:          scopedDuesWaiver(orgId, run),
     chatApproval:        scopedChatApproval(orgId, run),
     chatAttachment:      scopedChatAttachment(orgId, run),
+    notificationPreference: scopedNotificationPreference(orgId, run),
+    pushMessage:         scopedPushMessage(orgId, run),
     joinRequest:         scopedJoinRequest(orgId, run),
     subscription:        scopedSubscription(orgId, run),
     salesLead:           scopedSalesLead(orgId, run),

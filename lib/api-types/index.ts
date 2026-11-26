@@ -190,6 +190,10 @@
  *   POST   /api/dues/charges/preview           DuesChargePreview       (treasury; body = issueDuesChargeInput)
  *   POST   /api/dues/charges                   DuesChargeIssued        (treasury; PATCH/DELETE [id], DELETE [id]/lines/[brotherId])
  *   POST   /api/dues/waivers                   DuesWaived              (treasury; DELETE [id] → DuesWaived)
+ *   POST   /api/push/devices                   PushDeviceResponse      (no roster row needed; body registerPushDeviceInput; idempotent on token)
+ *   DELETE /api/push/devices                   PushDeviceResponse      (no roster row needed; body unregisterPushDeviceInput; the app calls it before sign-out)
+ *   GET    /api/push/preferences               PushPreferencesResponse (the active org's categories for the caller)
+ *   PATCH  /api/push/preferences               PushPreferencesResponse (body updatePushPreferenceInput)
  *
  * Errors are `{ error: string, code?: string, details?: unknown }` with an HTTP
  * status (see lib/errors). 426 + code APP_UPDATE_REQUIRED means update the app.
@@ -213,3 +217,4 @@ export type * from "./docs";
 export type * from "./home";
 export type * from "./dashboard";
 export type * from "./settings";
+export type * from "./push";

@@ -18,6 +18,7 @@
 
 import { prismaPrivileged } from "@/lib/prisma-privileged";
 import { recordJoinSubmission } from "@/lib/events/bootstrap";
+import { dispatchJoinSubmission } from "@/lib/events/admission-delivery";
 import { resolveInviteToken, DEAD_REASON_MESSAGE, type InviteDeadReason } from "@/lib/auth/invite-lookup";
 import { JoinRequestStatus } from "@/lib/state";
 import { lockAdmissions, ADMISSION_TX_OPTIONS } from "@/lib/db/admission-lock";
@@ -78,7 +79,8 @@ export async function submitJoinRequest(
     message: DEAD_REASON_MESSAGE.not_found, orgSlug: null,
   };
   const { orgId, orgSlug } = boundary.invite;
-  return prismaPrivileged.$transaction(async tx => {
+  let filed: { id: number; organizationId: number; inviteId: number; name: string } | null = null;
+  const outcome = await prismaPrivileged.$transaction(async (tx): Promise<SubmitOutcome> => {
     await lockAdmissions(tx, orgId);
     const lookup = await resolveInviteToken(token, tx);
     if (!lookup.invite) return {
@@ -107,9 +109,13 @@ export async function submitJoinRequest(
     // The transition and its fact commit together. Duplicate submits return
     // above without rewriting a name, a decision, or a second event.
     await recordJoinSubmission(tx, request);
+    filed = request;
     if (termsVersion) {
       await recordTermsAcceptance({ authUserId: who.authUserId, version: termsVersion, context: TermsAcceptanceContext.Join }, tx);
     }
     return { ok: true, state: "pending", orgSlug };
   }, ADMISSION_TX_OPTIONS);
+  // Reactions (the officer push) run once the request has committed.
+  if (filed) await dispatchJoinSubmission(filed);
+  return outcome;
 }

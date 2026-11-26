@@ -328,7 +328,17 @@ export async function updateTask(ctx: RequestContext, id: number, input: UpdateT
     }
   });
 
-  if (changedFields.length) await emit(ctx, "task.updated", { type: "Task", id }, { title: existing.title, changedFields });
+  if (changedFields.length) {
+    const audienceChanged = changedFields.includes("assignees") || changedFields.includes("everyone");
+    await emit(ctx, "task.updated", { type: "Task", id }, {
+      title: existing.title, changedFields,
+      ...(audienceChanged ? { before: {
+        brotherIds: existing.assignments.filter(a => a.brotherId != null).map(a => a.brotherId!),
+        roleIds:    existing.assignments.filter(a => a.roleId != null).map(a => a.roleId!),
+        everyone:   existing.everyone,
+      } } : {}),
+    });
+  }
 
   if (perMember && input.status !== undefined) {
     return setStatus(ctx, id, input.status);

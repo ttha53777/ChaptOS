@@ -944,6 +944,9 @@ export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promi
     // ── 1. Audit / feed (reference the org + actor) ──────────────────────────
     await tx.operationalEvent.deleteMany({ where: { organizationId: orgId } });
     await tx.activityLog.deleteMany({ where: { organizationId: orgId } });
+    // Push outbox + preferences (their org FKs cascade too; explicit for the record).
+    await tx.pushMessage.deleteMany({ where: { organizationId: orgId } });
+    await tx.notificationPreference.deleteMany({ where: { organizationId: orgId } });
 
     // ── 2. Join tables with no organizationId column ─────────────────────────
     // Reached via their parents' ids (scoped above to THIS org), so this can't
@@ -1059,6 +1062,10 @@ export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promi
       // deleteManys so a large roster is two round-trips, not 2N.
       if (toDelete.length > 0) {
         await tx.platformAdmin.deleteMany({ where: { brotherId: { in: toDelete } } });
+        // Their phones are keyed by the Google account, which no FK reaches.
+        const accounts = await tx.brother.findMany({ where: { id: { in: toDelete } }, select: { authUserId: true } });
+        const authUserIds = accounts.flatMap(a => (a.authUserId ? [a.authUserId] : []));
+        if (authUserIds.length > 0) await tx.pushDevice.deleteMany({ where: { authUserId: { in: authUserIds } } });
         await tx.brother.deleteMany({ where: { id: { in: toDelete } } });
       }
     }

@@ -33,6 +33,10 @@ export async function resetDb(): Promise<void> {
       -- Global and keyed by the Google account; its org FK is SET NULL, so
       -- truncating Organization never takes these rows with it.
       "TermsAcceptance",
+      -- Global and keyed by the Google account; no FK cascades it away.
+      "PushDevice",
+      "PushMessage",
+      "NotificationPreference",
       "SalesLead",
       "Subscription",
       "OperationalEvent",

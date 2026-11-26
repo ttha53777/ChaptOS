@@ -145,7 +145,9 @@ export interface EventMetadata {
 
   // Items
   "task.created":   { title: string; dueDate: string | null; assigneeCount: number };
-  "task.updated":   { title: string; changedFields: string[] };
+  // `before` is the audience the edit replaced, sent only when the assignees or
+  // Everyone mode changed — push notifies only the people newly covered.
+  "task.updated":   { title: string; changedFields: string[]; before?: { brotherIds: number[]; roleIds: number[]; everyone: string | null } };
   "task.completed": { title: string };
   "task.reopened":  { title: string };
   "task.deleted":   { title: string };

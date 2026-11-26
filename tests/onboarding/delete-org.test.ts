@@ -84,6 +84,13 @@ async function seedFullOrg(slug: string) {
   });
   await createActivityLog({ orgId: organizationId });
   await createAnnouncement({ orgId: organizationId });
+  // Push: a preference and a queued message. Both org FKs CASCADE (so neither is
+  // in HANDLED below); deleteOrg also deletes them explicitly.
+  await testPrisma.notificationPreference.create({ data: { organizationId, brotherId, category: "dues", enabled: false } });
+  await testPrisma.pushMessage.create({ data: {
+    organizationId, brotherId, category: "tasks", dedupeKey: `seed:${slug}`, title: "New task", body: "Flyers",
+    url: `chaptos://org/${slug}/tasks/1`, expiresAt: new Date(Date.now() + 60_000),
+  } });
 
   return { organizationId, brotherId };
 }
@@ -94,6 +101,7 @@ async function childCounts(orgId: number) {
     parties, tasks, taskAssignments, igTasks, docs, transactions, budgets, activityLogs, announcements,
     operationalEvents, programmingEvents, programmingEventDocs,
     docFolders, polls, pollOptions, pollAssignments, pollVotes, exemptions,
+    notificationPreferences, pushMessages,
   ] = await Promise.all([
     testPrisma.organizationConfig.count({ where: { organizationId: orgId } }),
     testPrisma.membership.count({ where: { organizationId: orgId } }),
@@ -120,12 +128,15 @@ async function childCounts(orgId: number) {
     testPrisma.pollAssignment.count({ where: { organizationId: orgId } }),
     testPrisma.pollVote.count({ where: { organizationId: orgId } }),
     testPrisma.attendanceExemption.count({ where: { organizationId: orgId } }),
+    testPrisma.notificationPreference.count({ where: { organizationId: orgId } }),
+    testPrisma.pushMessage.count({ where: { organizationId: orgId } }),
   ]);
   return {
     config, memberships, roles, brotherRoles, semesters, calendarEvents, serviceEvents,
     parties, tasks, taskAssignments, igTasks, docs, transactions, budgets, activityLogs, announcements,
     operationalEvents, programmingEvents, programmingEventDocs,
     docFolders, polls, pollOptions, pollAssignments, pollVotes, exemptions,
+    notificationPreferences, pushMessages,
   };
 }
 

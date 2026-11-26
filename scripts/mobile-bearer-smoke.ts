@@ -229,6 +229,10 @@ const PROBES: Record<string, Probe> = {
   "POST /api/dues/charges/preview":            { path: () => "/api/dues/charges/preview", body: {} },
   "POST /api/dues/charges":                    { path: () => "/api/dues/charges", body: {} },
   "POST /api/dues/waivers":                    { path: () => "/api/dues/waivers", body: {} },
+  "POST /api/push/devices":                    { path: () => "/api/push/devices", body: {} },
+  "DELETE /api/push/devices":                  { path: () => "/api/push/devices", body: {} },
+  "GET /api/push/preferences":                 { path: () => "/api/push/preferences" },
+  "PATCH /api/push/preferences":               { path: () => "/api/push/preferences", body: {} },
 };
 
 async function call(method: string, path: string, probe: Partial<Probe> = {}) {

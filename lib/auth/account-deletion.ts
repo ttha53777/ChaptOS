@@ -148,6 +148,8 @@ export async function deleteOwnAccount(authUserId: string): Promise<{ orgIds: nu
     });
     // Keyed by the Google account, not the Brother, so no cascade reaches it.
     await tx.termsAcceptance.deleteMany({ where: { authUserId } });
+    // Push devices are keyed by the account, not the Brother, so no FK takes them.
+    await tx.pushDevice.deleteMany({ where: { authUserId } });
 
     // Receipts are erased with their reimbursement rows by the cascade, but
     // Storage isn't in the FK graph — collect the paths before the rows go.

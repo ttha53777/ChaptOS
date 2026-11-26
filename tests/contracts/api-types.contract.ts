@@ -27,7 +27,7 @@ import type {
   HomeResponse, MemberUpdated, MobileConfig, JoinRequestPage, JoinRequestApproved,
   AttendanceSummaryRow, ExcuseListItem, ExcuseDecided, EventDeletePreview, AgendaTemplate, MeetingSummarized, MinutesSaved,
   ProgrammingEvent, ProgrammingDoc, RoleChip, RoleDetail, RoleSaved, RoleGranted, InviteRow, InviteRedemption, EventFieldRow, Party, PartyRollRow, InstagramPost,
-  ActivityLogRow, OrgDeletionSummary, ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
+  ActivityLogRow, OrgDeletionSummary, PushDeviceResponse, PushPreferencesResponse, ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
 } from "@/lib/api-types";
 import type { datedFromThings, logbookFromRecords, pastDueFromTasks } from "@/lib/ai-shapes-calendar";
 import type { recordFromCards, zeroFromCounts } from "@/lib/ai-shapes-lookup";
@@ -73,6 +73,7 @@ import type { getHome } from "@/lib/services/home-service";
 import type { getDashboard } from "@/lib/services/dashboard-service";
 import type { updateBrother } from "@/lib/services/brother-service";
 import type { mobileConfig } from "@/lib/mobile-config";
+import type { getPushPreferences, registerPushDevice, setPushPreference, unregisterPushDevice } from "@/lib/services/push-service";
 import type { getDuesBoard, getMemberDuesBook, issueDuesCharge, previewDuesCharge, voidDuesWaiver, waiveDues } from "@/lib/services/dues-charge-service";
 
 type Fn = (...args: never[]) => unknown;
@@ -244,6 +245,11 @@ export const home: Widen<HomeResponse> = served<Served<typeof getHome>>();
 export const dashboard: Widen<DashboardResponse> = served<Served<typeof getDashboard>>();
 export const memberUpdated: Widen<MemberUpdated> = served<Served<typeof updateBrother>>();
 export const mobileConfigBody: MobileConfig = served<ReturnType<typeof mobileConfig>>();
+// Push (app plan Phase 5).
+export const pushDeviceRegistered: Widen<PushDeviceResponse> = served<Served<typeof registerPushDevice>>();
+export const pushDeviceRemoved: Widen<PushDeviceResponse> = served<Served<typeof unregisterPushDevice>>();
+export const pushPreferences: Widen<PushPreferencesResponse> = served<Served<typeof getPushPreferences>>();
+export const pushPreferencesSaved: Widen<PushPreferencesResponse> = served<Served<typeof setPushPreference>>();
 
 export const chatAttachments: Widen<ChatAttachmentInfo[]> = served<Served<typeof listAttachments>>();
 export const chatAttachmentUploaded: Widen<ChatAttachmentInfo> = served<Served<typeof uploadAttachment>>();

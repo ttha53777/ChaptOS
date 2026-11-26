@@ -9,3 +9,4 @@ import "./recalc-service-hours";
 import "./sync-seats";
 import "./sync-party-calendar";
 import "./calendar-feed";
+import "./push";

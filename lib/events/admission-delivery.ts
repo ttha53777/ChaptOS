@@ -85,3 +85,25 @@ export async function flushAdmissionEvents() {
   }
   return { organizations: pending.length, delivered, failed };
 }
+
+/**
+ * A join request was just filed. The applicant has no member context, so the
+ * bootstrap path (lib/auth/join-request-submit.ts) calls this after its
+ * transaction commits to run the reactions (officer push). Best-effort: the
+ * request is already filed, and a failed reaction must not fail the submit.
+ */
+export async function dispatchJoinSubmission(request: { id: number; organizationId: number; inviteId: number; name: string }) {
+  const ctx: RequestContext = {
+    orgId: request.organizationId, db: db(request.organizationId), actorId: 0,
+    actorName: request.name, requestId: "join-submission", actorEmail: null,
+    authUserId: "", membershipId: null, permissions: 0, maxRank: 0,
+    isOrgAdmin: false, isPlatformAdmin: false,
+  };
+  try {
+    await dispatchHandlers(ctx, "join_request.submitted", { type: "JoinRequest", id: request.id }, {
+      name: request.name, inviteId: request.inviteId, orgId: request.organizationId,
+    });
+  } catch (e) {
+    logError(e, { route: "events/join-submission", method: "DISPATCH", extra: { orgId: request.organizationId } });
+  }
+}
