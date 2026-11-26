@@ -3,13 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "../../../../components/dashboard/primitives";
 import { apiErrorMessage, requestJson } from "../../../../lib/api";
+import type { EventFieldDef } from "@/lib/event-fields";
 import {
-  FIELD_KINDS,
-  MAX_EVENT_FIELDS,
-  MAX_FIELD_LABEL,
-  type EventFieldDef,
-  type FieldKind,
-} from "@/lib/event-fields";
+  EVENT_FIELDS_COPY as C, FIELD_KINDS, KIND_COPY, MAX_FIELD_LABEL, MAX_EVENT_FIELDS,
+  fieldNote, kindLabel, sortFields, toggleMessage, type FieldKind,
+} from "@/lib/settings/event-fields";
 
 /**
  * What the API actually returns: EventFieldDef plus the row id.
@@ -43,17 +41,6 @@ type EventFieldRow = EventFieldDef & { id: number };
 // API and surfaced as returned, rather than re-litigated here where the two
 // could drift.
 
-/** What each kind collects, in the officer's words rather than the schema's. */
-const KIND_COPY: Record<FieldKind, { label: string; eg: string }> = {
-  text:   { label: "Text",     eg: "Anything written — a contact, a note, a dress code." },
-  num:    { label: "Number",   eg: "A count. Head count, buses, tables." },
-  money:  { label: "Money",    eg: "A dollar amount, kept apart from what was actually spent." },
-  bool:   { label: "Yes / no", eg: "A box that's either ticked or it isn't. Risk form filed?" },
-  date:   { label: "Date",     eg: "A second date the event depends on — a deposit deadline." },
-  person: { label: "Person",   eg: "Somebody on the roster who isn't the owner." },
-  file:   { label: "File",     eg: "A link or an attachment." },
-};
-
 export function EventFieldsSection({
   onStatus,
   onError,
@@ -75,7 +62,7 @@ export function EventFieldsSection({
       // Returns disabled rows too — this is the surface that turns them back on.
       setFields(await requestJson<EventFieldRow[]>("/api/events/fields"));
     } catch (err) {
-      onError(apiErrorMessage(err, "Could not load event fields."));
+      onError(apiErrorMessage(err, C.loadFailed));
       setFields([]);
     }
   }, [onError]);
@@ -83,7 +70,7 @@ export function EventFieldsSection({
   useEffect(() => { void load(); }, [load]);
 
   const sorted = useMemo(
-    () => [...(fields ?? [])].sort((a, b) => a.displayOrder - b.displayOrder || a.slug.localeCompare(b.slug)),
+    () => sortFields(fields ?? []),
     [fields],
   );
   const atCeiling = sorted.length >= MAX_EVENT_FIELDS;
@@ -97,7 +84,7 @@ export function EventFieldsSection({
       await load();
       onStatus(ok);
     } catch (err) {
-      onError(apiErrorMessage(err, "Could not save the change."));
+      onError(apiErrorMessage(err, C.saveFailed));
     } finally {
       setBusy(false);
     }
@@ -128,18 +115,17 @@ export function EventFieldsSection({
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ displayOrder: a.displayOrder }),
       });
-    }, "Order saved.");
+    }, C.orderSaved);
   }
 
   if (fields === null) {
-    return <p className="sc-lede" style={{ margin: 0 }}>Loading…</p>;
+    return <p className="sc-lede" style={{ margin: 0 }}>{C.loading}</p>;
   }
 
   return (
     <div className="sc-stack-tight">
       <p className="sc-lede" style={{ margin: 0 }}>
-        What every event records. Set once for the chapter, not per event — that&apos;s what
-        makes a budget or a head count something you can compare across the term.
+        {C.lede}
       </p>
 
       <div className="space-y-2">
@@ -151,7 +137,7 @@ export function EventFieldsSection({
                 {/* Reorder */}
                 <div className="flex shrink-0 flex-col gap-0.5">
                   <button
-                    type="button" aria-label="Move up" disabled={idx === 0 || busy}
+                    type="button" aria-label={C.moveUp} disabled={idx === 0 || busy}
                     onClick={() => void move(idx, -1)}
                     className="flex h-4 w-4 items-center justify-center rounded disabled:opacity-20"
                   >
@@ -160,7 +146,7 @@ export function EventFieldsSection({
                     </svg>
                   </button>
                   <button
-                    type="button" aria-label="Move down" disabled={idx === sorted.length - 1 || busy}
+                    type="button" aria-label={C.moveDown} disabled={idx === sorted.length - 1 || busy}
                     onClick={() => void move(idx, 1)}
                     className="flex h-4 w-4 items-center justify-center rounded disabled:opacity-20"
                   >
@@ -181,13 +167,13 @@ export function EventFieldsSection({
                       if (e.key === "Escape") { setEditing(null); }
                       if (e.key === "Enter" && draftLabel.trim()) {
                         setEditing(null);
-                        void patch(f, { label: draftLabel.trim() }, "Field renamed.");
+                        void patch(f, { label: draftLabel.trim() }, C.renamed);
                       }
                     }}
                     onBlur={() => {
                       setEditing(null);
                       if (draftLabel.trim() && draftLabel.trim() !== f.label) {
-                        void patch(f, { label: draftLabel.trim() }, "Field renamed.");
+                        void patch(f, { label: draftLabel.trim() }, C.renamed);
                       }
                     }}
                   />
@@ -195,16 +181,16 @@ export function EventFieldsSection({
                   <span className="min-w-0 flex-1 truncate sc-row-key">{f.label}</span>
                 )}
 
-                <span className="sc-pill sc-pill-muted shrink-0">{KIND_COPY[f.kind]?.label ?? f.kind}</span>
-                {f.builtin && <span className="sc-pill sc-pill-muted shrink-0">Built-in</span>}
-                {!f.enabled && <span className="sc-pill sc-pill-muted shrink-0">Off</span>}
+                <span className="sc-pill sc-pill-muted shrink-0">{kindLabel(f.kind)}</span>
+                {f.builtin && <span className="sc-pill sc-pill-muted shrink-0">{C.builtin}</span>}
+                {!f.enabled && <span className="sc-pill sc-pill-muted shrink-0">{C.off}</span>}
 
                 <button
                   type="button" disabled={busy}
                   className="sc-btn sc-btn-ghost sc-btn-sm shrink-0"
                   onClick={() => { setEditing(f.slug); setDraftLabel(f.label); }}
                 >
-                  Rename
+                  {C.rename}
                 </button>
 
                 {/* Offered for builtins too. They were exempt while the service
@@ -217,12 +203,10 @@ export function EventFieldsSection({
                   onClick={() => void patch(
                     f,
                     { enabled: !f.enabled },
-                    f.enabled
-                      ? `${f.label} is no longer collected. Existing answers are kept.`
-                      : `${f.label} is collected on every event again.`,
+                    toggleMessage(f),
                   )}
                 >
-                  {f.enabled ? "Stop collecting" : "Collect again"}
+                  {f.enabled ? C.stop : C.again}
                 </button>
 
                 {!f.builtin && (
@@ -231,14 +215,12 @@ export function EventFieldsSection({
                     className="sc-btn sc-btn-ghost sc-btn-sm shrink-0"
                     onClick={() => setDeleteTarget(f)}
                   >
-                    Delete
+                    {C.delete}
                   </button>
                 )}
               </div>
               <p className="px-4 pb-3 text-[11.5px]" style={{ color: "var(--faint)" }}>
-                {f.builtin
-                  ? `${KIND_COPY[f.kind]?.eg} Built in — rename it or stop collecting it, but it can't be deleted outright.`
-                  : KIND_COPY[f.kind]?.eg}
+                {fieldNote(f)}
               </p>
             </div>
           );
@@ -251,7 +233,7 @@ export function EventFieldsSection({
           <input
             autoFocus
             className="sc-input w-full"
-            placeholder="Beneficiary"
+            placeholder={C.newPlaceholder}
             maxLength={MAX_FIELD_LABEL}
             value={newLabel}
             onChange={e => setNewLabel(e.target.value)}
@@ -272,8 +254,7 @@ export function EventFieldsSection({
               doesn't tell you it's kept apart from actual spend. */}
           <p className="text-[11.5px]" style={{ color: "var(--faint)" }}>{KIND_COPY[newKind].eg}</p>
           <p className="text-[11.5px]" style={{ color: "var(--faint)" }}>
-            A field&apos;s type is fixed once events start answering it — retyping
-            an answered field has no safe reading.
+            {C.fixedType}
           </p>
           <div className="flex gap-2">
             <button
@@ -286,17 +267,17 @@ export function EventFieldsSection({
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ label: newLabel.trim(), kind: newKind }),
                 }),
-                `${newLabel.trim()} is now collected on every event.`,
+                C.added(newLabel.trim()),
               ).then(() => { setAdding(false); setNewLabel(""); setNewKind("text"); })}
             >
-              Add field
+              {C.addField}
             </button>
             <button
               type="button"
               className="sc-btn sc-btn-ghost sc-btn-sm"
               onClick={() => { setAdding(false); setNewLabel(""); }}
             >
-              Cancel
+              {C.cancel}
             </button>
           </div>
         </div>
@@ -306,32 +287,29 @@ export function EventFieldsSection({
           className="sc-btn sc-btn-ghost sc-btn-sm"
           disabled={atCeiling || busy}
           onClick={() => setAdding(true)}
-          title={atCeiling ? `A chapter can collect at most ${MAX_EVENT_FIELDS} fields.` : undefined}
+          title={atCeiling ? C.ceilingTitle : undefined}
         >
-          + New field
+          {C.newField}
         </button>
       )}
       {atCeiling && (
         <p className="text-[11.5px]" style={{ color: "var(--faint)" }}>
-          That&apos;s all {MAX_EVENT_FIELDS} fields. Stop collecting one to make room.
+          {C.ceiling}
         </p>
       )}
 
       {deleteTarget && (
         <ConfirmDialog
           tone="dusk"
-          title={`Delete “${deleteTarget.label}”?`}
-          message={
-            "Every event's answer to this field goes with it. If you only want to stop " +
-            "asking, use “Stop collecting” instead — that keeps the answers on file."
-          }
-          confirmLabel="Delete"
+          title={C.deleteTitle(deleteTarget.label)}
+          message={C.deleteMessage}
+          confirmLabel={C.delete}
           onConfirm={() => {
             const target = deleteTarget;
             setDeleteTarget(null);
             void mutate(
               () => requestJson(`/api/events/fields/${target.id}`, { method: "DELETE" }),
-              `${target.label} deleted.`,
+              C.deleted(target.label),
             );
           }}
           onCancel={() => setDeleteTarget(null)}

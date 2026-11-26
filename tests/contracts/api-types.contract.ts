@@ -27,7 +27,7 @@ import type {
   HomeResponse, MemberUpdated, MobileConfig, JoinRequestPage, JoinRequestApproved,
   AttendanceSummaryRow, ExcuseListItem, ExcuseDecided, EventDeletePreview, AgendaTemplate, MeetingSummarized, MinutesSaved,
   ProgrammingEvent, ProgrammingDoc, RoleChip, RoleDetail, RoleSaved, RoleGranted, InviteRow, InviteRedemption, EventFieldRow, Party, PartyRollRow, InstagramPost,
-  ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
+  ActivityLogRow, OrgDeletionSummary, ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
 } from "@/lib/api-types";
 import type { datedFromThings, logbookFromRecords, pastDueFromTasks } from "@/lib/ai-shapes-calendar";
 import type { recordFromCards, zeroFromCounts } from "@/lib/ai-shapes-lookup";
@@ -43,7 +43,9 @@ import type { listPolls, castVote, createPoll, updatePoll } from "@/lib/services
 import type { listCalendar, previewDeleteCalendar, updateCalendar } from "@/lib/services/calendar-service";
 import type { listAgendaTemplates } from "@/lib/services/agenda-template-service";
 import type { summarizeMeeting } from "@/lib/services/meeting-summary-service";
-import type { listEventTypes } from "@/lib/services/calendar-event-type-service";
+import type { createEventType, listEventTypes, updateEventType } from "@/lib/services/calendar-event-type-service";
+import type { summarizeOrgForDeletion } from "@/lib/services/org-service";
+import type { ActivityLog } from "@/app/generated/prisma/client";
 import type { getLiveCheckIn, listMyAttendance, selfCheckIn, undoSelfCheckIn, summarizeAttendance, openCheckIn, closeCheckIn, reopenCheckIn, cancelCheckIn, restoreCheckIn } from "@/lib/services/attendance-service";
 import type { listMyExcuses, listExcuses, decideExcuse } from "@/lib/services/excuse-service";
 import type { listRecentActivity } from "@/lib/services/activity-service";
@@ -53,7 +55,7 @@ import type { createReimbursement, listReimbursements, updateReimbursement } fro
 import type { setOpeningBalance } from "@/lib/services/treasury-settings-service";
 import type { activateSemester, createSemester, listSemesters, updateSemester } from "@/lib/services/semester-service";
 import type { createMetricDefinition, listMetricDefinitions, updateMetricDefinition } from "@/lib/services/metric-definition-service";
-import type { listTransactionCategories } from "@/lib/services/transaction-category-service";
+import type { createTransactionCategory, listTransactionCategories, updateTransactionCategory } from "@/lib/services/transaction-category-service";
 import type { listServiceEvents, createServiceEvent, updateServiceEvent } from "@/lib/services/service-event-service";
 import type { listParticipationForOrg, listParticipationForEvent, logMyParticipation, removeMyParticipation, logParticipation } from "@/lib/services/service-participation-service";
 import type { listFundraisers, getFundraiser, createFundraiser, updateFundraiser, addSupply, updateSupply, removeSupply, wrapUpFundraiser, reopenFundraiser } from "@/lib/services/fundraiser-service";
@@ -61,7 +63,7 @@ import type { listDocs, createDoc, updateDoc, setDocPinned, refreshDocMetadata }
 import type { listProgrammingTasks, createProgrammingTask, updateProgrammingTask, setStage, listProgrammingEventDocs, attachProgrammingDoc } from "@/lib/services/programming-service";
 import type { listRoles, createRole, updateRole, grantRole } from "@/lib/services/role-service";
 import type { listInvites, createInvite, listInviteRedemptions } from "@/lib/services/invite-service";
-import type { listEventFields, createEventField } from "@/lib/services/event-field-service";
+import type { listEventFields, createEventField, updateEventField } from "@/lib/services/event-field-service";
 import type { listInstagramTasks, createInstagramTask, updateInstagramTask } from "@/lib/services/instagram-service";
 import type { listParties, createParty, updateParty, wrapUpParty, summarizePartyAttendance } from "@/lib/services/party-service";
 import type { listFolders, createFolder, renameFolder, setFolderPinned, moveDoc } from "@/lib/services/doc-folder-service";
@@ -115,6 +117,8 @@ export const vote: Widen<Poll> = served<Served<typeof castVote>>();
 
 export const calendar: Widen<CalendarEvent[]> = served<Served<typeof listCalendar>>();
 export const eventTypes: Widen<CalEventType[]> = served<Served<typeof listEventTypes>>();
+export const eventTypeCreated: Widen<CalEventType> = served<Served<typeof createEventType>>();
+export const eventTypeUpdated: Widen<CalEventType> = served<Served<typeof updateEventType>>();
 
 export const liveCheckIn: Widen<LiveCheckIn | null> = served<Served<typeof getLiveCheckIn>>();
 export const checkIn: Widen<LiveCheckIn | null> = served<Served<typeof selfCheckIn>>();
@@ -157,6 +161,11 @@ export const metricDefinitions: Widen<MetricDefinition[]> = served<Served<typeof
 export const metricCreated: Widen<MetricDefinition> = served<Served<typeof createMetricDefinition>>();
 export const metricUpdated: Widen<MetricDefinition> = served<Served<typeof updateMetricDefinition>>();
 export const categories: Widen<TransactionCategory[]> = served<Served<typeof listTransactionCategories>>();
+export const categoryCreated: Widen<TransactionCategory> = served<Served<typeof createTransactionCategory>>();
+export const categoryUpdated: Widen<TransactionCategory> = served<Served<typeof updateTransactionCategory>>();
+// GET /api/activity/full answers ctx.db.activityLog.findMany rows verbatim.
+export const activityFull: Widen<ActivityLogRow[]> = served<Wire<ActivityLog[]>>();
+export const orgDeletionSummary: Widen<OrgDeletionSummary> = served<Served<typeof summarizeOrgForDeletion>>();
 
 export const duesBoard: Widen<DuesBoard> = served<Served<typeof getDuesBoard>>();
 export const memberDuesBook: Widen<MemberDuesBook> = served<Served<typeof getMemberDuesBook>>();
@@ -201,6 +210,7 @@ export const programmingStaged: Widen<ProgrammingEvent> = served<Served<typeof s
 export const programmingDocs: Widen<ProgrammingDoc[]> = served<Served<typeof listProgrammingEventDocs>>();
 export const programmingDocAttached: Widen<ProgrammingDoc> = served<Served<typeof attachProgrammingDoc>>();
 export const eventFields: Widen<EventFieldRow[]> = served<Served<typeof listEventFields>>();
+export const eventFieldUpdated: Widen<EventFieldRow> = served<Served<typeof updateEventField>>();
 export const eventFieldCreated: Widen<EventFieldRow> = served<Served<typeof createEventField>>();
 export const parties: Widen<Party[]> = served<Served<typeof listParties>>();
 export const partyCreated: Widen<Party> = served<Served<typeof createParty>>();

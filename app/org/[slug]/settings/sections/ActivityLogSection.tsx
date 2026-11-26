@@ -2,8 +2,10 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { orgFetch } from "../../../../lib/api";
-
-type ActivityType = "success" | "warning" | "info";
+import {
+  ACTIVITY_FILTERS as FILTERS, ACTIVITY_LOG_COPY as C, activityPath, formatActivityTime as formatAbsolute,
+  type ActivityFilter as Filter, type ActivityType,
+} from "@/lib/settings/activity-log";
 
 interface ActivityRow {
   id: number;
@@ -13,35 +15,17 @@ interface ActivityRow {
   actorId: number | null;
 }
 
-type Filter = "all" | ActivityType;
-
-const FILTERS: { id: Filter; label: string }[] = [
-  { id: "all",     label: "All" },
-  { id: "info",    label: "Info" },
-  { id: "success", label: "Success" },
-  { id: "warning", label: "Warning" },
-];
-
 const DOT: Record<ActivityType, string> = {
   success: "var(--ok)",
   warning: "var(--gold)",
   info:    "var(--vio)",
 };
 
-function formatAbsolute(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleString(undefined, {
-    month: "short", day: "numeric", year: "numeric",
-    hour: "numeric", minute: "2-digit",
-  });
-}
-
 async function requestActivity(filter: Filter): Promise<{ rows?: ActivityRow[]; forbidden?: boolean; error?: string }> {
-  const url = filter === "all" ? "/api/activity/full" : `/api/activity/full?type=${filter}`;
+  const url = activityPath(filter);
   const res = await orgFetch(url);
   if (res.status === 403) return { forbidden: true };
-  if (!res.ok) return { error: `Request failed (${res.status})` };
+  if (!res.ok) return { error: C.failed(res.status) };
   const rows = await res.json() as ActivityRow[];
   return { rows };
 }
@@ -78,8 +62,8 @@ export function ActivityLogSection({
   if (forbidden) {
     return (
       <div className="sc-empty" style={{ borderStyle: "solid", borderColor: "var(--gold-bg)", background: "var(--gold-bg)" }}>
-        <div className="t" style={{ color: "var(--gold)" }}>Officer access required</div>
-        <div className="h">The activity log is restricted to chapter officers.</div>
+        <div className="t" style={{ color: "var(--gold)" }}>{C.forbiddenTitle}</div>
+        <div className="h">{C.forbiddenHint}</div>
       </div>
     );
   }
@@ -99,9 +83,9 @@ export function ActivityLogSection({
       </div>
 
       {loading ? (
-        <div className="py-8 text-center sc-note">Loading…</div>
+        <div className="py-8 text-center sc-note">{C.loading}</div>
       ) : rows.length === 0 ? (
-        <div className="sc-empty"><div className="t">No activity recorded yet</div></div>
+        <div className="sc-empty"><div className="t">{C.empty}</div></div>
       ) : (
         <div className="sc-card">
           <div className="max-h-[60vh] overflow-y-auto">

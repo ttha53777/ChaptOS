@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useChapter } from "../../../../context/ChapterContext";
 import { apiErrorMessage, requestJson } from "../../../../lib/api";
 import { useDirtyGuard } from "../SettingsDirtyContext";
+import { OPENING_BALANCE_COPY as C, balanceDirty, parseBalance, toBalanceDraft } from "@/lib/settings/opening-balance";
 
 // Settings → Opening balance. The same number TreasuryOpenBooks asks for on day
 // one, made editable afterwards: a treasurer who typed the wrong figure, or who
@@ -20,19 +21,6 @@ interface TreasuryResponse {
   trend: { month: string; balance: number }[];
   openingBalance: number | null;
 }
-
-function toDraft(v: number | null): string {
-  return v == null ? "" : String(v);
-}
-
-function parse(raw: string): number | null {
-  const cleaned = raw.replace(/[^0-9.-]/g, "");
-  if (cleaned === "") return null;
-  const v = parseFloat(cleaned);
-  return Number.isFinite(v) ? Math.round(v * 100) / 100 : NaN;
-}
-
-const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 export function OpeningBalanceSection({
   onStatus,
@@ -59,21 +47,21 @@ export function OpeningBalanceSection({
       .then(data => {
         if (!mounted.current) return;
         setPersisted(data.openingBalance);
-        setDraft(toDraft(data.openingBalance));
+        setDraft(toBalanceDraft(data.openingBalance));
       })
-      .catch(() => { if (mounted.current) onError("Couldn't load the opening balance."); })
+      .catch(() => { if (mounted.current) onError(C.loadFailed); })
       .finally(() => { if (mounted.current) setLoading(false); });
   }, [onError]);
 
-  const parsed = useMemo(() => parse(draft), [draft]);
-  const dirty = !loading && parsed !== persisted && !(parsed === null && persisted === null);
+  const parsed = useMemo(() => parseBalance(draft), [draft]);
+  const dirty = balanceDirty(parsed, persisted, loading);
   useDirtyGuard("opening-balance", dirty);
 
   const save = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (saving) return;
     if (parsed === null || Number.isNaN(parsed)) {
-      setInvalid("Enter what was in the account when you started — $0 is fine.");
+      setInvalid(C.invalid);
       return;
     }
     setSaving(true);
@@ -86,14 +74,14 @@ export function OpeningBalanceSection({
       const next = res.openingBalance ?? parsed;
       if (!mounted.current) return;
       setPersisted(next);
-      setDraft(toDraft(next));
+      setDraft(toBalanceDraft(next));
       // Balance and trend are folded server-side; take the fresh copy rather than
       // re-deriving them here.
       const fresh = await requestJson<TreasuryResponse>("/api/treasury").catch(() => null);
       if (fresh) setTreasuryData(fresh);
-      onStatus(`Opening balance set to ${usd.format(next)}.`);
+      onStatus(C.saved(next));
     } catch (err) {
-      onError(apiErrorMessage(err, "Couldn't save the opening balance. Try again."));
+      onError(apiErrorMessage(err, C.saveFailed));
     } finally {
       if (mounted.current) setSaving(false);
     }
@@ -102,24 +90,22 @@ export function OpeningBalanceSection({
   return (
     <form className="sc-stack-tight" onSubmit={save} autoComplete="off">
       <p className="sc-lede">
-        What was in the account when you started keeping books here. Every balance,
-        chart and report counts forward from this number, so changing it shifts all
-        of them by the difference. Negative is allowed if you started in the hole.
+        {C.lede}
       </p>
 
       <div className="sc-card sc-card-pad">
         <div className="sc-row sc-row-between">
           <span className="sc-row-key">
-            Starting balance
-            {!loading && persisted == null && <span className="sc-dirty" style={{ marginLeft: 8 }}>Not set</span>}
+            {C.key}
+            {!loading && persisted == null && <span className="sc-dirty" style={{ marginLeft: 8 }}>{C.notSet}</span>}
           </span>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="sc-unit">$</span>
+              <span className="sc-unit">{C.unit}</span>
               <input
                 inputMode="decimal"
-                placeholder={loading ? "…" : "0.00"}
-                aria-label="Opening balance"
+                placeholder={loading ? C.loadingPlaceholder : C.placeholder}
+                aria-label={C.aria}
                 value={draft}
                 disabled={loading || saving}
                 onChange={e => { setDraft(e.target.value); setInvalid(null); }}
@@ -138,19 +124,19 @@ export function OpeningBalanceSection({
 
       <div className="sc-actions">
         <button type="submit" disabled={!dirty || saving} className="sc-btn sc-btn-primary">
-          {saving ? "Saving…" : persisted == null ? "Set opening balance" : "Save opening balance"}
+          {saving ? C.saving : persisted == null ? C.set : C.save}
         </button>
         {dirty && (
           <button
             type="button"
-            onClick={() => { setDraft(toDraft(persisted)); setInvalid(null); }}
+            onClick={() => { setDraft(toBalanceDraft(persisted)); setInvalid(null); }}
             disabled={saving}
             className="sc-btn sc-btn-ghost"
           >
-            Undo
+            {C.undo}
           </button>
         )}
-        {dirty && <span className="sc-dirty">Unsaved</span>}
+        {dirty && <span className="sc-dirty">{C.unsaved}</span>}
       </div>
     </form>
   );

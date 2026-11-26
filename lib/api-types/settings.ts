@@ -114,3 +114,34 @@ export interface MetricDefinition {
 export interface CalendarFeedChanged {
   ok: true;
 }
+
+/** GET /api/activity/full (platform admins; ?type=success|warning|info): the org's raw log, newest first, at most 500. */
+export interface ActivityLogRow {
+  id: number;
+  organizationId: number;
+  message: string;
+  type: string;
+  /** ISO 8601. */
+  timestamp: string;
+  actorId: number | null;
+}
+
+/** GET /api/orgs/manage (org admins): what deleting the active org would remove. */
+export interface OrgDeletionSummary {
+  organizationId: number;
+  name: string;
+  slug: string;
+  members: number;
+  events: number;
+  transactions: number;
+  docs: number;
+  parties: number;
+}
+
+/** DELETE /api/orgs/manage (org admins): the org is gone; the active-org cookie is cleared. */
+export interface OrgDeleted {
+  ok: true;
+  organizationId: number;
+  slug: string;
+}
+

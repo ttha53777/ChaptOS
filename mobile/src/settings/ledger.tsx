@@ -12,6 +12,9 @@
  *   Actions    `.sc-actions` (Save, Reset, the Unsaved chip)
  *   Empty      `.sc-empty`
  *   ScInput    `.sc-input` with its `.sc-mlabel`
+ *   Swatches   `.et-swatches` (a type's or category's colour pair) · Dot `.et-dot`
+ *   FormCard   the lilac-edged new/edit form box · AddLine the dashed "+ Add …" button
+ *   Reorder    the stacked up/down chevrons
  */
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from "react-native";
@@ -57,10 +60,10 @@ export function Locked({ label }: { label: string }) {
   return <T v="label" size={9.6} ls={0.09} color={c.ink3}>{label.toUpperCase()}</T>;
 }
 
-export type PillTone = "vio" | "ok" | "muted";
+export type PillTone = "vio" | "ok" | "muted" | "gold";
 export function ScPill({ label, tone = "muted" }: { label: string; tone?: PillTone }) {
   const { c } = useTheme();
-  const p = tone === "vio" ? c.pastel.lilac : tone === "ok" ? c.pastel.mint : null;
+  const p = tone === "vio" ? c.pastel.lilac : tone === "ok" ? c.pastel.mint : tone === "gold" ? c.pastel.butter : null;
   return (
     <View style={[styles.pill, { backgroundColor: p?.soft ?? c.paper2, borderColor: p?.border ?? c.line }]}>
       <T v="mono" size={9.3} ls={0.08} color={p?.ink ?? c.ink3} style={{ fontWeight: "700" }}>{label.toUpperCase()}</T>
@@ -176,6 +179,71 @@ export function Choices<V extends string>({ value, options, onChange, label }: {
   );
 }
 
+/** The palette as swatches; both hexes of a pair move together. Shows the dusk hex, as the web does. */
+export function Swatches<P extends { id: string; label: string; color: string; colorDark: string }>({ palette, colorDark, onPick, label }: {
+  palette: readonly P[]; colorDark: string | null; onPick: (p: P) => void; label: string;
+}) {
+  const { c } = useTheme();
+  return (
+    <View style={{ gap: 6 }}>
+      <T v="meta" size={11.8} color={c.ink2} style={{ fontWeight: "600" }}>{label}</T>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }} accessibilityRole="radiogroup" accessibilityLabel={label}>
+        {palette.map(p => {
+          const on = (colorDark ?? "").toLowerCase() === p.colorDark.toLowerCase();
+          return (
+            <Pressable key={p.id} onPress={() => { if (!on) { haptics.select(); onPick(p); } }} hitSlop={4}
+              accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`Use ${p.label}`}
+              style={[styles.swatchRing, { borderColor: on ? c.ink : "transparent" }]}>
+              <View style={[styles.swatch, { backgroundColor: p.colorDark, borderColor: on ? c.card : c.line2 }]} />
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+export function Dot({ color, dim }: { color: string; dim?: boolean }) {
+  const { c } = useTheme();
+  return <View style={[styles.dot, { backgroundColor: color, borderColor: c.ink, opacity: dim ? 0.4 : 1 }]} />;
+}
+
+/** The new/edit form box (`border: 1px solid rgba(var(--vio-rgb),.35)`). */
+export function FormCard({ children, title }: { children: ReactNode; title?: string }) {
+  const { c } = useTheme();
+  return (
+    <View style={[styles.form, { borderColor: alpha(c.pastel.lilac.ink, 0.35), backgroundColor: c.card }]}>
+      {title ? <T v="title" size={14}>{title}</T> : null}
+      {children}
+    </View>
+  );
+}
+
+/** The dashed "+ Add …" line under a list. */
+export function AddLine({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
+  const { c } = useTheme();
+  return (
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }}
+      style={({ pressed }) => [styles.add, { borderColor: c.line2, opacity: disabled ? 0.4 : 1 }, pressed && pressedDim]}>
+      <T v="body" size={16} color={c.ink3}>+</T>
+      <T v="body" size={13.4} color={c.ink3}>{label}</T>
+    </Pressable>
+  );
+}
+
+/** Stacked up/down chevrons (the web's 16px reorder buttons, at a tappable size). */
+export function Reorder({ first, last, onMove, disabled, up, down }: { first: boolean; last: boolean; onMove: (dir: -1 | 1) => void; disabled?: boolean; up: string; down: string }) {
+  const { c } = useTheme();
+  const btn = (dir: -1 | 1, off: boolean, label: string) => (
+    <Pressable onPress={() => { haptics.tap(); onMove(dir); }} disabled={off || disabled} hitSlop={{ left: 8, right: 8, top: 2, bottom: 2 }}
+      accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: off || disabled }}
+      style={({ pressed }) => [styles.reBtn, { opacity: off ? 0.2 : disabled ? 0.5 : 1 }, pressed && pressedDim]}>
+      <Icon name={dir < 0 ? "chev-u" : "chev-d"} size={13} color={c.faint} />
+    </Pressable>
+  );
+  return <View style={{ gap: 2 }}>{btn(-1, first, up)}{btn(1, last, down)}</View>;
+}
+
 export const scStyles = StyleSheet.create({
   stack: { gap: 18 },
 });
@@ -195,4 +263,10 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 11, height: 42, fontSize: 15 },
   mono: { fontFamily: "PlexMono-500", fontSize: 14 },
   opt: { borderWidth: 1.5, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
+  swatchRing: { borderWidth: 1.5, borderRadius: 999, padding: 2 },
+  swatch: { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5 },
+  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5, marginTop: 4 },
+  form: { borderWidth: 1.5, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 14, gap: 12 },
+  add: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1.5, borderStyle: "dashed", borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
+  reBtn: { width: 26, height: 20, alignItems: "center", justifyContent: "center" },
 });

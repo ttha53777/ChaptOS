@@ -16,7 +16,7 @@
  * Without MANAGE_SETTINGS it's read-only (the lock note; no picker, no Instagram step,
  * no shortcuts). The web's Log revenue and Print shortcuts aren't here: printing isn't a
  * phone action, and Log revenue is the desktop's party quick-add (Parties has the form).
- * Danger zone (org admins) lands with Phase 9c.
+ * Danger zone (org admins) closes the page, as on the web (./DangerZone).
  *
  * Save: the icon first (POST/DELETE /api/orgs/logo); a refusal stops there and shows
  * under the icon. Then handle + words in one PATCH /api/orgs/config, then /me.
@@ -37,6 +37,7 @@ import { useCalendar } from "~/data/calendar";
 import { shrinkPhoto } from "~/data/members";
 import { refreshIdentity, saveLogo, saveOrgConfig } from "~/data/settings";
 import { useRoster } from "~/data/tasks";
+import { DangerZone } from "./DangerZone";
 import { useEntryOf } from "~/entry/EntryContext";
 import { Icon } from "~/icons/Icon";
 import { PostForm } from "~/media/sheets";
@@ -323,6 +324,9 @@ export function IdentitySection() {
           <PillBtn label="↻ Refresh data" onPress={refresh} />
         </View>
       ) : null}
+
+      {/* org admins only; renders nothing for everyone else */}
+      <DangerZone memberCount={count} />
 
       {/* room for the floating save bar over the last rows */}
       {dirty ? <View style={{ height: 110 }} /> : null}

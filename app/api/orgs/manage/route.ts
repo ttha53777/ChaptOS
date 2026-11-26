@@ -6,6 +6,7 @@ import { deleteOrgInput } from "@/lib/validation/org";
 import { summarizeOrgForDeletion, deleteOrg } from "@/lib/services/org-service";
 import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
+import type { OrgDeleted } from "@/lib/api-types";
 
 // GET    /api/orgs/manage — summary of what deleting the active org would remove.
 // DELETE /api/orgs/manage — permanently delete the active org (admin only).
@@ -49,7 +50,7 @@ export async function DELETE(req: NextRequest) {
     // the next slug-less request doesn't resolve a dangling org id. The client
     // hard-navigates afterward; org resolution then falls back to a remaining
     // membership (or /welcome when none remain).
-    const res = NextResponse.json({ ok: true, organizationId: result.organizationId, slug: result.slug });
+    const res = NextResponse.json({ ok: true, organizationId: result.organizationId, slug: result.slug } satisfies OrgDeleted);
     res.cookies.set(ACTIVE_ORG_COOKIE, "", { path: "/", httpOnly: true, sameSite: "lax", maxAge: 0 });
     return res;
   } catch (e) {

@@ -6,6 +6,7 @@ import { useChapter } from "../../../../context/ChapterContext";
 import { requestJson } from "../../../../lib/api";
 import { orgHref } from "@/lib/org-paths";
 import { skipNextSplash } from "@/lib/first-load-splash";
+import { DANGER_COPY as C, deleteArmed, deletionStats } from "@/lib/settings/danger";
 
 // Danger Zone — permanently delete the current organization. Rendered as the
 // rose card at the foot of Settings → Identity (styles in identity.css).
@@ -51,14 +52,14 @@ export function DangerZone({ onError, memberCount }: { onError: (msg: string) =>
           <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.44c-.8.08-1.57.18-2.34.32a.75.75 0 0 0 .27 1.48l.15-.03.84 10.06A2.75 2.75 0 0 0 7.66 18.5h4.68a2.75 2.75 0 0 0 2.74-2.48l.84-10.06.15.03a.75.75 0 0 0 .27-1.48c-.77-.14-1.55-.24-2.34-.32v-.44A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.67.02 2.5.07v-.32c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.32C8.33 4.02 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" /></svg>
         </div>
         <div className="tx">
-          <h3 id="id-dz">Delete this chapter</h3>
+          <h3 id="id-dz">{C.title}</h3>
           <p>
             {/* One string: vendored Next drops the space after a {expr}. */}
-            {`Removes the chapter and everything in it — roster, money, meetings, docs — for ${memberCount === 1 ? "the 1 person" : `all ${memberCount} people`} in it. This can't be undone.`}
+            {C.body(memberCount)}
           </p>
         </div>
         <button type="button" onClick={() => setOpen(true)} className="id-btn rose solid">
-          Delete chapter…
+          {C.open}
         </button>
       </section>
 
@@ -106,7 +107,7 @@ function DeleteOrgModal({
     return () => { cancelled = true; };
   }, []);
 
-  const armed = typed.trim() === orgName.trim() && orgName.trim().length > 0 && !deleting;
+  const armed = deleteArmed(typed, orgName, deleting);
 
   async function handleDelete() {
     if (!armed) return;
@@ -130,34 +131,24 @@ function DeleteOrgModal({
       const message = e instanceof Error ? e.message : "";
       onError(
         message.includes("403") || /forbidden/i.test(message)
-          ? "Only an org admin can delete this organization."
-          : "Couldn't delete the organization. Try again.",
+          ? C.forbidden
+          : C.failed,
       );
       setDeleting(false);
       onClose();
     }
   }
 
-  const stats: [string, number][] = summary
-    ? [
-        ["Members", summary.members],
-        ["Events", summary.events],
-        ["Transactions", summary.transactions],
-        ["Parties", summary.parties],
-        ["Documents", summary.docs],
-      ]
-    : [];
+  const stats: [string, number][] = summary ? deletionStats(summary) : [];
 
   return (
-    <Modal title="Delete organization" onClose={deleting ? () => {} : onClose} tone="dusk">
+    <Modal title={C.modalTitle} onClose={deleting ? () => {} : onClose} tone="dusk">
       <div className="space-y-4" style={{ color: "var(--ink-soft)" }}>
         <p className="text-[13px] leading-relaxed">
-          This permanently deletes <span className="font-semibold" style={{ color: "var(--ink)" }}>{orgName}</span> and
-          all of its data. <span style={{ color: "var(--rose)" }}>This action cannot be undone.</span>
+          {C.lead(orgName)[0]}<span className="font-semibold" style={{ color: "var(--ink)" }}>{orgName}</span>{C.lead(orgName)[2]}<span style={{ color: "var(--rose)" }}>{C.lead(orgName)[3]}</span>
         </p>
         <p className="text-[11px] leading-relaxed" style={{ color: "var(--faint)" }}>
-          Members who belong only to this org are removed. Anyone who also belongs to another
-          organization keeps their account.
+          {C.who}
         </p>
 
         {summary && (
@@ -172,13 +163,13 @@ function DeleteOrgModal({
         )}
         {loadFailed && (
           <p className="text-[11px]" style={{ color: "var(--gold)" }}>
-            Couldn&rsquo;t load a summary of what will be removed — you can still delete below.
+            {C.summaryFailed}
           </p>
         )}
 
         <div>
           <label htmlFor="confirm-org-name" className="mb-1 block text-[11px] font-medium" style={{ color: "var(--ink-soft)" }}>
-            Type <span className="font-semibold" style={{ color: "var(--ink)" }}>{orgName}</span> to confirm
+            {C.typeToConfirm(orgName)[0]}<span className="font-semibold" style={{ color: "var(--ink)" }}>{orgName}</span>{C.typeToConfirm(orgName)[2]}
           </label>
           <input
             id="confirm-org-name"
@@ -200,7 +191,7 @@ function DeleteOrgModal({
             className="rounded-lg px-3 py-2 text-[12px] font-medium transition-colors disabled:opacity-50"
             style={{ border: "1px solid var(--line)", background: "var(--card)", color: "var(--ink-soft)" }}
           >
-            Cancel
+            {C.cancel}
           </button>
           <button
             onClick={handleDelete}
@@ -208,7 +199,7 @@ function DeleteOrgModal({
             className="rounded-lg px-3 py-2 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             style={{ border: "1px solid rgba(217,139,163,.3)", background: "var(--rose-bg)", color: "var(--rose)" }}
           >
-            {deleting ? "Deleting…" : "Delete forever"}
+            {deleting ? C.deleting : C.confirm}
           </button>
         </div>
       </div>

@@ -31,10 +31,31 @@
  *   PATCH  /api/calendar/subscription         CalendarFeedChanged (org admins; turnOn, timeZone, disable, rotate, link)
  *   PATCH  /api/calendar/[id]                 { schedule } (set a typed time)   DELETE /api/calendar/[id] (old deadline)
  *
+ * Phase 9c:
+ *   PATCH  /api/orgs/config                   OrgConfigSaved      (Member fields: customMemberFields, the whole list)
+ *   GET    /api/calendar/event-types          CalEventType[]      (shared with the Timeline's calKeys.types)
+ *   POST   /api/calendar/event-types          CalEventType        (MANAGE_SETTINGS)   PATCH/DELETE [id]
+ *   GET    /api/events/fields                 EventFieldRow[]     (shared with Programming's progKeys.fields)
+ *   PATCH  /api/events/fields/[id]            EventFieldRow       (MANAGE_EVENTS)   DELETE [id]; POST adds
+ *   GET    /api/treasury/categories           TransactionCategory[] (shared with Treasury's moneyKeys.categories)
+ *   POST   /api/treasury/categories           TransactionCategory (MANAGE_TREASURY)   PATCH/DELETE [id]
+ *   GET    /api/treasury                      TreasuryData        (the opening balance)   PATCH /api/treasury/settings
+ *   GET    /api/activity/full[?type=]         ActivityLogRow[]    (platform admins; 403 otherwise)
+ *   GET    /api/orgs/manage                   OrgDeletionSummary  DELETE /api/orgs/manage { confirmSlug }
+ *
  * Role and roster changes show up on the roster, member cards, task pickers and /me
  * (your own roles decide what you can touch), so each write refreshes those too.
  */
-import type { CalendarFeedChanged, CalendarSubscriptionView, MetricDefinition, SemesterRow } from "@/lib/api-types";
+import type {
+  ActivityLogRow, CalEventType, CalendarFeedChanged, CalendarSubscriptionView, EventFieldRow, MetricDefinition, OrgDeleted, OrgDeletionSummary,
+  SemesterRow, TransactionCategory, TreasurySettings,
+} from "@/lib/api-types";
+import type { CustomMemberFieldDef } from "@/lib/custom-member-fields";
+import type { createEventTypeInput, updateEventTypeInput } from "@/lib/validation/event-types";
+import type { createTransactionCategoryInput, updateTransactionCategoryInput } from "@/lib/validation/transaction-categories";
+import type { updateEventFieldInput } from "@/lib/validation/event-fields";
+import { ApiError } from "~/api/errors";
+import { progKeys } from "./programming";
 import type { Thresholds } from "@/lib/thresholds";
 import type { DisabledFeatures } from "@/lib/workflow-features";
 import { calKeys } from "./calendar";
@@ -59,6 +80,8 @@ export const settingsKeys = {
   joins: (slug: string | null, id: number) => ["settings", slug, "invite-joins", id] as const,
   metrics: (slug: string | null) => ["settings", slug, "metrics"] as const,
   calendar: (slug: string | null) => ["settings", slug, "calendar"] as const,
+  activity: (slug: string | null, filter: string) => ["settings", slug, "activity", filter] as const,
+  deletion: (slug: string | null) => ["settings", slug, "deletion"] as const,
 };
 
 /* ── reads ──────────────────────────────────────────────────────────────────── */
@@ -344,3 +367,135 @@ export async function setEventSchedule(id: number, schedule: unknown): Promise<v
   void queryClient.invalidateQueries({ queryKey: calKeys.events(slugNow()) });
   feedChanged();
 }
+
+/* ── member fields ──────────────────────────────────────────────────────────── */
+
+/** The whole list replaces the org's (OrganizationConfig.customMemberFields). */
+export async function saveMemberFields(customMemberFields: CustomMemberFieldDef[]): Promise<void> {
+  await api<OrgConfigSaved>("/api/orgs/config", { method: "PATCH", body: { customMemberFields } });
+  const slug = slugNow();
+  await queryClient.invalidateQueries({ queryKey: keys.me(slug) });
+  void queryClient.invalidateQueries({ queryKey: ["roster", slug] });
+  void queryClient.invalidateQueries({ queryKey: ["memberProfile", slug] });
+}
+
+/* ── event types ────────────────────────────────────────────────────────────── */
+
+type NewTypeBody = z.input<typeof createEventTypeInput>;
+type TypePatch = z.input<typeof updateEventTypeInput>;
+
+/** The Timeline's picker, legend and dots read the same list. */
+function typesChanged() {
+  const slug = slugNow();
+  void queryClient.invalidateQueries({ queryKey: calKeys.types(slug) });
+  void queryClient.invalidateQueries({ queryKey: calKeys.events(slug) });
+  void queryClient.invalidateQueries({ queryKey: ["home", slug] });
+}
+const putTypes = (fn: (l: CalEventType[]) => CalEventType[]) =>
+  queryClient.setQueryData<CalEventType[]>(calKeys.types(slugNow()), l => (l ? fn(l) : l));
+
+export async function createEventType(body: NewTypeBody): Promise<CalEventType> {
+  const t = await api<CalEventType>("/api/calendar/event-types", { method: "POST", body });
+  putTypes(l => [...l, t]);
+  typesChanged();
+  return t;
+}
+export async function updateEventType(id: number, body: TypePatch): Promise<CalEventType> {
+  const t = await api<CalEventType>(`/api/calendar/event-types/${id}`, { method: "PATCH", body });
+  putTypes(l => l.map(x => (x.id === id ? t : x)));
+  typesChanged();
+  return t;
+}
+export async function deleteEventType(id: number): Promise<void> {
+  await api(`/api/calendar/event-types/${id}`, { method: "DELETE" });
+  putTypes(l => l.filter(x => x.id !== id));
+  typesChanged();
+}
+
+/* ── event fields ───────────────────────────────────────────────────────────── */
+
+type FieldPatch = z.input<typeof updateEventFieldInput>;
+
+/** Every write re-reads the list (as the web does): order swaps touch two rows. */
+const fieldsChanged = () => queryClient.invalidateQueries({ queryKey: progKeys.fields(slugNow()) });
+
+export async function patchEventField(id: number, body: FieldPatch): Promise<void> {
+  await api<EventFieldRow>(`/api/events/fields/${id}`, { method: "PATCH", body });
+}
+export async function deleteEventField(id: number): Promise<void> {
+  await api(`/api/events/fields/${id}`, { method: "DELETE" });
+}
+export async function addEventField(label: string, kind: EventFieldRow["kind"]): Promise<void> {
+  await api<EventFieldRow>("/api/events/fields", { method: "POST", body: { label, kind } });
+}
+export { fieldsChanged as refreshEventFields };
+
+/* ── money categories ───────────────────────────────────────────────────────── */
+
+type NewCategoryBody = z.input<typeof createTransactionCategoryInput>;
+type CategoryPatch = z.input<typeof updateTransactionCategoryInput>;
+
+const putCategories = (fn: (l: TransactionCategory[]) => TransactionCategory[]) =>
+  queryClient.setQueryData<TransactionCategory[]>(moneyKeys.categories(slugNow()), l => (l ? fn(l) : l));
+
+export async function createCategory(body: NewCategoryBody): Promise<TransactionCategory> {
+  const c = await api<TransactionCategory>("/api/treasury/categories", { method: "POST", body });
+  putCategories(l => [...l, c]);
+  return c;
+}
+export async function updateCategory(id: number, body: CategoryPatch): Promise<TransactionCategory> {
+  const c = await api<TransactionCategory>(`/api/treasury/categories/${id}`, { method: "PATCH", body });
+  putCategories(l => l.map(x => (x.id === id ? c : x)));
+  return c;
+}
+export async function deleteCategory(id: number): Promise<void> {
+  await api(`/api/treasury/categories/${id}`, { method: "DELETE" });
+  putCategories(l => l.filter(x => x.id !== id));
+}
+
+/* ── opening balance ────────────────────────────────────────────────────────── */
+
+/** Balance and trend are folded server-side, so Treasury and Home re-read. */
+export async function setOpeningBalance(openingBalance: number): Promise<number> {
+  const r = await api<TreasurySettings>("/api/treasury/settings", { method: "PATCH", body: { openingBalance } });
+  const slug = slugNow();
+  await queryClient.invalidateQueries({ queryKey: moneyKeys.treasury(slug) });
+  void queryClient.invalidateQueries({ queryKey: ["home", slug] });
+  return r.openingBalance ?? openingBalance;
+}
+
+/* ── activity log ───────────────────────────────────────────────────────────── */
+
+/** null rows = forbidden (the officer-access card). */
+export function useActivityLog(filter: "all" | "info" | "success" | "warning") {
+  const { slug } = useActiveOrg();
+  return useQuery({
+    queryKey: settingsKeys.activity(slug, filter),
+    queryFn: async (): Promise<ActivityLogRow[] | null> => {
+      try {
+        return await api<ActivityLogRow[]>("/api/activity/full", { org: slug, query: filter === "all" ? undefined : { type: filter } });
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 403) return null;
+        throw e;
+      }
+    },
+    retry: false,
+  });
+}
+
+/* ── danger zone ────────────────────────────────────────────────────────────── */
+
+export function useDeletionSummary(enabled: boolean) {
+  const { slug } = useActiveOrg();
+  return useQuery({
+    queryKey: settingsKeys.deletion(slug),
+    queryFn: () => api<OrgDeletionSummary>("/api/orgs/manage", { org: slug }),
+    enabled, retry: false, staleTime: 0, gcTime: 0,
+  });
+}
+
+/** Deletes the active org for good. The caller moves the app to another org. */
+export function deleteOrg(confirmSlug: string): Promise<OrgDeleted> {
+  return api<OrgDeleted>("/api/orgs/manage", { method: "DELETE", body: { confirmSlug } });
+}
+

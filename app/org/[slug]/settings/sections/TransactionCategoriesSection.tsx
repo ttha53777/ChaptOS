@@ -4,14 +4,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ConfirmDialog } from "../../../../components/dashboard/primitives";
 import { apiErrorMessage, requestJson } from "../../../../lib/api";
 import { useChapter, type TransactionCategory } from "../../../../context/ChapterContext";
+import { categoryPalette, nextCategoryColor, type CategoryKind } from "@/lib/transaction-categories";
 import {
-  categoryPalette,
-  isReservedCategory,
-  MAX_CATEGORIES_PER_ORG,
-  nextCategoryColor,
-  slugifyCategory,
-  type CategoryKind,
-} from "@/lib/transaction-categories";
+  BOOKS, CATEGORIES_COPY as C, CATEGORY_LABEL_MAX, MAX_CATEGORIES_PER_ORG,
+  byBook as splitBooks, categorySub, hiddenMessage, isLocked, previewSlug, type Book,
+} from "@/lib/settings/categories";
+import { sameColor } from "@/lib/settings/event-types";
 import type { EventTypeColor } from "@/lib/event-types";
 
 // Settings → Money categories. The org's own income and expense vocabulary: what
@@ -35,36 +33,6 @@ import type { EventTypeColor } from "@/lib/event-types";
 // API and surfaced as returned, rather than re-litigated here where the two
 // could drift.
 
-interface Book {
-  kind: CategoryKind;
-  title: string;
-  note: string;
-  addLabel: string;
-  placeholder: string;
-}
-
-const BOOKS: readonly Book[] = [
-  {
-    kind: "income",
-    title: "Money in",
-    note: "Offered when you record income, and what the income chart is sliced by.",
-    addLabel: "Add income category",
-    placeholder: "Alumni donation",
-  },
-  {
-    kind: "expense",
-    title: "Money out",
-    note: "Offered on expenses, reimbursements and budget lines alike.",
-    addLabel: "Add expense category",
-    placeholder: "Rush",
-  },
-];
-
-/** True when the service will refuse to hide or delete this row. */
-function isLocked(cat: TransactionCategory): boolean {
-  return cat.builtin || isReservedCategory(cat.kind, cat.slug);
-}
-
 /** Palette picker for one book. Both hexes move together — a category is one
  *  ivory/dusk pair. Swatches render the DUSK hex; settings is on dark paper. */
 function ColorPicker({
@@ -82,7 +50,7 @@ function ColorPicker({
         <button
           key={c.id}
           type="button"
-          className={`et-swatch${(colorDark ?? "").toLowerCase() === c.colorDark.toLowerCase() ? " on" : ""}`}
+          className={`et-swatch${sameColor(colorDark, c.colorDark) ? " on" : ""}`}
           style={{ background: c.colorDark, ["--sc" as string]: c.colorDark }}
           title={c.label}
           aria-label={`Use ${c.label}`}
@@ -131,7 +99,7 @@ function CategoryRow({
       // The server writes these for a human ("…is used by 3 transactions —
       // reassign or remove them first"); ApiError.message is the diagnostic form
       // with the URL and status glued on.
-      onError(apiErrorMessage(e, "Failed to save category"));
+      onError(apiErrorMessage(e, C.saveFailed));
       return null;
     }
   }
@@ -143,7 +111,7 @@ function CategoryRow({
     if (!updated) return;
     onUpdated(updated);
     setEditing(false);
-    onStatus(`"${updated.label}" saved`);
+    onStatus(C.saved(updated.label));
   }
 
   async function handleToggleHidden() {
@@ -152,11 +120,7 @@ function CategoryRow({
     setBusy(false);
     if (!updated) return;
     onUpdated(updated);
-    onStatus(
-      updated.hidden
-        ? `"${updated.label}" hidden — money already filed under it still reads normally`
-        : `"${updated.label}" is back in the picker`,
-    );
+    onStatus(hiddenMessage(updated.label, updated.hidden));
   }
 
   async function handleDelete() {
@@ -165,12 +129,12 @@ function CategoryRow({
     try {
       await requestJson(`/api/treasury/categories/${cat.id}`, { method: "DELETE" });
       onDeleted(cat.id);
-      onStatus(`"${cat.label}" removed`);
+      onStatus(C.removed(cat.label));
     } catch (e) {
       // The server writes these for a human ("…is used by 3 transactions —
       // reassign or remove them first"); ApiError.message is the diagnostic form
       // with the URL and status glued on.
-      onError(apiErrorMessage(e, "Failed to delete category"));
+      onError(apiErrorMessage(e, C.deleteFailed));
     } finally {
       setBusy(false);
     }
@@ -187,8 +151,8 @@ function CategoryRow({
           <div>
             <div className="sc-row-key">
               {cat.label}
-              {locked && <span className="sc-pill sc-pill-muted et-tag">BUILT-IN</span>}
-              {cat.hidden && <span className="sc-pill sc-pill-gold et-tag">HIDDEN</span>}
+              {locked && <span className="sc-pill sc-pill-muted et-tag">{C.builtin}</span>}
+              {cat.hidden && <span className="sc-pill sc-pill-gold et-tag">{C.hidden}</span>}
             </div>
             {/* The stored key only earns a line when it has drifted from the
                 label. Every category that predates renaming has slug === label,
@@ -197,12 +161,8 @@ function CategoryRow({
                 asking "what is this actually filed as" already looks. */}
             {(cat.slug !== cat.label || locked || cat.hidden) && (
               <div className="sc-row-sub">
-                {[
-                  cat.slug !== cat.label && <>filed as <code key="s">{cat.slug}</code></>,
-                  locked && "the treasury posts here on its own, so it can't be hidden or removed",
-                  !locked && cat.hidden && "not offered on new transactions",
-                ]
-                  .filter(Boolean)
+                {categorySub(cat)
+                  .map(part => (typeof part === "string" ? part : <>{C.filedAs}<code key="s">{part.slug}</code></>))
                   .map((part, i) => (
                     <React.Fragment key={i}>
                       {i > 0 && " · "}
@@ -215,24 +175,24 @@ function CategoryRow({
         </div>
         <div className="sc-actions">
           <button className="sc-btn sc-btn-ghost sc-btn-sm" onClick={() => setEditing(true)}>
-            Edit
+            {C.edit}
           </button>
           {!locked && (
             <button className="sc-btn sc-btn-ghost sc-btn-sm" onClick={handleToggleHidden} disabled={busy}>
-              {cat.hidden ? "Show" : "Hide"}
+              {cat.hidden ? C.show : C.hide}
             </button>
           )}
           {!locked && (
             <button className="sc-btn sc-btn-danger sc-btn-sm" onClick={() => setConfirmDelete(true)} disabled={busy}>
-              Delete
+              {C.delete}
             </button>
           )}
         </div>
         {confirmDelete && (
           <ConfirmDialog
-            title={`Delete "${cat.label}"?`}
-            message="Any transaction, reimbursement or budget line already filed under this category has to be moved first — if some still use it the delete is refused and nothing changes. Hide it instead to retire it without touching the books."
-            confirmLabel="Delete"
+            title={C.deleteTitle(cat.label)}
+            message={C.deleteMessage}
+            confirmLabel={C.delete}
             tone="dusk"
             onConfirm={handleDelete}
             onCancel={() => setConfirmDelete(false)}
@@ -246,11 +206,11 @@ function CategoryRow({
     <div className="sc-row" style={{ display: "block" }}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="sc-mlabel">Label</label>
+          <label className="sc-mlabel">{C.label}</label>
           <input
             className="sc-input sc-input-sm mt-1"
             value={label}
-            maxLength={40}
+            maxLength={CATEGORY_LABEL_MAX}
             onChange={e => setLabel(e.target.value)}
             onKeyDown={e => {
               if (e.key === "Enter" && label.trim()) handleSave();
@@ -258,25 +218,25 @@ function CategoryRow({
           />
         </div>
         <div>
-          <label className="sc-mlabel">Filed in the books as (permanent)</label>
+          <label className="sc-mlabel">{C.filedPermanent}</label>
           <input className="sc-input sc-input-sm mt-1" style={{ fontFamily: "var(--mono)" }} value={cat.slug} disabled />
         </div>
       </div>
       {/* The one thing worth explaining in place: renaming is safe precisely
           because it doesn't touch what's stored. */}
       <p className="sc-note mt-2">
-        Renaming changes what everyone sees. Every transaction already filed here stays filed here.
+        {C.renameNote}
       </p>
       <div className="mt-3">
-        <label className="sc-mlabel">Color in the charts</label>
+        <label className="sc-mlabel">{C.color}</label>
         <ColorPicker kind={cat.kind} colorDark={color.colorDark} onPick={setColor} />
       </div>
       <div className="flex gap-2 pt-3">
         <button className="sc-btn sc-btn-primary sc-btn-sm" onClick={handleSave} disabled={saving || !label.trim()}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? C.saving : C.save}
         </button>
         <button className="sc-btn sc-btn-ghost sc-btn-sm" onClick={() => setEditing(false)} disabled={saving}>
-          Cancel
+          {C.cancel}
         </button>
       </div>
     </div>
@@ -337,12 +297,12 @@ function BookCard({
       });
       onCreated(created);
       setShowNew(false);
-      onStatus(`"${created.label}" added`);
+      onStatus(C.added(created.label));
     } catch (e) {
       // The server writes these for a human ("…is used by 3 transactions —
       // reassign or remove them first"); ApiError.message is the diagnostic form
       // with the URL and status glued on.
-      onError(apiErrorMessage(e, "Failed to create category"));
+      onError(apiErrorMessage(e, C.createFailed));
     } finally {
       setCreating(false);
     }
@@ -358,7 +318,7 @@ function BookCard({
       <div className="sc-card" style={{ display: "flex", flexDirection: "column" }}>
         {cats.length === 0 ? (
           <div className="sc-row">
-            <p className="sc-note">Nothing here yet — add your first {book.kind} category below.</p>
+            <p className="sc-note">{C.empty(book.kind)}</p>
           </div>
         ) : (
           cats.map((cat, i) => (
@@ -384,14 +344,14 @@ function BookCard({
           style={{ border: "1px solid rgba(var(--vio-rgb),.35)", background: "var(--card)" }}
         >
           <h3 className="sc-h" style={{ fontSize: 14 }}>
-            New {book.kind} category
+            {C.newTitle(book.kind)[0]}{C.newTitle(book.kind)[1]}{C.newTitle(book.kind)[2]}
           </h3>
           <div>
-            <label className="sc-mlabel">Name *</label>
+            <label className="sc-mlabel">{C.nameReq}</label>
             <input
               className="sc-input sc-input-sm mt-1"
               value={newLabel}
-              maxLength={40}
+              maxLength={CATEGORY_LABEL_MAX}
               placeholder={book.placeholder}
               onChange={e => setNewLabel(e.target.value)}
               onKeyDown={e => {
@@ -400,13 +360,12 @@ function BookCard({
             />
             {newLabel.trim() && (
               <p className="sc-note mt-1">
-                Filed in the books as <code>{slugifyCategory(newLabel) || "category"}</code> — permanent once
-                created, though you can rename what people see any time.
+                {C.slugPreview("")[0]}<code>{previewSlug(newLabel)}</code>{C.slugPreview("")[2]}
               </p>
             )}
           </div>
           <div>
-            <label className="sc-mlabel">Color in the charts</label>
+            <label className="sc-mlabel">{C.color}</label>
             <ColorPicker
               kind={book.kind}
               colorDark={newColor.colorDark}
@@ -419,10 +378,10 @@ function BookCard({
               onClick={handleCreate}
               disabled={creating || !newLabel.trim()}
             >
-              {creating ? "Creating…" : "Create category"}
+              {creating ? C.creating : C.create}
             </button>
             <button className="sc-btn sc-btn-ghost sc-btn-sm" onClick={() => setShowNew(false)} disabled={creating}>
-              Cancel
+              {C.cancel}
             </button>
           </div>
         </div>
@@ -473,7 +432,7 @@ export function TransactionCategoriesSection({
         setCats(data);
       }
     } catch {
-      if (mounted.current) onError("Failed to load categories");
+      if (mounted.current) onError(C.loadFailed);
     } finally {
       if (mounted.current) setLoading(false);
     }
@@ -504,18 +463,12 @@ export function TransactionCategoriesSection({
   );
   const onDeleted = useCallback((id: number) => apply(prev => prev.filter(x => x.id !== id)), [apply]);
 
-  const byBook = useMemo(() => {
-    const sorted = [...cats].sort((a, b) => a.displayOrder - b.displayOrder || a.id - b.id);
-    return {
-      income:  sorted.filter(c => c.kind === "income"),
-      expense: sorted.filter(c => c.kind === "expense"),
-    };
-  }, [cats]);
+  const byBook = useMemo(() => splitBooks(cats), [cats]);
 
   // The ceiling spans both books, so hitting it closes both adders at once.
   const atLimit = cats.length >= MAX_CATEGORIES_PER_ORG;
 
-  if (loading) return <div className="py-8 text-center sc-note">Loading…</div>;
+  if (loading) return <div className="py-8 text-center sc-note">{C.loading}</div>;
 
   return (
     <div className="sc-stack">
@@ -535,7 +488,7 @@ export function TransactionCategoriesSection({
 
       {atLimit && (
         <p className="sc-note">
-          Maximum of {MAX_CATEGORIES_PER_ORG} categories reached across both books. Delete or hide one to add another.
+          {C.maxed[0]}{C.maxed[1]}{C.maxed[2]}
         </p>
       )}
     </div>

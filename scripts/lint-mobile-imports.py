@@ -19,7 +19,7 @@ SHARED = (
     "@/lib/event-hue", "@/lib/timeline/",
     "@/lib/treasury/", "@/lib/treasury-term", "@/lib/treasury-balance", "@/lib/dues-ledger", "@/lib/dues-targets",
     "@/lib/docs/", "@/lib/media/", "@/lib/service/", "@/lib/parties/", "@/lib/fundraising/", "@/lib/fundraisers", "@/lib/state/fundraiser-kind", "@/lib/programme/", "@/lib/calendar-feed/legacy-time", "@/lib/state/programming-stage", "@/lib/event-owner", "@/lib/event-fields", "@/lib/meetings/", "@/lib/agenda-template", "@/lib/meeting-summary", "@/lib/collaboration/notes-protocol",
-    "@/lib/permissions", "@/lib/settings/", "@/lib/vocab-keys", "@/lib/org-initials", "@/lib/org-types", "@/lib/event-types", "@/lib/transaction-categories",
+    "@/lib/permissions", "@/lib/settings/", "@/lib/vocab-keys", "@/lib/org-initials", "@/lib/org-types", "@/lib/event-types", "@/lib/transaction-categories", "@/lib/custom-member-fields",
 )
 SKIP_DIRS = {"node_modules", ".expo", "dist", "ios", "android"}
 STMT = re.compile(

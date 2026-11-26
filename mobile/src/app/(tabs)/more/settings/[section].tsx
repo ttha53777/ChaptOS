@@ -28,6 +28,12 @@ import { MetricsSection } from "~/settings/Metrics";
 import { SemestersSection } from "~/settings/Semesters";
 import { ThresholdsSection } from "~/settings/Thresholds";
 import { WorkflowsSection } from "~/settings/Workflows";
+import { ActivityLogSection } from "~/settings/ActivityLog";
+import { CategoriesSection } from "~/settings/Categories";
+import { EventFieldsSection } from "~/settings/EventFields";
+import { EventTypesSection } from "~/settings/EventTypes";
+import { MemberFieldsSection } from "~/settings/MemberFields";
+import { OpeningBalanceSection } from "~/settings/OpeningBalance";
 
 const BODY: Partial<Record<SectionId, () => ReactNode>> = {
   identity: () => <IdentitySection />,
@@ -39,6 +45,12 @@ const BODY: Partial<Record<SectionId, () => ReactNode>> = {
   "custom-metrics": () => <MetricsSection />,
   calendar: () => <CalendarSection />,
   workflows: () => <WorkflowsSection />,
+  "member-fields": () => <MemberFieldsSection />,
+  "event-types": () => <EventTypesSection />,
+  "event-fields": () => <EventFieldsSection />,
+  "money-categories": () => <CategoriesSection />,
+  "opening-balance": () => <OpeningBalanceSection />,
+  "activity-log": () => <ActivityLogSection />,
 };
 
 export default function SettingsSectionPage() {

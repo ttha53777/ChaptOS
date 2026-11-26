@@ -44,7 +44,7 @@ Legend: ✅ matches the web phone · 🟡 built, but from the paper mocks rather
 | Parties | `more/parties` | ✅ | Phase 8e: the house ledger at phone width, the one task, takings and the strip, drawers in place, the web's forms and two-step wrap-up with the roll, the door moment. See "Parties (Phase 8e)" below. |
 | Fundraisers | `more/fundraisers`, `more/fundraiser/[id]` | ✅ | Phase 8f: list, page, composer, shopping list, jar, wrap-up and the jar moment. |
 | Treasury (Overview, Transactions, Dues, Reports, Reimbursements) | `more/treasury` | ✅ | Phase 7: the five tabs, the open-books gate and member lock, every sheet, Dues with its drawer, Hand out and charge editor. See "Treasury (Phase 7)" below. |
-| Settings (15 sections) | `more/settings/*` | 🟨 | 9a (Identity, Accounts, Invitations, Roles) and 9b (Workflows, Thresholds, Semesters, Custom metrics, Calendar subscription) landed; 9c to come. |
+| Settings (15 sections) | `more/settings/*` | ✅ Phase 9 | All 14 in-app sections: 9a (Identity, Accounts, Invitations, Roles), 9b (Workflows, Thresholds, Semesters, Custom metrics, Calendar subscription), 9c (Member fields, Event types, Event fields, Money categories, Opening balance, Activity log, Danger zone). Billing stays off the app (store rules). See the three "Settings" sections below. |
 | Sidebar profile menu | More → You block, toolbar stamp | ✅ Phase 1 | — |
 | Billing | — | ⬜ by decision | Not in the app. |
 | Check-in | `app/checkin.tsx` | ⭐ | Opened from the Home live band. |
@@ -772,4 +772,40 @@ Built 2026-11-26.
   - Calendar issue links open the app's pages (`/more/service`, `/more/parties`, `/timeline?event=`).
   - The web's Unconfirmed/Notes/Advanced `<details>` are chevron rows that fold their bodies. The unconfirmed list opens by itself at 5 or fewer, as on the web.
   - Results tick a success/error haptic; toggles and order moves tick select/tap (they change a draft).
+
+## Settings (Phase 9c), what landed
+
+Built 2026-11-26. Every in-app Settings section now exists, so `model.BUILT` lists all of them (Billing never shows).
+
+- **Shared rules** (pure, under `@/lib/settings/`; `@/lib/custom-member-fields` joined the mobile SHARED whitelist):
+  - `member-fields.ts`: the field types, the blank row, the draft/payload/dirty rules, moving a row (roster order follows), the save check and every sentence.
+  - `event-types.ts`: the 40 cap, `slugifyType` / `newTypeSlug` (de-duplicated), the picker tag (`NEEDS <PAGE>` / `HIDDEN`), the swatch match and the copy.
+  - `event-fields.ts`: the kind words and examples (`KIND_COPY`), reading order, each row's note, the toggle sentence and the copy.
+  - `categories.ts`: the two books, `isLocked`, the split by book, the row's sub-line parts, the hidden/shown sentence, the slug preview and the copy.
+  - `opening-balance.ts`: draft/parse/dirty and the copy. `activity-log.ts`: the filters, the path and the time format. `danger.ts`: the counts, the arming rule and the copy.
+  - The web's seven sections (DangerZone included) render from these.
+    - Pixdiff: 21 full frames (7 sections × busy admin day and night, plus day-one night) are IDENTICAL to a HEAD capture. Some night frames differ between two HEAD captures of the same build (the org splash mid-fade); each refactor frame matches a clean HEAD frame.
+    - Sheets and states, A/B in one session (`scripts/_settings-sheets-shot.ts` gained 11 scenes and a `fill:` step): member-field edit and remove, event-type edit, new and delete, the new-event-field form, category edit, new and delete, opening balance dirty, the Delete organization modal with a name typed. All IDENTICAL to HEAD.
+- **Wire (additive):**
+  - New in `lib/api-types/settings.ts`: `ActivityLogRow`, `OrgDeletionSummary`, `OrgDeleted` (DELETE /api/orgs/manage now `satisfies` it).
+  - Route-map lines for the event-type, event-field and category writes, `GET /api/activity/full` and `GET`/`DELETE /api/orgs/manage`; the `PATCH /api/orgs/config` note names `customMemberFields`.
+  - Contract entries: event type create/update, category create/update, event field update, the activity rows (Prisma rows through `Wire<>`), the deletion summary.
+  - A smoke probe per new route (empty body or NONE id; the org DELETE fails `deleteOrgInput` before anything is touched). All were already bearer-aware via `buildContext`.
+- **App** (`mobile/src/settings/`: `MemberFields`, `EventTypes`, `EventFields`, `Categories`, `OpeningBalance`, `ActivityLog`, `DangerZone`; `ledger.tsx` gained Swatches, Dot, FormCard, AddLine, Reorder and a gold pill):
+  - **Member fields:** one card per field (reorder, label, type pill, Roster pill, Edit/Done, ✕ with a confirm sheet), the edit form in place, + Add field, the 20 cap, Save changes / Reset / Unsaved, the leave guard. Saves invalidate `/me`, the roster and member profiles.
+  - **Event types:** rows with the dot, tags, slug line and Edit / Delete under them (as the web stacks them at phone width), edit in place, the new-type form with the slug preview. The list is the Timeline's own (`calKeys.types`).
+  - **Event fields:** reorder, rename in place (done or blur saves), Stop collecting / Collect again, Delete for custom fields, the kind note under each; + New field with kind chips. The list is Programming's own (`progKeys.fields`); every write re-reads it.
+  - **Money categories:** Money in and Money out with their notes, rows with Edit / Hide / Delete under them, the new-category form per book, the 60 cap across both. The list is Treasury's own (`moneyKeys.categories`).
+  - **Opening balance:** the Starting balance row (Not set until answered) with its $ field stacked under it, Set/Save, Undo and Unsaved while changed, the leave guard; Treasury and Home re-read after a save.
+  - **Activity log:** the four filters and the rows; anyone who isn't a platform admin gets the officer-access card (the route answers 403), as on the web.
+  - **Danger zone:** the rose card at the foot of Identity for org admins, and the Delete organization sheet (counts, type the name to arm). Afterwards the app moves to another chapter you belong to, or back to the start, as Leave does.
+  - **Writes driven in the preview against :3100:** Major shown as a roster column, a "Rush Week" event type, "Point of contact" collected again, a "Rush" expense category, opening balance 250, and deleting the day-one org as its (temporary) admin. The DB was then restored exactly.
+- **Found, not fixed (pre-existing, web too):** deleting an org that has polls fails. `deleteOrg` never removes `Poll` rows, so `prisma.organization.delete()` hits `Poll_organizationId_fkey`, the transaction rolls back and the route answers 409; both clients then say "Couldn't delete the organization. Try again." The busy seed org reproduces it.
+- **Deliberate differences:**
+  - Event fields stack the buttons under the label and pills. The web keeps them on one line, which at 390px squeezes the label out of view and runs the buttons off the card.
+  - The member field Type is a row of choices (the web's select). The slug fields are shown read-only rather than as disabled inputs.
+  - Swatches are 26px rings (the web's are 24px) so they're tappable.
+  - The Delete organization buttons are the app's sheet buttons (ink with a rose shadow, as Leave), not the web's rose-tinted pair.
+  - Reorder chevrons are 26×20 tap targets (the web's are 16px).
+  - Results tick a success/error haptic; kind chips, swatches and filters tick select; reorder ticks tap.
 
