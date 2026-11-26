@@ -35,8 +35,8 @@ export function PeekCardBody({ card, title, subtitle, kind, date, aside }: {
   return (
     <>
       <div className="peek-id">
-        {evDate && state
-          ? <EventStub date={evDate} state={state} />
+        {isEvent
+          ? <EventStub date={evDate} state={state ?? undefined} />
           : kind === "person"
           ? <span className="av">{initialsOf(title)}</span>
           : <span className="glyph"><KindGlyph kind={kind} /></span>}

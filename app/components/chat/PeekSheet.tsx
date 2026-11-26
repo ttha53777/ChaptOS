@@ -76,7 +76,7 @@ export function PeekSheet({ refr, seed, slug, onBack, onAsk }: {
       </div>
 
       <div className="peek-body">
-        <PeekCardBody card={card} title={title} subtitle={subtitle} kind={seed.kind} date={seed.date} />
+        <PeekCardBody card={card} title={title} subtitle={subtitle} kind={refr.type === "event" ? "event" : seed.kind} date={seed.date} />
 
         {!card && !failed && <div className="peek-wait">Reading the records…</div>}
         {failed && <div className="peek-wait">Couldn&apos;t load this record.</div>}

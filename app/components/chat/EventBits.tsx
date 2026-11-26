@@ -29,10 +29,20 @@ export function eventState(date: string, turnout: AnswerRowTurnout | null | unde
   return turnout.attended + turnout.absent + turnout.excused > 0 ? "logged" : "unlogged";
 }
 
-export function EventStub({ date, state }: { date: string; state: EventState }) {
+/** No date yet (the card is still loading): the same stub, blank, so a flag never stands in. */
+export function EventStub({ date, state }: { date?: string; state?: EventState }) {
+  if (!date) {
+    return (
+      <span className="ev-stub pending" aria-hidden="true">
+        <span className="mon">&nbsp;</span>
+        <span className="dnum"><i /></span>
+        <span className="dow"><i /></span>
+      </span>
+    );
+  }
   const d = localDay(date);
   return (
-    <span className={`ev-stub ${state}`} aria-hidden="true">
+    <span className={`ev-stub ${state ?? "dated"}`} aria-hidden="true">
       <span className="mon">{d.toLocaleString("en-US", { month: "short" })}</span>
       <span className="dnum">{d.getDate()}</span>
       <span className="dow">{d.toLocaleString("en-US", { weekday: "short" })}</span>
