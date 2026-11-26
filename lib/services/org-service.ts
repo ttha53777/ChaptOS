@@ -987,9 +987,15 @@ export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promi
     await tx.task.deleteMany({ where: { organizationId: orgId } });
     await tx.instagramTask.deleteMany({ where: { organizationId: orgId } });
     await tx.doc.deleteMany({ where: { organizationId: orgId } });
+    // After Doc (Doc.folderId only SETs NULL); the folder's org FK is RESTRICT.
+    await tx.docFolder.deleteMany({ where: { organizationId: orgId } });
+    // Org FK is RESTRICT; options, assignments and votes cascade with the poll.
+    await tx.poll.deleteMany({ where: { organizationId: orgId } });
     await tx.chapterAnnouncement.deleteMany({ where: { organizationId: orgId } });
 
     // ── 5. Semester (referenced by attendance/transactions, now gone) ──────────
+    // Exemptions FK both the org and the semester with RESTRICT.
+    await tx.attendanceExemption.deleteMany({ where: { organizationId: orgId } });
     await tx.semester.deleteMany({ where: { organizationId: orgId } });
 
     // ── 6. Roles & assignments ─────────────────────────────────────────────────

@@ -800,7 +800,7 @@ Built 2026-11-26. Every in-app Settings section now exists, so `model.BUILT` lis
   - **Activity log:** the four filters and the rows; anyone who isn't a platform admin gets the officer-access card (the route answers 403), as on the web.
   - **Danger zone:** the rose card at the foot of Identity for org admins, and the Delete organization sheet (counts, type the name to arm). Afterwards the app moves to another chapter you belong to, or back to the start, as Leave does.
   - **Writes driven in the preview against :3100:** Major shown as a roster column, a "Rush Week" event type, "Point of contact" collected again, a "Rush" expense category, opening balance 250, and deleting the day-one org as its (temporary) admin. The DB was then restored exactly.
-- **Found, not fixed (pre-existing, web too):** deleting an org that has polls fails. `deleteOrg` never removes `Poll` rows, so `prisma.organization.delete()` hits `Poll_organizationId_fkey`, the transaction rolls back and the route answers 409; both clients then say "Couldn't delete the organization. Try again." The busy seed org reproduces it.
+- **Found and fixed after 9c:** deleting an org with polls, doc folders or attendance exemptions used to fail with a 409. `deleteOrg` never cleared those three tables, whose foreign keys to the org block deletes. It clears them now, and `tests/onboarding/delete-org.test.ts` checks the schema for any other table like them.
 - **Deliberate differences:**
   - Event fields stack the buttons under the label and pills. The web keeps them on one line, which at 390px squeezes the label out of view and runs the buttons off the card.
   - The member field Type is a row of choices (the web's select). The slug fields are shown read-only rather than as disabled inputs.

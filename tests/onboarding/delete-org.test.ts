@@ -61,7 +61,16 @@ async function seedFullOrg(slug: string) {
   await createPartyEvent({ orgId: organizationId });
   await createTask({ orgId: organizationId, assigneeBrotherId: brotherId });
   await createInstagramTask({ orgId: organizationId });
+  const folder = await testPrisma.docFolder.create({ data: { organizationId, name: "Bylaws" } });
   const doc = await createDoc({ orgId: organizationId });
+  await testPrisma.doc.update({ where: { id: doc.id }, data: { folderId: folder.id } });
+  // Poll, DocFolder and AttendanceExemption carry RESTRICT org FKs that deleteOrg
+  // once skipped — any org with a poll answered 409 (Poll_organizationId_fkey).
+  const poll = await testPrisma.poll.create({ data: { organizationId, question: "Formal theme?", everyone: true } });
+  const option = await testPrisma.pollOption.create({ data: { organizationId, pollId: poll.id, label: "Roaring 20s" } });
+  await testPrisma.pollAssignment.create({ data: { organizationId, pollId: poll.id, brotherId } });
+  await testPrisma.pollVote.create({ data: { organizationId, pollId: poll.id, optionId: option.id, brotherId } });
+  await testPrisma.attendanceExemption.create({ data: { organizationId, brotherId, semesterId: sem.id } });
   // ProgrammingEvent's org FK is RESTRICT and outlives its calendar event — the
   // row that used to make deleteOrg roll back for any org that used Programming.
   const pe = await testPrisma.programmingEvent.create({
@@ -84,6 +93,7 @@ async function childCounts(orgId: number) {
     config, memberships, roles, brotherRoles, semesters, calendarEvents, serviceEvents,
     parties, tasks, taskAssignments, igTasks, docs, transactions, budgets, activityLogs, announcements,
     operationalEvents, programmingEvents, programmingEventDocs,
+    docFolders, polls, pollOptions, pollAssignments, pollVotes, exemptions,
   ] = await Promise.all([
     testPrisma.organizationConfig.count({ where: { organizationId: orgId } }),
     testPrisma.membership.count({ where: { organizationId: orgId } }),
@@ -104,11 +114,18 @@ async function childCounts(orgId: number) {
     testPrisma.operationalEvent.count({ where: { organizationId: orgId } }),
     testPrisma.programmingEvent.count({ where: { organizationId: orgId } }),
     testPrisma.programmingEventDoc.count({ where: { organizationId: orgId } }),
+    testPrisma.docFolder.count({ where: { organizationId: orgId } }),
+    testPrisma.poll.count({ where: { organizationId: orgId } }),
+    testPrisma.pollOption.count({ where: { organizationId: orgId } }),
+    testPrisma.pollAssignment.count({ where: { organizationId: orgId } }),
+    testPrisma.pollVote.count({ where: { organizationId: orgId } }),
+    testPrisma.attendanceExemption.count({ where: { organizationId: orgId } }),
   ]);
   return {
     config, memberships, roles, brotherRoles, semesters, calendarEvents, serviceEvents,
     parties, tasks, taskAssignments, igTasks, docs, transactions, budgets, activityLogs, announcements,
     operationalEvents, programmingEvents, programmingEventDocs,
+    docFolders, polls, pollOptions, pollAssignments, pollVotes, exemptions,
   };
 }
 
@@ -181,6 +198,28 @@ describe("deleteOrg: full cascade", () => {
 
     expect(await rosterOf(founder.id)).not.toBeNull();
     expect(await testPrisma.platformAdmin.findUnique({ where: { brotherId: founder.id } })).not.toBeNull();
+  });
+});
+
+describe("deleteOrg: blocking foreign keys", () => {
+  // Every table whose FK to Organization is RESTRICT/NO ACTION must be emptied by
+  // deleteOrg before the org row goes, or the whole teardown rolls back with a
+  // 409. A new table with such an FK fails here until deleteOrg handles it (and
+  // it's added to seedFullOrg + childCounts above).
+  const HANDLED = [
+    "ActivityLog", "AgendaTemplate", "AttendanceExemption", "Brother", "BrotherRole", "Budget",
+    "CalendarEvent", "ChapterAnnouncement", "Doc", "DocFolder", "DuesCharge", "DuesChargeLine",
+    "DuesWaiver", "Fundraiser", "FundraiserSupply", "InstagramTask", "OperationalEvent", "PartyEvent",
+    "Poll", "PollAssignment", "PollOption", "PollVote", "ProgrammingEvent", "ProgrammingEventDoc",
+    "Role", "Semester", "ServiceEvent", "ServiceParticipation", "Task", "TaskAssignment",
+    "TaskCompletion", "Transaction",
+  ];
+  it("knows every table that blocks an org delete", async () => {
+    const rows = await testPrisma.$queryRaw<{ t: string }[]>`
+      select distinct conrelid::regclass::text as t from pg_constraint
+      where contype = 'f' and confrelid = '"Organization"'::regclass and confdeltype in ('r', 'a')`;
+    const blocking = rows.map(r => r.t.replace(/"/g, "")).sort();
+    expect(blocking).toEqual([...HANDLED].sort());
   });
 });
 
