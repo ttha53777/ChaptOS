@@ -33,9 +33,9 @@ Legend: ✅ matches the web phone · 🟡 built, but from the paper mocks rather
 | Web page | App route | Status | Gaps against the web phone |
 |---|---|---|---|
 | Dashboard | `(tabs)/today` (Home) | ✅ Phase 2 | See "Dashboard" below. |
-| Timeline | `(tabs)/timeline` | 🟡 | Uses the spine, not the web's month ledger. Event sheet and day-one copy need diffing in Phase 3. |
-| Members | `(tabs)/members` | 🟡 | Uses the register list and Member Spotlight card. Web has the join-request band, filters, and By role. |
-| Chapter (meetings) | `more/meetings`, `more/meeting/[id]` | 🟡 | Web has the ledger with date stubs, On deck, and the minutes editor (phone sheet). |
+| Timeline | `(tabs)/timeline` | ✅ Phase 3 | Phase 3: brief, add buttons, layer filter, Legend + Timeline/Calendar switch, excuse review, Earlier/Today/month groups, calendar view, day one, event detail and forms, delete with Undo. Not ported: the inline "Add details" editor (excuse review is a sheet). See "Timeline (Phase 3)" below. |
+| Members | `(tabs)/members` | ✅ Phase 4 | Phase 4: brief, Export / Ask, the join-request band (approve with role, decline), measure tiles, Standing card, roster with the status chips and "Search name or role…", member card edits, day one. "By role" is a Settings → Roles view on the web too (in the app since 9a). Gap: the Dues column header isn't a tap-to-sort toggle (the Dues tile sorts highest-first only). Join approve/reject still needs a device check with a real request. See "Members (Phase 4)" below. |
+| Chapter (meetings) | `more/meetings`, `more/meeting/[id]` | ✅ Phase 5 | Phase 5: briefing, On deck card, past-meetings ledger with date stubs and tabs, day one, and the phone minutes sheet (Minutes / Summary / Who came). Templates and shared (Yjs) minutes writing stay on the web; the app's unshared Write path is untested in the UI. See "Chapter / Meetings (Phase 5)" below. |
 | Tasks | `more/tasks` | ✅ | Phase 6: the web's Overdue/Upcoming list, spotlight, ballot, task/poll sheets with the who-picker. |
 | Docs | `more/docs` | ✅ | Phase 8a: brief and meta line, toolbar, pinned shelf, manila sections, every doc/folder write, day one. See "Docs (Phase 8a)" below. |
 | Media | `more/media` | ✅ | Phase 8b: brief, Add post / Ask, measures that jump, lanes, month, detail with in-place dates, form, delete, day one. See "Media (Phase 8b)" below. |
@@ -128,7 +128,7 @@ Verified 2026-11-19 on :3100 (day):
 
 ## Chapter / Meetings (Phase 5), what landed
 
-Built 2026-11-19, uncommitted.
+Built 2026-11-19.
 
 - **Shared rules:** `lib/meetings/book.ts` (on SHARED, together with `lib/agenda-template`, `lib/meeting-summary` and `lib/collaboration/notes-protocol`).
   - Covers on deck/past split, book tabs, ledger row, digest runs, On deck roll and head, excuse line, attLabel, meetingProgress, Summary badge.
