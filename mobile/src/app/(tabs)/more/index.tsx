@@ -12,12 +12,14 @@
  *              page is a door (~/more/PageDoor) with its live line, and a badge when
  *              something there needs you: overdue tasks (rose), wrap-ups due, fundraisers
  *              to count up, reimbursements waiting (all already gated on /me)
- *   settings   Settings (everyone) and Invite people (MANAGE_SETTINGS), the web's profile menu
+ *   settings   under its own "Settings" rule: Chapter settings (everyone; its line names the
+ *              sections you can open) and Invite people (MANAGE_SETTINGS; "approve requests"
+ *              only with MANAGE_BROTHERS, which is what reviewing a join request needs)
  *   this phone Appearance (System · Day · Night) inline, Sign out; then Leave and Delete
  *              account, quiet, at the bottom
  *
  * Haptics: only on commits: an appearance change (Segmented) and a chapter switch
- * (OrgSheet). Opening a page, a sheet or a card is navigation and stays silent.
+ * (OrgSheet). Opening a page, a sheet, a card or a Settings row is navigation and stays silent.
  */
 import { router, type Href } from "expo-router";
 import { useMemo, useState } from "react";
@@ -33,7 +35,7 @@ import { useProgramming } from "~/data/programming";
 import { useRoster, useTasks } from "~/data/tasks";
 import { useEntryOf } from "~/entry/EntryContext";
 import { signOutHere } from "~/entry/session";
-import { Icon } from "~/icons/Icon";
+import { Icon, type IconName } from "~/icons/Icon";
 import { MemberCard } from "~/members/MemberCard";
 import { titleOf } from "~/members/model";
 import {
@@ -47,8 +49,9 @@ import { Button } from "~/paper/Button";
 import { Avatar, Kicker, Surface } from "~/paper/bits";
 import { OrgSheet, StampFace } from "~/shell/OrgStamp";
 import { Screen } from "~/shell/Screen";
-import { can } from "~/settings/model";
+import { can, settingsLine } from "~/settings/model";
 import { viewerOf } from "~/tasks/model";
+import type { Tone } from "~/theme/palette";
 import { usePaperSettings, useTheme } from "~/theme/PaperProvider";
 import { Segmented } from "~/ui/Segmented";
 import { T } from "~/ui/T";
@@ -98,6 +101,7 @@ export default function More() {
   const org = me.org;
   const many = me.memberships.length > 1;
   const canInvite = can(me, "MANAGE_SETTINGS");
+  const canReview = can(me, "MANAGE_BROTHERS");
 
   const badges: Partial<Record<PageId, number>> = pageBadges(me, overdueMine(me, tasks.data, viewer, today), today);
   const lives: Partial<Record<PageId, Live>> = {
@@ -156,7 +160,7 @@ export default function More() {
       {/* where to */}
       <View style={styles.head}>
         <Kicker label="More" tone="peach" />
-        <T v="hero" size={34} accessibilityRole="header">Where to<T v="hero" size={34} color={c.pastel.peach.ink}>?</T></T>
+        <T v="hero" size={34} accessibilityRole="header">Where to<T v="hero" size={34} color={c.pastel.peach.ink}>{"\u200A?"}</T></T>
       </View>
 
       {groups.map(g => (
@@ -180,22 +184,20 @@ export default function More() {
       ))}
 
       {/* settings: everyone, as in the web's profile menu; Invite people with MANAGE_SETTINGS */}
-      <Surface style={[styles.list, { marginTop: 18 }]}>
-        <Pressable onPress={() => router.push("/more/settings" as Href)} accessibilityRole="button"
-          style={({ pressed }) => [styles.row, pressed && { backgroundColor: c.paper2 }]}>
-          <Icon name="gear" size={18} color={c.pastel.lilac.ink} />
-          <T v="callout" style={{ flex: 1 }}>Settings</T>
-          <Icon name="chev-r" size={16} color={c.ink3} />
-        </Pressable>
-        {canInvite ? (
-          <Pressable onPress={() => router.push("/more/settings/invitations" as Href)} accessibilityRole="button"
-            style={({ pressed }) => [styles.row, { borderTopWidth: 1, borderTopColor: c.line }, pressed && { backgroundColor: c.paper2 }]}>
-            <Icon name="envelope" size={18} color={c.pastel.peach.ink} />
-            <T v="callout" style={{ flex: 1 }}>Invite people</T>
-            <Icon name="chev-r" size={16} color={c.ink3} />
-          </Pressable>
-        ) : null}
-      </Surface>
+      <View style={[styles.group, { marginTop: 18 }]}>
+        <View style={styles.groupHead} accessibilityRole="header">
+          <T v="kicker" color={c.ink3}>Settings</T>
+          <View style={[styles.rule, { borderTopColor: c.line2 }]} />
+        </View>
+        <Surface style={styles.list}>
+          <SettingsRow icon="gear" tone="lilac" title="Chapter settings" line={settingsLine(me, org?.name ?? "your chapter")}
+            onPress={() => router.push("/more/settings" as Href)} />
+          {canInvite ? (
+            <SettingsRow icon="envelope" tone="peach" title="Invite people" line={canReview ? "Send a join link · approve requests" : "Send a join link"}
+              divided onPress={() => router.push("/more/settings/invitations" as Href)} />
+          ) : null}
+        </Surface>
+      </View>
 
       {/* this phone */}
       <View style={[styles.group, { marginTop: 18 }]}>
@@ -246,6 +248,27 @@ export default function More() {
   );
 }
 
+/** A Settings row: tinted glyph chip, title, one grey line, chevron. Navigation, so no haptic. */
+function SettingsRow({ icon, tone, title, line, divided, onPress }: {
+  icon: IconName; tone: Tone; title: string; line: string; divided?: boolean; onPress: () => void;
+}) {
+  const { c } = useTheme();
+  const p = c.pastel[tone];
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${title}. ${line}`}
+      style={({ pressed }) => [styles.row, styles.setRow, divided && { borderTopWidth: 1, borderTopColor: c.line }, pressed && { backgroundColor: c.paper2 }]}>
+      <View style={[styles.chip, { backgroundColor: p.soft, borderColor: p.border }]}>
+        <Icon name={icon} size={18} color={p.ink} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <T v="bodyStrong" numberOfLines={1}>{title}</T>
+        <T v="meta" size={12.5} color={c.ink3} numberOfLines={1}>{line}</T>
+      </View>
+      <Icon name="chev-r" size={16} color={c.ink3} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   youRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   you: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6, paddingLeft: 6, paddingRight: 14, borderRadius: 999, borderWidth: 1.5 },
@@ -257,5 +280,7 @@ const styles = StyleSheet.create({
   rule: { flex: 1, borderTopWidth: 1.5, borderStyle: "dashed" },
   list: { overflow: "hidden", padding: 0 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 14, minHeight: 54 },
+  setRow: { minHeight: 62 },
+  chip: { width: 34, height: 34, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   dev: { padding: 16, gap: 10 },
 });

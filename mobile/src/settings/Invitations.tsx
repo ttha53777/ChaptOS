@@ -160,7 +160,7 @@ export function InvitationsSection() {
             {INVITE_EXPIRY_PRESETS.map(p => {
               const on = expiry === p;
               return (
-                <Pressable key={p} onPress={() => { haptics.tap(); setExpiry(p); }} accessibilityRole="radio" accessibilityState={{ selected: on }}
+                <Pressable key={p} onPress={() => { if (!on) { haptics.select(); setExpiry(p); } }} accessibilityRole="radio" accessibilityState={{ selected: on }}
                   style={[styles.opt, { borderColor: on ? c.ink : c.line2, backgroundColor: on ? c.ink : c.card }]}>
                   <T v="buttonSm" size={13} color={on ? c.paper : c.ink2}>{EXPIRY_LABELS[p]}</T>
                 </Pressable>

@@ -205,7 +205,7 @@ export function ViewSwitch<V extends string>({ value, options, onChange, label }
       {options.map(o => {
         const on = o.id === value;
         return (
-          <Pressable key={o.id} onPress={() => { if (!on) { haptics.tap(); onChange(o.id); } }} accessibilityRole="tab" accessibilityState={{ selected: on }}
+          <Pressable key={o.id} onPress={() => { if (!on) { haptics.select(); onChange(o.id); } }} accessibilityRole="tab" accessibilityState={{ selected: on }}
             style={[styles.viewBtn, on && { backgroundColor: c.card, borderColor: c.ink }]}>
             <Icon name={o.icon} size={14} color={on ? c.ink : c.ink3} />
             <T v="buttonSm" size={13} color={on ? c.ink : c.ink3}>{o.label}</T>

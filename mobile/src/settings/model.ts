@@ -42,6 +42,15 @@ export function visibleItems(me: MeResponse): (NavItem & { id: SectionId })[] {
   return NAV_ITEMS.filter((n): n is NavItem & { id: SectionId } => inApp(n.id) && BUILT.has(n.id) && sectionVisible(n.id, g));
 }
 
+/** More's "Chapter settings" line: the sections this person can actually open there
+ *  (Invitations has its own row on More, so it's left out), or a plain fallback. */
+export function settingsLine(me: MeResponse, orgName: string): string {
+  const labels = visibleItems(me).filter(n => n.id !== "invitations").map(n => n.label);
+  if (labels.length === 0) return `How ${orgName} is set up`;
+  if (labels.length <= 3) return labels.join(", ");
+  return `${labels.slice(0, 2).join(", ")} and more`;
+}
+
 export function visibleGroups(items: NavItem[]): Intent[] {
   return INTENT_ORDER.filter(g => items.some(n => n.group === g));
 }
