@@ -89,7 +89,7 @@ function weekOf(today: string): { start: string; end: string } {
 export default function Timeline() {
   const entry = useEntryOf("ready");
   const me = entry?.me ?? null;
-  const params = useLocalSearchParams<{ event?: string; review?: string }>();
+  const params = useLocalSearchParams<{ event?: string; review?: string; subscribe?: string }>();
   const workflows = me?.org?.enabledWorkflows ?? [];
   const can = (bit: number) => !!me && (me.isAdmin || (me.permissions & bit) !== 0);
   const officerEvents = !!me && canEvents(me);
@@ -186,7 +186,7 @@ export default function Timeline() {
   };
 
   /* ── deep links ── */
-  const linked = useRef({ event: false, review: false });
+  const linked = useRef({ event: false, review: false, subscribe: false });
   useEffect(() => {
     const id = Number(params.event);
     if (!linked.current.event && id && rows?.all.some(e => e.id === id)) { linked.current.event = true; setOpenId(id); }
@@ -194,6 +194,10 @@ export default function Timeline() {
   useEffect(() => {
     if (!linked.current.review && params.review === "1" && waiting > 0) { linked.current.review = true; setReview(true); }
   }, [params.review, waiting]);
+  // ?subscribe=1 (Settings → Calendar subscription's "Timeline → Add to my calendar").
+  useEffect(() => {
+    if (!linked.current.subscribe && params.subscribe) { linked.current.subscribe = true; setFeed(true); }
+  }, [params.subscribe]);
 
   /* ── where things are, for landing and the Today pill ── */
   const scrollRef = useRef<ScrollViewInstance>(null);

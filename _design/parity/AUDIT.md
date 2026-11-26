@@ -44,7 +44,7 @@ Legend: ✅ matches the web phone · 🟡 built, but from the paper mocks rather
 | Parties | `more/parties` | ✅ | Phase 8e: the house ledger at phone width, the one task, takings and the strip, drawers in place, the web's forms and two-step wrap-up with the roll, the door moment. See "Parties (Phase 8e)" below. |
 | Fundraisers | `more/fundraisers`, `more/fundraiser/[id]` | ✅ | Phase 8f: list, page, composer, shopping list, jar, wrap-up and the jar moment. |
 | Treasury (Overview, Transactions, Dues, Reports, Reimbursements) | `more/treasury` | ✅ | Phase 7: the five tabs, the open-books gate and member lock, every sheet, Dues with its drawer, Hand out and charge editor. See "Treasury (Phase 7)" below. |
-| Settings (15 sections) | `more/settings/*` | 🟨 | 9a landed (Identity, Accounts, Invitations, Roles); 9b and 9c to come. |
+| Settings (15 sections) | `more/settings/*` | 🟨 | 9a (Identity, Accounts, Invitations, Roles) and 9b (Workflows, Thresholds, Semesters, Custom metrics, Calendar subscription) landed; 9c to come. |
 | Sidebar profile menu | More → You block, toolbar stamp | ✅ Phase 1 | — |
 | Billing | — | ⬜ by decision | Not in the app. |
 | Check-in | `app/checkin.tsx` | ⭐ | Opened from the Home live band. |
@@ -725,3 +725,51 @@ Built 2026-11-25.
   - Invitations' expiry is a row of pills (the web uses a select).
   - The color picker has swatches and hex but no system color wheel.
   - Danger zone (Identity, org admins) is Phase 9c.
+
+## Settings (Phase 9b), what landed
+
+Built 2026-11-26.
+
+- **Shared rules** (pure, under the existing `@/lib/settings/` whitelist):
+  - `lib/settings/workflows.ts`: the page toggles (`PICKER_ITEMS`, from the nav map), the locked rows, the Dues switch, the Dashboard widgets, the opt-out disabled-features map, the per-group sidebar order (`seedOrder`, `moveItem`, `navDirty`), the dirty test, the one-PATCH body (`workflowsPatch`, which carries the workflows this section doesn't own) and every sentence. `NAV_DESCRIPTIONS` / `NAV_DISPLAY_NAMES` / `navDisplayName` moved here from `Sidebar.tsx`, which re-exports them.
+  - `lib/settings/thresholds.ts`: the three groups and five rows (unit, step, bounds), the inline editor's check, the dirty test and the copy.
+  - `lib/settings/semesters.ts`: the form's check, the body (an edit sends `activate: false`), the list updates after a write and the copy.
+  - `lib/settings/metrics.ts`: the headline choices, `slugify`, the edit/new forms (the slug follows the name until it's edited), both bodies with their checks, the row's sub line and the copy.
+  - `lib/settings/calendar.ts`: the status pill, the health line, `blockReason`, each issue's sentence and path, the group-chat message and every admin sentence.
+  - Multi-run sentences return their runs (`string[]`), as 8b found.
+  - The web's Workflows, Thresholds, Semesters and Custom metrics sections, and `CalendarSubscription`'s settings parts, render from these. The member "Add to my calendar" dialog is unchanged.
+    - Pixdiff: all 15 full frames (5 sections × busy admin day and night, plus day-one night) are IDENTICAL to a HEAD control capture. The first HEAD capture of thresholds busy-day caught the org splash; the control and the refactor match.
+    - Sheets and states, A/B in one session (390×844, WebKit; `scripts/_settings-sheets-shot.ts` gained `ONLY=` and 7 scenes): new semester, edit semester, the new-metric form, a threshold in edit, workflows dirty (Unsaved), the calendar zone field and the unconfirmed-times list. All IDENTICAL to HEAD, and HEAD matched its own control.
+- **Wire (additive):**
+  - New in `lib/api-types/settings.ts`: `MetricDefinition` and `CalendarFeedChanged`.
+  - `CalendarSubscriptionView` gained the admin-only checklist fields (`issues`, `validating`, `turningOn`, `configured`, `problem`, `health`). They're optional because the member view omits them. `CalendarFeedIssue` is new.
+  - New route-map lines: `PATCH /api/calendar/subscription`, metrics `GET`/`POST` and `[id]` `PATCH`/`DELETE`, `POST /api/semesters` and `PATCH /api/semesters/[id]`. The `PATCH /api/orgs/config` note now names the Workflows and Thresholds fields.
+  - Contract entries: semester create/update/activate and metric list/create/update. The calendar PATCH uses `satisfies CalendarFeedChanged`.
+  - A smoke probe for each new route (invalid input or a NONE id). All were already bearer-aware via `buildContext`.
+  - There's no semester DELETE route, and the web offers none.
+- **App:**
+  - `mobile/src/settings/` gained `Workflows`, `Thresholds`, `Semesters` (+ `DateField`), `Metrics`, `Calendar` and `ledger.tsx` (the web's `.sc-*` layer). Each is registered in `BODY` and listed in `model.BUILT`.
+  - Data lives in `data/settings.ts`:
+    - Workflows and Thresholds invalidate `/me`, then Home and the roster.
+    - Semesters share Treasury's `moneyKeys.semesters`, then invalidate Home, the Timeline, `/me` and dues.
+    - Metrics invalidate Home and member profiles.
+    - Calendar writes invalidate the admin view and the member feed and summary keys.
+  - **Workflows:** locked rows, the Dues switch with the jar tile, widget checkboxes, pick cards (dashed while off, sections nested while on), the sidebar order with up/down (hidden pages dimmed), and Save changes / Reset / Unsaved inline at the end, as on the web.
+  - **Thresholds:** dashed value chips with a pen. Tap one to edit inline with the number pad. Done or blur commits; an out-of-range value keeps the editor open with the web's sentence.
+  - **Semesters:** rows with the Active pill and lilac tint. Edit / Set active and New semester show for MANAGE_SEMESTERS only. The form is a sheet (the web's Modal).
+  - **Custom metrics:** rows with Edit (the form opens in place), Remove (confirm sheet), the 20-cap note, and + Add metric opening the new form.
+  - **Calendar:**
+    - Everyone reaches it. Members get the off note, or "Timeline → Add to my calendar", which opens the Timeline's subscribe sheet (`/timeline?subscribe=1` is new).
+    - Org admins get the status pill and health line.
+    - When off: the Time zone step and the blocking items with their fixes (Delete entry, Add to timeline, a link to the item). Then Turn on, polling every 4 s while a check runs; why it's blocked; the turn-on-failed alert.
+    - When on: the Time zone row and Advanced (Regenerate with its warning, Turn off).
+    - Typed-time events open the When fields (prefilled from the typed text) with Save time. Other notes and Tell your members (Copy message) follow.
+  - **Writes driven in the preview against :3100:** threshold 65→60, Media page on, semester renamed, metric created, and Set time on an event (20:10 → 01:10Z, New York). The DB was then restored exactly.
+- **Deliberate differences:**
+  - Pickers: the metric headline is a row of choices (the web uses a select), and semester dates use an inline month grid (the web uses `<input type="date">`). The time-zone field suggests matches from `Intl.supportedValuesOf` when the runtime has it (the web uses a datalist); typing an IANA zone always works.
+  - Dues switch: the app's paper `Switch` in butter, not the web's `.wf-switch` with its butter-ink track.
+  - The "Set time" editor is the app's `WhenFields` (the Service and Parties fields), not the web's `ScheduleFields`. No DST chooser, as in those forms.
+  - Calendar issue links open the app's pages (`/more/service`, `/more/parties`, `/timeline?event=`).
+  - The web's Unconfirmed/Notes/Advanced `<details>` are chevron rows that fold their bodies. The unconfirmed list opens by itself at 5 or fewer, as on the web.
+  - Results tick a success/error haptic; toggles and order moves tick select/tap (they change a draft).
+

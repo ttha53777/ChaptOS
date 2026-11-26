@@ -18,9 +18,27 @@
  *   PATCH  /api/orgs/config                   OrgConfigSaved      (MANAGE_SETTINGS; instagramHandle / vocabularyOverrides)
  *   POST   /api/orgs/logo                     OrgLogoSaved        (multipart `file`; DELETE clears it)
  *
+ * Phase 9b:
+ *   PATCH  /api/orgs/config                   OrgConfigSaved      (Workflows: enabledWorkflows + disabledFeatures (+ navOrder); Thresholds)
+ *   GET    /api/semesters                     SemesterRow[]       (shared with Treasury's moneyKeys.semesters)
+ *   POST   /api/semesters                     SemesterRow         (MANAGE_SEMESTERS; becomes active)
+ *   PATCH  /api/semesters/[id]                SemesterRow         (no body = activate; body + activate:false = fix dates)
+ *   GET    /api/metrics/definitions           MetricDefinition[]
+ *   POST   /api/metrics/definitions           MetricDefinition    (MANAGE_SETTINGS)
+ *   PATCH  /api/metrics/definitions/[id]      MetricDefinition
+ *   DELETE /api/metrics/definitions/[id]      204
+ *   GET    /api/calendar/subscription         CalendarSubscriptionView (+ the admin checklist fields for org admins)
+ *   PATCH  /api/calendar/subscription         CalendarFeedChanged (org admins; turnOn, timeZone, disable, rotate, link)
+ *   PATCH  /api/calendar/[id]                 { schedule } (set a typed time)   DELETE /api/calendar/[id] (old deadline)
+ *
  * Role and roster changes show up on the roster, member cards, task pickers and /me
  * (your own roles decide what you can touch), so each write refreshes those too.
  */
+import type { CalendarFeedChanged, CalendarSubscriptionView, MetricDefinition, SemesterRow } from "@/lib/api-types";
+import type { Thresholds } from "@/lib/thresholds";
+import type { DisabledFeatures } from "@/lib/workflow-features";
+import { calKeys } from "./calendar";
+import { moneyKeys } from "./money";
 import type { AccountRow, InviteRedemption, InviteRow, MemberUpdated, OrgConfigSaved, OrgLogoSaved, RoleChip, RoleDetail, RoleGranted, RoleSaved } from "@/lib/api-types";
 import type { createInviteInput } from "@/lib/validation/invite";
 import type { createRoleInput } from "@/lib/validation/role";
@@ -39,6 +57,8 @@ export const settingsKeys = {
   roles: (slug: string | null) => ["settings", slug, "roles"] as const,
   invites: (slug: string | null, all: boolean) => ["settings", slug, "invites", all] as const,
   joins: (slug: string | null, id: number) => ["settings", slug, "invite-joins", id] as const,
+  metrics: (slug: string | null) => ["settings", slug, "metrics"] as const,
+  calendar: (slug: string | null) => ["settings", slug, "calendar"] as const,
 };
 
 /* ── reads ──────────────────────────────────────────────────────────────────── */
@@ -192,3 +212,135 @@ export async function saveOrgConfig(body: { instagramHandle?: string; vocabulary
 
 /** Everyone sees the new words and icon: re-read /me (and the chapter switcher's logos). */
 export const refreshIdentity = () => queryClient.invalidateQueries({ queryKey: keys.me(slugNow()) });
+
+/* ── workflows + thresholds (Phase 9b) ──────────────────────────────────────── */
+
+export async function saveWorkflows(body: { enabledWorkflows: string[]; disabledFeatures: DisabledFeatures; navOrder?: string[] }): Promise<void> {
+  await api<OrgConfigSaved>("/api/orgs/config", { method: "PATCH", body });
+  configChanged();
+}
+
+export async function saveThresholds(thresholds: Thresholds): Promise<void> {
+  await api<OrgConfigSaved>("/api/orgs/config", { method: "PATCH", body: { thresholds } });
+  configChanged();
+}
+
+/** Pages, widgets, order or cutoffs changed: /me (More's grid, the tab bar, the gates),
+ *  then Home and Members, whose standing reads the thresholds. */
+async function configChanged() {
+  const slug = slugNow();
+  await queryClient.invalidateQueries({ queryKey: keys.me(slug) });
+  void queryClient.invalidateQueries({ queryKey: ["home", slug] });
+  void queryClient.invalidateQueries({ queryKey: ["roster", slug] });
+}
+
+/* ── semesters ──────────────────────────────────────────────────────────────── */
+
+export function useSettingsSemesters() {
+  const { slug } = useActiveOrg();
+  return useQuery({ queryKey: moneyKeys.semesters(slug), queryFn: () => api<SemesterRow[]>("/api/semesters", { org: slug }) });
+}
+
+/** The active term moved: Treasury's terms, the dashboard, the Timeline's term, dues. */
+function termsChanged(next?: (l: SemesterRow[]) => SemesterRow[]) {
+  const slug = slugNow();
+  if (next) queryClient.setQueryData<SemesterRow[]>(moneyKeys.semesters(slug), l => (l ? next(l) : l));
+  void queryClient.invalidateQueries({ queryKey: moneyKeys.semesters(slug) });
+  void queryClient.invalidateQueries({ queryKey: ["home", slug] });
+  void queryClient.invalidateQueries({ queryKey: calKeys.events(slug) });
+  void queryClient.invalidateQueries({ queryKey: keys.me(slug) });
+  void queryClient.invalidateQueries({ queryKey: ["dues-board", slug] });
+}
+
+export async function createSemester(body: { label: string; startDate: string; endDate: string }): Promise<SemesterRow> {
+  const s = await api<SemesterRow>("/api/semesters", { method: "POST", body });
+  termsChanged(l => [s, ...l.map(x => ({ ...x, isActive: false }))]);
+  return s;
+}
+
+export async function editSemester(id: number, body: { label: string; startDate: string; endDate: string; activate?: boolean }): Promise<SemesterRow> {
+  const s = await api<SemesterRow>(`/api/semesters/${id}`, { method: "PATCH", body });
+  termsChanged(l => l.map(x => (x.id === s.id ? s : x)));
+  return s;
+}
+
+export async function activateSemester(id: number): Promise<void> {
+  await api<SemesterRow>(`/api/semesters/${id}`, { method: "PATCH" });
+  termsChanged(l => l.map(x => ({ ...x, isActive: x.id === id })));
+}
+
+/* ── custom metrics ─────────────────────────────────────────────────────────── */
+
+export function useMetricDefinitions(enabled = true) {
+  const { slug } = useActiveOrg();
+  return useQuery({ queryKey: settingsKeys.metrics(slug), queryFn: () => api<MetricDefinition[]>("/api/metrics/definitions", { org: slug }), enabled });
+}
+
+/** Definitions show on the dashboard's KPI cards and member profiles. */
+function metricsChanged(next: (l: MetricDefinition[]) => MetricDefinition[]) {
+  const slug = slugNow();
+  queryClient.setQueryData<MetricDefinition[]>(settingsKeys.metrics(slug), l => (l ? next(l) : l));
+  void queryClient.invalidateQueries({ queryKey: settingsKeys.metrics(slug) });
+  void queryClient.invalidateQueries({ queryKey: ["home", slug] });
+  void queryClient.invalidateQueries({ queryKey: ["memberProfile", slug] });
+}
+
+export async function createMetric(body: Record<string, unknown>): Promise<MetricDefinition> {
+  const d = await api<MetricDefinition>("/api/metrics/definitions", { method: "POST", body });
+  metricsChanged(l => [...l, d]);
+  return d;
+}
+
+export async function updateMetric(id: number, body: Record<string, unknown>): Promise<MetricDefinition> {
+  const d = await api<MetricDefinition>(`/api/metrics/definitions/${id}`, { method: "PATCH", body });
+  metricsChanged(l => l.map(x => (x.id === d.id ? d : x)));
+  return d;
+}
+
+export async function deleteMetric(id: number): Promise<void> {
+  await api(`/api/metrics/definitions/${id}`, { method: "DELETE" });
+  metricsChanged(l => l.filter(x => x.id !== id));
+}
+
+/* ── calendar subscription ──────────────────────────────────────────────────── */
+
+/** The admin view (no ?view=member): the checklist's issues, health and the turn-on state. */
+export function useCalendarAdmin(poll: boolean) {
+  const { slug } = useActiveOrg();
+  return useQuery({
+    queryKey: settingsKeys.calendar(slug),
+    queryFn: () => api<CalendarSubscriptionView>("/api/calendar/subscription", { org: slug }),
+    refetchInterval: poll ? 4000 : false,
+  });
+}
+
+function feedChanged() {
+  const slug = slugNow();
+  void queryClient.invalidateQueries({ queryKey: settingsKeys.calendar(slug) });
+  void queryClient.invalidateQueries({ queryKey: calKeys.feed(slug) });
+  void queryClient.invalidateQueries({ queryKey: calKeys.feedLive(slug) });
+}
+
+export type FeedAction =
+  | { action: "turnOn"; timeZone?: string } | { action: "timeZone"; timeZone: string }
+  | { action: "disable" } | { action: "rotate" } | { action: "link"; source: "service"; id: number };
+
+export async function changeFeed(body: FeedAction): Promise<void> {
+  await api<CalendarFeedChanged>("/api/calendar/subscription", { method: "PATCH", body });
+  await queryClient.invalidateQueries({ queryKey: settingsKeys.calendar(slugNow()) });
+  feedChanged();
+}
+
+/** An old deadline entry (deadlines come from tasks now). */
+export async function deleteLegacyEntry(id: number): Promise<void> {
+  await api(`/api/calendar/${id}`, { method: "DELETE" });
+  void queryClient.invalidateQueries({ queryKey: calKeys.events(slugNow()) });
+  feedChanged();
+}
+
+/** Set a real time on an event whose time was typed as text. */
+export async function setEventSchedule(id: number, schedule: unknown): Promise<void> {
+  await api(`/api/calendar/${id}`, { method: "PATCH", body: { schedule } });
+  void queryClient.invalidateQueries({ queryKey: calKeys.events(slugNow()) });
+  feedChanged();
+}

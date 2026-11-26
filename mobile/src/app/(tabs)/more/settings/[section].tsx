@@ -23,12 +23,22 @@ import { IdentitySection } from "~/settings/Identity";
 import { InvitationsSection } from "~/settings/Invitations";
 import { GROUP_TONE, visibleItems, type SectionId } from "~/settings/model";
 import { RolesSection } from "~/settings/Roles";
+import { CalendarSection } from "~/settings/Calendar";
+import { MetricsSection } from "~/settings/Metrics";
+import { SemestersSection } from "~/settings/Semesters";
+import { ThresholdsSection } from "~/settings/Thresholds";
+import { WorkflowsSection } from "~/settings/Workflows";
 
 const BODY: Partial<Record<SectionId, () => ReactNode>> = {
   identity: () => <IdentitySection />,
   accounts: () => <AccountsSection />,
   invitations: () => <InvitationsSection />,
   roles: () => <RolesSection />,
+  thresholds: () => <ThresholdsSection />,
+  semesters: () => <SemestersSection />,
+  "custom-metrics": () => <MetricsSection />,
+  calendar: () => <CalendarSection />,
+  workflows: () => <WorkflowsSection />,
 };
 
 export default function SettingsSectionPage() {

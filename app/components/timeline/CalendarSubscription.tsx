@@ -8,6 +8,10 @@ import type { ScheduleIssue } from "@/lib/calendar-feed/audit";
 import { validZone, type Schedule } from "@/lib/calendar-feed/schedule";
 import { ScheduleFields, initialSchedule, parseLegacyTime, scheduleFromValue, type ScheduleValue } from "./ScheduleFields";
 import { orgHref, orgSlugFromPath } from "@/lib/org-paths";
+import {
+  CALENDAR_COPY as CC, TELL_PATH, ago, blockReason as blockReasonOf, blockingText, healthLine, issuePath, noteText, splitIssues, statusPill,
+  tellMessage, zoneName,
+} from "@/lib/settings/calendar";
 
 type Health = { pending: boolean; failedAt: string | null; processedAt: string | null; failures: number };
 type MemberStatus = { state: "current" | "publishing" | "retrying" | "unknown"; updatedAt: string | null };
@@ -24,12 +28,6 @@ const deviceZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().
 function allZones(): string[] {
   const intl = Intl as unknown as { supportedValuesOf?: (key: string) => string[] };
   try { return intl.supportedValuesOf?.("timeZone") ?? []; } catch { return []; }
-}
-function zoneName(zone: string) { return zone.split("/").pop()?.replace(/_/g, " ") ?? zone; }
-function ago(iso: string | null) {
-  if (!iso) return "never";
-  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
-  return minutes < 1 ? "just now" : minutes < 60 ? `${minutes} min ago` : minutes < 1440 ? `${Math.round(minutes / 60)} h ago` : new Date(iso).toLocaleDateString();
 }
 function useSlug() {
   const [slug, setSlug] = useState("");
@@ -80,7 +78,7 @@ function useSubscription(active: boolean) {
       memberCache = { org: orgKey(), data: next };
       setData(next);
     }
-    catch (e) { setError(apiErrorMessage(e, "Could not load calendar subscription")); }
+    catch (e) { setError(apiErrorMessage(e, CC.loadFailed)); }
   }, []);
   useEffect(() => { if (active) void load(); }, [active, load]);
   return { data, error, setError, load };
@@ -116,15 +114,15 @@ function CalendarSettings() {
       await requestJson("/api/calendar/subscription", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
       await load();
       return true;
-    } catch (e) { setError(apiErrorMessage(e, "Could not update calendar subscription")); return false; }
+    } catch (e) { setError(apiErrorMessage(e, CC.updateFailed)); return false; }
     finally { setBusy(false); }
   }
   return (
     <section className="sc-stack-tight">
       {error && <p role="alert" className="sc-err">{error}</p>}
-      {!data && !error && <p role="status" className="sc-note">Loading subscription…</p>}
-      {data && !data.url && !data.admin && <p className="sc-note">Calendar subscriptions are off for your organization. An organization admin can turn them on here.</p>}
-      {data?.url && !data.admin && <p className="sc-note">Members add it from <a className="sched-link" href={slug ? orgHref(slug, "/timeline?subscribe=1") : "#"}>Timeline → Add to my calendar</a>.</p>}
+      {!data && !error && <p role="status" className="sc-note">{CC.loading}</p>}
+      {data && !data.url && !data.admin && <p className="sc-note">{CC.offForMembers}</p>}
+      {data?.url && !data.admin && <p className="sc-note">{CC.membersAddFrom[0]}<a className="sched-link" href={slug ? orgHref(slug, TELL_PATH) : "#"}>{CC.membersAddFrom[1]}</a>{CC.membersAddFrom[2]}</p>}
       {data?.admin && <AdminReadiness data={data} busy={busy} change={change} reload={load} />}
       {data?.url && data.admin && slug && <TellMembers slug={slug} orgName={data.orgName} />}
     </section>
@@ -357,18 +355,14 @@ function AdminReadiness({ data, busy, change, reload }: {
     if (wasTurningOn.current) { wasTurningOn.current = false; setTurnOnFailed(!data.enabled); }
   }, [data.validating, data.turningOn, data.enabled, reload]);
 
-  const issues = data.issues ?? [];
-  const blocking = issues.filter(i => i.blocking);
-  const unconfirmed = issues.filter(i => i.kind === "time-unconfirmed");
-  const notes = issues.filter(i => !i.blocking && i.kind !== "time-unconfirmed");
-  const health = data.health;
+  const { blocking, unconfirmed, notes } = splitIssues(data.issues);
   const zoneValid = validZone(zone);
+  const pill = statusPill(data);
+  const healthNote = healthLine(data);
 
-  const blockReason = !data.configured ? "Calendar subscriptions aren't set up on this server yet. Ask your ChaptOS administrator."
-    : !data.available ? "ChaptOS hasn't opened calendar subscriptions for your organization yet."
-    : blocking.length ? `Fix the ${blocking.length === 1 ? "item" : `${blocking.length} items`} above first.`
-    : !zoneValid ? "Choose your organization's time zone first."
-    : null;
+  const blockReason = blockReasonOf(data, blocking.length, zoneValid);
+  const unconfirmedHead = CC.unconfirmedHead(unconfirmed.length);
+  const notesHead = CC.notesHead(notes.length);
 
   async function turnOn() {
     setTurnOnFailed(false);
@@ -377,95 +371,92 @@ function AdminReadiness({ data, busy, change, reload }: {
   }
 
   const zoneField = <>
-    <label className="block sc-mlabel">Organization time zone
-      <input className="sc-input mt-1" list="org-zone-list" value={zone} onChange={e => setZone(e.target.value)} placeholder="Search a city, e.g. New York" />
+    <label className="block sc-mlabel">{CC.zoneLabel}
+      <input className="sc-input mt-1" list="org-zone-list" value={zone} onChange={e => setZone(e.target.value)} placeholder={CC.zonePlaceholder} />
     </label>
     <datalist id="org-zone-list">{zones.map(z => <option key={z} value={z}>{zoneName(z)}</option>)}</datalist>
-    {device && zone !== device && validZone(device) && <p className="sc-note"><button type="button" className="sched-link" onClick={() => setZone(device)}>Use this device&apos;s zone ({zoneName(device)})</button></p>}
+    {device && zone !== device && validZone(device) && <p className="sc-note"><button type="button" className="sched-link" onClick={() => setZone(device)}>{CC.useDeviceZone(zoneName(device))[0]}{CC.useDeviceZone(zoneName(device))[1]}{CC.useDeviceZone(zoneName(device))[2]}</button></p>}
   </>;
   const zoneSummary = (
-    <p>{zoneName(zone)} <span className="cal-zone">{zone}</span>{!data.timeZone && <span className="sc-note"> · from this device</span>} · <button type="button" className="sched-link" onClick={() => setEditingZone(true)}>Change</button></p>
+    <p>{zoneName(zone)} <span className="cal-zone">{zone}</span>{!data.timeZone && <span className="sc-note">{CC.fromDevice}</span>} · <button type="button" className="sched-link" onClick={() => setEditingZone(true)}>{CC.change}</button></p>
   );
 
   return (
     <div className="sc-stack-tight">
       <p role="status" className="cal-status">
-        <span className={`sc-pill ${data.enabled ? "sc-pill-ok" : data.turningOn ? "sc-pill-vio" : "sc-pill-muted"}`}>{data.enabled ? "On for members" : data.turningOn ? "Turning on…" : "Off for members"}</span>
-        {(data.enabled || health?.failedAt) && <span className={health?.failedAt ? "sc-err" : "sc-note"}>
-          {health?.failedAt ? `Publishing calendar updates is failing (${health.failures} attempt${health.failures === 1 ? "" : "s"}); it retries automatically.`
-            : health?.pending ? "Calendar updates are waiting to publish."
-            : health?.processedAt ? `Calendar updated ${ago(health.processedAt)}.`
-            : "Calendar updates haven't been published yet."}
+        <span className={`sc-pill sc-pill-${pill.tone}`}>{pill.label}</span>
+        {healthNote && <span className={healthNote.error ? "sc-err" : "sc-note"}>
+          {healthNote.text}
         </span>}
       </p>
 
       {!data.enabled && <>
         <ol className="sc-card cal-check">
-          <Step n={blocking.length ? 1 : undefined} done={Boolean(data.timeZone) && zone === data.timeZone && !editingZone} title="Time zone">
+          <Step n={blocking.length ? 1 : undefined} done={Boolean(data.timeZone) && zone === data.timeZone && !editingZone} title={CC.timeZone}>
             {editingZone || !zoneValid ? zoneField : zoneSummary}
-            <p className="sc-note">Times you add are in this zone. Members see them in their own.</p>
+            <p className="sc-note">{CC.zoneNote}</p>
             {editingZone && data.timeZone && <div className="sc-btn-row">
               <button className="sc-btn sc-btn-ghost" disabled={busy || !zoneValid || zone === data.timeZone}
-                onClick={async () => { if (await change("timeZone", { timeZone: zone })) setEditingZone(false); }}>Save time zone</button>
-              <button className="sc-btn sc-btn-ghost" onClick={() => { setZone(data.timeZone!); setEditingZone(false); }}>Cancel</button>
+                onClick={async () => { if (await change("timeZone", { timeZone: zone })) setEditingZone(false); }}>{CC.saveZone}</button>
+              <button className="sc-btn sc-btn-ghost" onClick={() => { setZone(data.timeZone!); setEditingZone(false); }}>{CC.cancel}</button>
             </div>}
           </Step>
-          {blocking.length > 0 && <Step n={2} done={false} title={`Fix ${blocking.length} item${blocking.length === 1 ? "" : "s"} that would appear wrong or go missing`}>
+          {blocking.length > 0 && <Step n={2} done={false} title={CC.fixTitle(blocking.length)}>
             <ul className="cal-issues">{blocking.map(issue => <BlockingItem key={`${issue.source}:${issue.id}`} issue={issue} href={href} reload={reload} />)}</ul>
           </Step>}
         </ol>
 
         {data.turningOn
-          ? <p role="status" className="sc-note"><strong className="text-[var(--ink)]">Turning on for members.</strong> ChaptOS is building your calendar and checking every entry. It takes about a minute and switches on by itself, so you can leave this page.</p>
+          ? <p role="status" className="sc-note"><strong className="text-[var(--ink)]">{CC.turningOn[0]}</strong>{CC.turningOn[1]}</p>
           : <div className="sc-stack-tight">
-            <div className="sc-btn-row"><button className="sc-btn sc-btn-primary" disabled={busy || Boolean(blockReason) || Boolean(data.validating)} onClick={() => void turnOn()}>Turn on for members</button></div>
-            {data.validating && <p role="status" className="sc-note">A publication check is running. This takes about a minute.</p>}
+            <div className="sc-btn-row"><button className="sc-btn sc-btn-primary" disabled={busy || Boolean(blockReason) || Boolean(data.validating)} onClick={() => void turnOn()}>{CC.turnOn}</button></div>
+            {data.validating && <p role="status" className="sc-note">{CC.checking}</p>}
             {blockReason && <p className="sc-note">{blockReason}</p>}
-            {!blockReason && <p className="sc-note">Members can then add {data.orgName || "your organization"}&apos;s events and deadlines to Google or Apple Calendar, and they stay up to date on their own.</p>}
-            {turnOnFailed && <p role="alert" className="sc-err">It didn&apos;t turn on: the check found something to fix. Fix any items listed above and try again.</p>}
+            {!blockReason && <p className="sc-note">{CC.thenMembers(data.orgName)[0]}{CC.thenMembers(data.orgName)[1]}{CC.thenMembers(data.orgName)[2]}</p>}
+            {turnOnFailed && <p role="alert" className="sc-err">{CC.turnOnFailed}</p>}
           </div>}
       </>}
 
       {data.enabled && <div className="sc-card cal-check"><ul><li className="sc-row"><div className="sc-row-lead cal-step-body">
-        <p className="sc-row-key">Time zone</p>
+        <p className="sc-row-key">{CC.timeZone}</p>
         {editingZone ? <>
           {zoneField}
           <div className="sc-btn-row">
             <button className="sc-btn sc-btn-primary" disabled={busy || !zoneValid || zone === data.timeZone}
-              onClick={async () => { if (await change("timeZone", { timeZone: zone })) setEditingZone(false); }}>Save time zone</button>
-            <button className="sc-btn sc-btn-ghost" onClick={() => { setZone(data.timeZone ?? ""); setEditingZone(false); }}>Cancel</button>
+              onClick={async () => { if (await change("timeZone", { timeZone: zone })) setEditingZone(false); }}>{CC.saveZone}</button>
+            <button className="sc-btn sc-btn-ghost" onClick={() => { setZone(data.timeZone ?? ""); setEditingZone(false); }}>{CC.cancel}</button>
           </div>
-          <p className="sc-note">Changing it doesn&apos;t move existing events or pause the calendar.</p>
+          <p className="sc-note">{CC.zoneChangeNote}</p>
         </> : zoneSummary}
       </div></li></ul></div>}
 
       {unconfirmed.length > 0 && (
         <details className="cal-details prose" open={unconfirmed.length <= 5}>
-          <summary><span><strong className="text-[var(--ink)]">{unconfirmed.length} event{unconfirmed.length === 1 ? " shows" : "s show"} as all-day in members&apos; calendars</strong> because ChaptOS can&apos;t read the time that was typed. Set a start time to fix it.</span></summary>
+          <summary><span><strong className="text-[var(--ink)]">{unconfirmedHead[0]}{unconfirmedHead[1]}{unconfirmedHead[2]}{unconfirmedHead[3]}</strong>{CC.unconfirmedTail}</span></summary>
           <ul className="sc-card cal-list">{unconfirmed.map(issue => <UnconfirmedTime key={issue.id} issue={issue} onSaved={reload} />)}</ul>
         </details>
       )}
 
       {notes.length > 0 && (
         <details className="cal-details">
-          <summary>{notes.length} other note{notes.length === 1 ? "" : "s"} (left out of the calendar)</summary>
-          <ul className="cal-details-body cal-issues">{notes.map(issue => <li key={`${issue.source}:${issue.id}`}><strong className="text-[var(--ink)]">{issue.title}</strong>: {issue.kind === "invalid-due-date" ? "the task's due date isn't a real date." : "the event's date isn't a real date."}</li>)}</ul>
+          <summary>{notesHead[0]}{notesHead[1]}{notesHead[2]}{notesHead[3]}</summary>
+          <ul className="cal-details-body cal-issues">{notes.map(issue => <li key={`${issue.source}:${issue.id}`}><strong className="text-[var(--ink)]">{issue.title}</strong>: {noteText(issue)}</li>)}</ul>
         </details>
       )}
 
       {data.enabled && <details className="cal-details">
-        <summary>Advanced</summary>
+        <summary>{CC.advanced}</summary>
         <div className="cal-details-body">
           {!rotate && <div className="sc-btn-row">
-            <button className="sc-btn sc-btn-ghost" disabled={busy} onClick={() => setRotate(true)}>Regenerate URL</button>
-            <button className="sc-btn sc-btn-ghost" disabled={busy} onClick={() => void change("disable")}>Turn off for members</button>
+            <button className="sc-btn sc-btn-ghost" disabled={busy} onClick={() => setRotate(true)}>{CC.regenerate}</button>
+            <button className="sc-btn sc-btn-ghost" disabled={busy} onClick={() => void change("disable")}>{CC.turnOff}</button>
           </div>}
-          <p className="sc-note">Turning off keeps events already in members&apos; calendars but stops updating them.</p>
+          <p className="sc-note">{CC.turnOffNote}</p>
           {rotate && <div role="alert" className="cal-sec">
-            <p className="sc-err">Everyone who subscribed will stop getting updates until they add the new link.</p>
+            <p className="sc-err">{CC.rotateWarn}</p>
             <div className="sc-btn-row">
-              <button className="sc-btn sc-btn-danger" disabled={busy} onClick={async () => { if (await change("rotate")) setRotate(false); }}>Regenerate and revoke old URL</button>
-              <button className="sc-btn sc-btn-ghost" onClick={() => setRotate(false)}>Keep current URL</button>
+              <button className="sc-btn sc-btn-danger" disabled={busy} onClick={async () => { if (await change("rotate")) setRotate(false); }}>{CC.rotateConfirm}</button>
+              <button className="sc-btn sc-btn-ghost" onClick={() => setRotate(false)}>{CC.rotateKeep}</button>
             </div>
           </div>}
         </div>
@@ -480,17 +471,14 @@ function BlockingItem({ issue, href, reload }: { issue: ScheduleIssue; href: (pa
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
   const legacy = issue.kind === "legacy-deadline";
-  const open = issue.kind === "unlinked-service" ? href("/service") : issue.kind === "unlinked-party" ? href("/parties") : href(`/timeline?event=${issue.id}`);
+  const open = href(issuePath(issue));
   // The feed leaves legacy deadlines out entirely (deadlines come from tasks),
   // so the risk is a deadline members never see, not one they see twice.
-  const text = legacy ? "An old deadline entry. Deadlines come from tasks now, so this one isn't in the calendar. Check it has a matching task, then delete it."
-    : issue.kind === "unlinked-service" ? "A service project with no timeline entry, so it would be missing from members' calendars."
-    : issue.kind === "unlinked-party" ? "A party with no timeline entry. It can't be added automatically because its attendance may belong to an existing event. Open Parties to review it."
-    : issue.issue;
+  const text = blockingText(issue);
   async function remove() {
     setWorking(true); setError("");
     try { await requestJson(`/api/calendar/${issue.id}`, { method: "DELETE" }); await reload(); }
-    catch (e) { setError(apiErrorMessage(e, "Could not delete it")); setWorking(false); }
+    catch (e) { setError(apiErrorMessage(e, CC.deleteFailed)); setWorking(false); }
   }
   async function link() {
     // Its own request, not `change`: a refusal belongs next to this item.
@@ -498,7 +486,7 @@ function BlockingItem({ issue, href, reload }: { issue: ScheduleIssue; href: (pa
     try {
       await requestJson("/api/calendar/subscription", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "link", source: "service", id: issue.id }) });
       await reload();
-    } catch (e) { setError(apiErrorMessage(e, "Could not add it to the timeline")); setWorking(false); }
+    } catch (e) { setError(apiErrorMessage(e, CC.linkFailed)); setWorking(false); }
   }
   return (
     <li className="cal-issue">
@@ -508,13 +496,13 @@ function BlockingItem({ issue, href, reload }: { issue: ScheduleIssue; href: (pa
         {error && <span role="alert" className="block sc-err">{error}</span>}
       </span>
       <span className="sc-btn-row">
-        {legacy && !confirming && <button type="button" className="sc-btn sc-btn-ghost sc-btn-sm" disabled={working} onClick={() => setConfirming(true)}>Delete</button>}
+        {legacy && !confirming && <button type="button" className="sc-btn sc-btn-ghost sc-btn-sm" disabled={working} onClick={() => setConfirming(true)}>{CC.delete}</button>}
         {legacy && confirming && <>
-          <button type="button" className="sc-btn sc-btn-danger sc-btn-sm" disabled={working} onClick={() => void remove()}>Delete entry</button>
-          <button type="button" className="sc-btn sc-btn-ghost sc-btn-sm" disabled={working} onClick={() => setConfirming(false)}>Keep</button>
+          <button type="button" className="sc-btn sc-btn-danger sc-btn-sm" disabled={working} onClick={() => void remove()}>{CC.deleteEntry}</button>
+          <button type="button" className="sc-btn sc-btn-ghost sc-btn-sm" disabled={working} onClick={() => setConfirming(false)}>{CC.keep}</button>
         </>}
         {issue.kind === "unlinked-service" &&
-          <button type="button" className="sc-btn sc-btn-accent sc-btn-sm" disabled={working} onClick={() => void link()}>Add to timeline</button>}
+          <button type="button" className="sc-btn sc-btn-accent sc-btn-sm" disabled={working} onClick={() => void link()}>{CC.addToTimeline}</button>}
       </span>
     </li>
   );
@@ -528,8 +516,8 @@ function BlockingItem({ issue, href, reload }: { issue: ScheduleIssue; href: (pa
 function TellMembers({ slug, orgName }: { slug: string; orgName: string }) {
   const [state, setState] = useState<"" | "copied" | "failed">("");
   const box = useRef<HTMLParagraphElement>(null);
-  const link = `${window.location.origin}${orgHref(slug, "/timeline?subscribe=1")}`;
-  const message = `${orgName ? `${orgName}'s` : "Our"} calendar is now in ChaptOS. Add it to Google or Apple Calendar once and every meeting and deadline stays up to date on its own: ${link}`;
+  const link = `${window.location.origin}${orgHref(slug, TELL_PATH)}`;
+  const message = tellMessage(orgName, link);
   async function copy() {
     try { await navigator.clipboard.writeText(message); setState("copied"); }
     catch {
@@ -541,14 +529,14 @@ function TellMembers({ slug, orgName }: { slug: string; orgName: string }) {
   return (
     <div className="sc-card cal-tell">
       <div className="cal-tell-head">
-        <p className="sc-row-key">Tell your members</p>
-        <p className="sc-note">Paste this into your group chat. Members also get an invite on their dashboard.</p>
+        <p className="sc-row-key">{CC.tellTitle}</p>
+        <p className="sc-note">{CC.tellNote}</p>
       </div>
       <p ref={box} className="cal-tell-msg">{message}</p>
       <div className="sc-btn-row">
-        <button type="button" className="sc-btn sc-btn-primary" onClick={() => void copy()}>{state === "copied" ? <><Tick />Copied</> : "Copy message"}</button>
+        <button type="button" className="sc-btn sc-btn-primary" onClick={() => void copy()}>{state === "copied" ? <><Tick />{CC.copied}</> : CC.copyMessage}</button>
       </div>
-      {state === "failed" && <p role="alert" className="sc-err">Couldn&apos;t copy automatically. The message is selected; copy it with Ctrl+C (⌘C on a Mac).</p>}
+      {state === "failed" && <p role="alert" className="sc-err">{CC.copyFailed}</p>}
       {state === "copied" && <span role="status" className="sr-only">Copied</span>}
     </div>
   );
@@ -572,7 +560,7 @@ function UnconfirmedTime({ issue, onSaved }: { issue: ScheduleIssue; onSaved: ()
     try {
       await requestJson(`/api/calendar/${issue.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ schedule: result.schedule }) });
       await onSaved();
-    } catch (e) { setError(apiErrorMessage(e, "Could not save the time")); }
+    } catch (e) { setError(apiErrorMessage(e, CC.timeFailed)); }
     finally { setSaving(false); }
   }
   return (
@@ -585,12 +573,12 @@ function UnconfirmedTime({ issue, onSaved }: { issue: ScheduleIssue; onSaved: ()
           <ScheduleFields value={value} onChange={setValue} />
           {error && <p role="alert" className="sc-err">{error}</p>}
           <div className="sc-btn-row">
-            <button className="sc-btn sc-btn-primary" disabled={saving} onClick={() => void save()}>Save time</button>
-            <button className="sc-btn sc-btn-ghost" onClick={() => setEditing(false)}>Cancel</button>
+            <button className="sc-btn sc-btn-primary" disabled={saving} onClick={() => void save()}>{CC.saveTime}</button>
+            <button className="sc-btn sc-btn-ghost" onClick={() => setEditing(false)}>{CC.cancel}</button>
           </div>
         </div>}
       </div>
-      {!editing && <button type="button" className="sc-btn sc-btn-accent sc-btn-sm" onClick={() => setEditing(true)}>Set time</button>}
+      {!editing && <button type="button" className="sc-btn sc-btn-accent sc-btn-sm" onClick={() => setEditing(true)}>{CC.setTime}</button>}
     </li>
   );
 }

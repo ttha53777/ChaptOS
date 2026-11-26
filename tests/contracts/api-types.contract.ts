@@ -23,7 +23,7 @@
 import type {
   ActivityEntry, Brother, DashboardResponse, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
   MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, SemesterRow, Task, TaskDetail, Transaction, TransactionCategory, TreasurySettings,
-  ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, DocSaved, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView, CalendarFeedLive,
+  ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, DocSaved, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView, CalendarFeedLive, MetricDefinition,
   HomeResponse, MemberUpdated, MobileConfig, JoinRequestPage, JoinRequestApproved,
   AttendanceSummaryRow, ExcuseListItem, ExcuseDecided, EventDeletePreview, AgendaTemplate, MeetingSummarized, MinutesSaved,
   ProgrammingEvent, ProgrammingDoc, RoleChip, RoleDetail, RoleSaved, RoleGranted, InviteRow, InviteRedemption, EventFieldRow, Party, PartyRollRow, InstagramPost,
@@ -51,7 +51,8 @@ import type { listOwnJoinRequests } from "@/lib/auth/own-join-status";
 import type { createTransaction, listTransactions, updateTransaction } from "@/lib/services/transaction-service";
 import type { createReimbursement, listReimbursements, updateReimbursement } from "@/lib/services/reimbursement-service";
 import type { setOpeningBalance } from "@/lib/services/treasury-settings-service";
-import type { listSemesters } from "@/lib/services/semester-service";
+import type { activateSemester, createSemester, listSemesters, updateSemester } from "@/lib/services/semester-service";
+import type { createMetricDefinition, listMetricDefinitions, updateMetricDefinition } from "@/lib/services/metric-definition-service";
 import type { listTransactionCategories } from "@/lib/services/transaction-category-service";
 import type { listServiceEvents, createServiceEvent, updateServiceEvent } from "@/lib/services/service-event-service";
 import type { listParticipationForOrg, listParticipationForEvent, logMyParticipation, removeMyParticipation, logParticipation } from "@/lib/services/service-participation-service";
@@ -147,6 +148,14 @@ export const reimbursementCreated: Widen<Reimbursement> = served<Served<typeof c
 export const reimbursementUpdated: Widen<Reimbursement> = served<Served<typeof updateReimbursement>>();
 export const treasurySettings: Widen<TreasurySettings> = served<Served<typeof setOpeningBalance>>();
 export const semesters: Widen<SemesterRow[]> = served<Served<typeof listSemesters>>();
+// Settings → Semesters (Phase 9b): create, fix one's dates, make one active.
+export const semesterCreated: Widen<SemesterRow> = served<Served<typeof createSemester>>();
+export const semesterUpdated: Widen<SemesterRow> = served<Served<typeof updateSemester>>();
+export const semesterActivated: Widen<SemesterRow> = served<Served<typeof activateSemester>>();
+// Settings → Custom metrics (Phase 9b).
+export const metricDefinitions: Widen<MetricDefinition[]> = served<Served<typeof listMetricDefinitions>>();
+export const metricCreated: Widen<MetricDefinition> = served<Served<typeof createMetricDefinition>>();
+export const metricUpdated: Widen<MetricDefinition> = served<Served<typeof updateMetricDefinition>>();
 export const categories: Widen<TransactionCategory[]> = served<Served<typeof listTransactionCategories>>();
 
 export const duesBoard: Widen<DuesBoard> = served<Served<typeof getDuesBoard>>();

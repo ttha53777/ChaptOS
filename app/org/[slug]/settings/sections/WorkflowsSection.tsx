@@ -3,15 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChapter } from "../../../../context/ChapterContext";
 import { requestJson } from "../../../../lib/api";
-import { NAV, NAV_WORKFLOW_MAP, NAV_DESCRIPTIONS, navDisplayName } from "../../../../components/Sidebar";
-import { ALWAYS_ON_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
-import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
-import { NAV_GROUPS, applyNavOrder } from "@/lib/nav-order";
-import { isNavVisible } from "../../../../components/Sidebar";
+import type { WorkflowId } from "@/lib/org-types";
+import type { DisabledFeatures } from "@/lib/workflow-features";
+import { NAV_GROUPS } from "@/lib/nav-order";
+import {
+  ALWAYS_ON_LABELS, DASHBOARD_FEATURES, DUES_FEATURE, PICKER_ITEMS, WORKFLOWS_COPY as C,
+  cloneDisabled, disabledMapKey, disabledMapOf, enabledLabels, featureOn as isFeatureOn, featuresOf,
+  hasFeatures, moveItem as moveIn, navDirty as orderDirty, navDisplayName, saveErrorOf, seedOrder as seedFrom,
+  toggleFeature as toggledFeature, toggleWorkflow, workflowsDirty, workflowsPatch,
+} from "@/lib/settings/workflows";
 import { useDirtyGuard } from "../SettingsDirtyContext";
 import { PaperIcon } from "../../../../components/paper/PaperIcon";
 import { useVocab } from "../../../../hooks/useVocab";
-import { BUILTIN_METRIC_KPI } from "@/lib/tracked-metrics";
 import "./workflows.css";
 
 // Settings → Workflows. Lets an org admin choose which optional pages the org
@@ -31,53 +34,9 @@ import "./workflows.css";
 // the sections turned OFF. We mirror that in local state (a per-workflow set of
 // disabled ids) so the wire format and the UI never drift.
 
-interface PickerItem {
-  label: string;
-  workflow: WorkflowId;
-  description: string;
-}
-
-// One toggle row per hideable nav surface — every NAV label whose workflow is
-// non-null in NAV_WORKFLOW_MAP. Derived from NAV so this list can never drift
-// from the sidebar's actual surfaces (shared with the onboarding picker).
-const PICKER_ITEMS: PickerItem[] = NAV.flatMap((label) => {
-  const workflow = NAV_WORKFLOW_MAP[label];
-  if (workflow == null) return []; // always-on surface — not a toggle
-  return [{ label, workflow, description: NAV_DESCRIPTIONS[label] ?? "" }];
-});
-
-// The workflows this section can actually toggle. Anything in the org's enabled
-// set that ISN'T here (e.g. "attendance", "events" — real workflows with no
-// top-level nav surface) must be preserved verbatim on save; this section only
-// owns the nav-mapped ones. See the save handler.
-const TOGGLEABLE_WORKFLOWS = new Set<WorkflowId>(PICKER_ITEMS.map((i) => i.workflow));
-
-// Always-on surfaces (Dashboard/Timeline map to null), shown as locked rows so
-// admins understand what every org gets regardless of their choices. Chapter is
-// now the toggleable "meetings" workflow and renders as a normal page toggle.
-const ALWAYS_ON_LABELS = NAV.filter((label) => NAV_WORKFLOW_MAP[label] == null);
-
-// Dashboard widgets live under the always-on "operations" workflow. The page
-// can't be turned off, but its widgets can — so we surface that feature group on
-// its own (it has no toggleable PICKER_ITEMS row to nest under). Other workflows'
-// features nest under their page toggle (rendered only when that page is enabled).
-const DASHBOARD_FEATURES = WORKFLOW_FEATURES.operations;
-
-// Tracking dues is the same opt-out flag the interview's metrics answer writes
-// (operations/kpi-dues), but it reaches well past the dashboard strip — the
-// Treasury Dues tab and card, the roster column, standing — so it gets its own
-// switch instead of hiding in the widget list as "Dues KPI".
-const DUES_FEATURE = BUILTIN_METRIC_KPI.duesOwed;
-
-// A stable, order-independent content key for a disabled-features map, used to
-// re-seed local state only when the *stored* map actually changes (not on every
-// /me refresh, which recreates an equal object).
-function disabledKey(map: DisabledFeatures): string {
-  return Object.keys(map)
-    .sort()
-    .map((w) => `${w}:${[...(map[w as WorkflowId] ?? [])].sort().join("|")}`)
-    .join(",");
-}
+// The page list, the locked rows, the Dashboard and Dues switches, the order
+// editor's rules and every sentence live in lib/settings/workflows.ts (the app
+// renders the same section from it).
 
 export function WorkflowsSection({
   onStatus,
@@ -120,23 +79,14 @@ export function WorkflowsSection({
   // ── Feature toggles (OPT-OUT: we track the DISABLED ids) ──────────────────
   // The persisted map is the source of truth. Mirror it as Map<workflow, Set<id>>
   // for ergonomic per-feature toggling; absent workflow / id means "enabled".
-  const persistedDisabled = useMemo(() => {
-    const raw = (currentUser?.org?.disabledFeatures ?? {}) as DisabledFeatures;
-    const map = new Map<WorkflowId, Set<string>>();
-    for (const [w, ids] of Object.entries(raw)) {
-      if (ids && ids.length) map.set(w as WorkflowId, new Set(ids));
-    }
-    return map;
-  }, [currentUser?.org?.disabledFeatures]);
-
-  const persistedDisabledKey = useMemo(
-    () => disabledKey(Object.fromEntries([...persistedDisabled].map(([w, s]) => [w, [...s]])) as DisabledFeatures),
-    [persistedDisabled],
+  const persistedDisabled = useMemo(
+    () => disabledMapOf((currentUser?.org?.disabledFeatures ?? {}) as DisabledFeatures),
+    [currentUser?.org?.disabledFeatures],
   );
 
-  const [disabled, setDisabled] = useState<Map<WorkflowId, Set<string>>>(
-    () => new Map([...persistedDisabled].map(([w, s]) => [w, new Set(s)])),
-  );
+  const persistedDisabledKey = useMemo(() => disabledMapKey(persistedDisabled), [persistedDisabled]);
+
+  const [disabled, setDisabled] = useState<Map<WorkflowId, Set<string>>>(() => cloneDisabled(persistedDisabled));
 
   // Re-seed the feature toggles when the stored map changes (same rationale as the
   // workflow re-seed above: post-save normalization + cross-tab edits).
@@ -144,14 +94,12 @@ export function WorkflowsSection({
   useEffect(() => {
     if (lastSyncedDisabledKey.current === persistedDisabledKey) return;
     lastSyncedDisabledKey.current = persistedDisabledKey;
-    setDisabled(new Map([...persistedDisabled].map(([w, s]) => [w, new Set(s)])));
+    setDisabled(cloneDisabled(persistedDisabled));
   }, [persistedDisabledKey, persistedDisabled]);
 
   // ── Sidebar order (reorder pages within each group, Notion-style) ──────────
-  // The persisted navOrder is sparse (see lib/nav-order.ts). We materialize it
-  // into a concrete per-group ordering for the editor by running each group's
-  // default items through applyNavOrder; the result is the full, explicit list
-  // the admin manipulates. On save we flatten every group back into one array.
+  // The persisted navOrder is sparse (see lib/nav-order.ts); seedOrder makes it a
+  // concrete per-group list for the editor, and the save flattens it back.
   const persistedNavOrder = useMemo(
     () => (currentUser?.org?.navOrder ?? []) as string[],
     [currentUser?.org?.navOrder],
@@ -159,15 +107,11 @@ export function WorkflowsSection({
   const persistedNavOrderKey = useMemo(() => persistedNavOrder.join("|"), [persistedNavOrder]);
 
   // Working order, keyed by group label → ordered nav labels.
-  const seedOrder = useCallback(
-    () => new Map(NAV_GROUPS.map((g) => [g.label, applyNavOrder(g.items, persistedNavOrder)])),
-    [persistedNavOrder],
-  );
+  const seedOrder = useCallback(() => seedFrom(persistedNavOrder), [persistedNavOrder]);
   const [order, setOrder] = useState<Map<string, string[]>>(seedOrder);
 
   // Re-seed the working order when the stored order changes (post-save
-  // normalization, or another admin reordering in a different tab). Same pattern
-  // as the workflow/feature re-seeds above.
+  // normalization, or another admin reordering in a different tab).
   const lastSyncedNavKey = useRef(persistedNavOrderKey);
   useEffect(() => {
     if (lastSyncedNavKey.current === persistedNavOrderKey) return;
@@ -175,152 +119,68 @@ export function WorkflowsSection({
     setOrder(seedOrder());
   }, [persistedNavOrderKey, seedOrder]);
 
-  // The flattened working order, for diffing and saving.
-  const flatOrder = useMemo(
-    () => NAV_GROUPS.flatMap((g) => order.get(g.label) ?? g.items),
-    [order],
-  );
-  // Dirty when the displayed order differs from the persisted order, resolved
-  // through the same applyNavOrder lens so a no-op (persisted is sparse, ours is
-  // explicit but equivalent) doesn't read as dirty.
-  const navDirty = useMemo(() => {
-    const persistedFlat = NAV_GROUPS.flatMap((g) => applyNavOrder(g.items, persistedNavOrder));
-    return persistedFlat.join("|") !== flatOrder.join("|");
-  }, [flatOrder, persistedNavOrder]);
+  const navDirty = useMemo(() => orderDirty(order, persistedNavOrder), [order, persistedNavOrder]);
 
   // Move a label up/down within its group. Within-group only — moving across the
   // Overview/Members/Operations headings would fight the sidebar's grouping.
   function moveItem(groupLabel: string, index: number, dir: -1 | 1) {
-    setOrder((prev) => {
-      const next = new Map(prev);
-      const items = [...(next.get(groupLabel) ?? [])];
-      const target = index + dir;
-      if (target < 0 || target >= items.length) return prev;
-      [items[index], items[target]] = [items[target], items[index]];
-      next.set(groupLabel, items);
-      return next;
-    });
+    setOrder((prev) => moveIn(prev, groupLabel, index, dir));
   }
 
   // Which labels are visible in the org's current setup — hidden pages still
-  // appear in the reorder list (dimmed) so their slot is preserved, matching the
-  // sparse-order contract.
-  const enabled = useMemo(
-    () => new Set(NAV.filter((label) => isNavVisible(label, [...persisted]))),
-    [persisted],
-  );
+  // appear in the reorder list (dimmed) so their slot is preserved.
+  const enabled = useMemo(() => enabledLabels(persisted), [persisted]);
 
-  // Dirty = the optional page picks OR the feature picks differ from persisted.
-  // Always-on workflow ids are forced on by the service either way, so we don't
-  // diff them; disabled-feature ids are diffed via the content key.
-  const dirty = useMemo(() => {
-    for (const { workflow } of PICKER_ITEMS) {
-      if (selected.has(workflow) !== persisted.has(workflow)) return true;
-    }
-    const currentDisabledKey = disabledKey(
-      Object.fromEntries([...disabled].map(([w, s]) => [w, [...s]])) as DisabledFeatures,
-    );
-    if (currentDisabledKey !== persistedDisabledKey) return true;
-    if (navDirty) return true;
-    return false;
-  }, [selected, persisted, disabled, persistedDisabledKey, navDirty]);
+  const dirty = useMemo(
+    () => workflowsDirty({ selected, persisted, disabled, persistedDisabledKey, navDirty }),
+    [selected, persisted, disabled, persistedDisabledKey, navDirty],
+  );
   useDirtyGuard("workflows", dirty);
 
-  // A feature is ON when it's NOT in the workflow's disabled set.
-  function featureOn(workflow: WorkflowId, id: string): boolean {
-    return !disabled.get(workflow)?.has(id);
-  }
+  const featureOn = (workflow: WorkflowId, id: string) => isFeatureOn(disabled, workflow, id);
 
   const duesOn = featureOn("operations", DUES_FEATURE);
+  const duesTitle = C.duesTitle(v("Dues"));
 
   function toggleFeature(workflow: WorkflowId, id: string) {
-    setDisabled((prev) => {
-      const next = new Map([...prev].map(([w, s]) => [w, new Set(s)]));
-      const set = next.get(workflow) ?? new Set<string>();
-      if (set.has(id)) set.delete(id);
-      else set.add(id);
-      if (set.size) next.set(workflow, set);
-      else next.delete(workflow);
-      return next;
-    });
+    setDisabled((prev) => toggledFeature(prev, workflow, id));
   }
 
   function toggle(workflow: WorkflowId) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(workflow)) next.delete(workflow);
-      else next.add(workflow);
-      return next;
-    });
+    setSelected((prev) => toggleWorkflow(prev, workflow));
   }
 
   function reset() {
     setSelected(new Set(persisted));
-    setDisabled(new Map([...persistedDisabled].map(([w, s]) => [w, new Set(s)])));
+    setDisabled(cloneDisabled(persistedDisabled));
     setOrder(seedOrder());
   }
 
   const save = useCallback(async () => {
     if (saving) return;
     setSaving(true);
-
-    // Build the full desired set as: everything currently enabled that this
-    // section does NOT control (e.g. "attendance"/"events" — workflows with no
-    // nav toggle), plus this section's selected toggles, plus the always-on ids.
-    //
-    // Critically we do NOT reconstruct the set from the toggles alone — that
-    // would silently drop any enabled workflow without a picker row. PATCH is a
-    // full replace, so carrying those through is what keeps "disabling a page"
-    // from quietly turning off unrelated functionality. The service de-dupes and
-    // force-enables the always-on ids regardless; we send them for idempotence.
-    const chosen = new Set<WorkflowId>([
-      ...[...persisted].filter((w) => !TOGGLEABLE_WORKFLOWS.has(w)),
-      ...PICKER_ITEMS.filter((i) => selected.has(i.workflow)).map((i) => i.workflow),
-      ...ALWAYS_ON_WORKFLOWS,
-    ]);
-
-    // The disabled-features map — only non-empty sets. The service normalizes
-    // (drops unknown ids/workflows), so sending the raw working state is safe.
-    const disabledFeatures: DisabledFeatures = {};
-    for (const [w, s] of disabled) {
-      if (s.size) disabledFeatures[w] = [...s];
-    }
-
     try {
-      // All fields go in one PATCH so a combined edit (page + section toggles +
-      // reorder) applies atomically and only triggers one /me refresh. navOrder
-      // is sent only when the order actually changed, so a pages-only edit never
-      // rewrites the order column. We send the FULL flattened order (the service
-      // stores it sparse-or-not; applyNavOrder makes an explicit list harmless).
+      // One PATCH (see workflowsPatch): enabledWorkflows carries what this section
+      // doesn't own, navOrder only when it changed. Then /me, so the sidebar and
+      // page sections reflect it without a reload.
       await requestJson("/api/orgs/config", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          enabledWorkflows: [...chosen],
-          disabledFeatures,
-          ...(navDirty ? { navOrder: flatOrder } : {}),
-        }),
+        body: JSON.stringify(workflowsPatch({ persisted, selected, disabled, order, navDirty })),
       });
-      // Re-fetch /me so the sidebar and page sections reflect the new state
-      // immediately (no reload).
       await refreshChapterData().catch(() => undefined);
-      onStatus("Pages updated.");
+      onStatus(C.saved);
     } catch (e) {
-      const message = e instanceof Error ? e.message : "";
-      onError(
-        message.includes("403") || /forbidden/i.test(message)
-          ? "You need the Org settings permission to change which pages are enabled."
-          : "Couldn't save your changes. Try again.",
-      );
+      onError(saveErrorOf(e instanceof Error ? e.message : "", C.forbidden));
     } finally {
       setSaving(false);
     }
-  }, [saving, selected, persisted, disabled, navDirty, flatOrder, refreshChapterData, onStatus, onError]);
+  }, [saving, selected, persisted, disabled, navDirty, order, refreshChapterData, onStatus, onError]);
 
   // Renders the indented feature checkboxes for one workflow. Shared by the
   // always-on Dashboard group and the per-page nested groups.
   function renderFeatureGroup(workflow: WorkflowId) {
-    const features = WORKFLOW_FEATURES[workflow].filter(f => workflow !== "operations" || f.id !== DUES_FEATURE);
+    const features = featuresOf(workflow);
     if (!features.length) return null;
     return (
       <div className="sc-pick-features space-y-1">
@@ -351,22 +211,17 @@ export function WorkflowsSection({
 
   return (
     <div className="sc-stack-tight">
-      <p className="sc-lede">
-        Choose which pages this organization shows in the sidebar, and which
-        sections appear within a page. Turning a page or section off just hides
-        it — your data is kept and comes back exactly as it was when you turn it
-        on again.
-      </p>
+      <p className="sc-lede">{C.lede}</p>
 
       {/* Always-on surfaces — locked */}
       <div>
-        <p className="sc-grp-label">Always included</p>
-        <p className="sc-note" style={{ margin: "-4px 0 9px 2px" }}>Every organization gets these.</p>
+        <p className="sc-grp-label">{C.alwaysIncluded}</p>
+        <p className="sc-note" style={{ margin: "-4px 0 9px 2px" }}>{C.alwaysNote}</p>
         <div className="sc-card sc-card-pad">
           {ALWAYS_ON_LABELS.map((label) => (
             <div key={label} className="sc-row sc-row-between">
               <span className="sc-row-key">{label}</span>
-              <span className="sc-locked">Locked</span>
+              <span className="sc-locked">{C.locked}</span>
             </div>
           ))}
         </div>
@@ -378,11 +233,9 @@ export function WorkflowsSection({
         <div className={`wf-dues${duesOn ? " on" : ""}`}>
           <span className="wf-dues-tile" aria-hidden><PaperIcon name="jar" /></span>
           <span className="wf-dues-tx">
-            <b>Track {v("Dues").toLowerCase()}</b>
+            <b>{duesTitle[0]}{duesTitle[1]}</b>
             <small>
-              {duesOn
-                ? `Charge ${v("Member", true).toLowerCase()}, record payments and see who still owes, on the ${v("Treasury")} page, the roster and the dashboard.`
-                : `Off. The ${v("Dues")} tab, card and balances are hidden everywhere. Anything already recorded is kept for when you turn it back on.`}
+              {C.duesSub(duesOn, { dues: v("Dues"), members: v("Member", true), treasury: v("Treasury") })}
             </small>
           </span>
           <button
@@ -390,7 +243,7 @@ export function WorkflowsSection({
             role="switch"
             className="wf-switch"
             aria-checked={duesOn}
-            aria-label={`Track ${v("Dues").toLowerCase()}`}
+            aria-label={C.duesLabel(v("Dues"))}
             disabled={saving}
             onClick={() => toggleFeature("operations", DUES_FEATURE)}
           />
@@ -401,8 +254,8 @@ export function WorkflowsSection({
           The Dashboard can't be turned off, but its sections can. */}
       {DASHBOARD_FEATURES.length > 0 && (
         <div>
-          <p className="sc-grp-label">Dashboard widgets</p>
-          <p className="sc-note" style={{ margin: "-4px 0 9px 2px" }}>Unselected widgets are hidden from the dashboard.</p>
+          <p className="sc-grp-label">{C.dashboardWidgets}</p>
+          <p className="sc-note" style={{ margin: "-4px 0 9px 2px" }}>{C.dashboardNote}</p>
           <div className="sc-card" style={{ padding: "8px 8px" }}>
             {renderFeatureGroup("operations")}
           </div>
@@ -411,12 +264,11 @@ export function WorkflowsSection({
 
       {/* Toggleable pages */}
       <fieldset className="m-0 border-0 p-0">
-        <legend className="sc-grp-label p-0">Optional pages</legend>
-        <p className="sc-note" style={{ margin: "-4px 0 9px 2px" }}>Unselected pages are hidden from the sidebar.</p>
+        <legend className="sc-grp-label p-0">{C.optionalPages}</legend>
+        <p className="sc-note" style={{ margin: "-4px 0 9px 2px" }}>{C.optionalNote}</p>
         <div className="space-y-2">
           {PICKER_ITEMS.map((item) => {
             const on = selected.has(item.workflow);
-            const hasFeatures = WORKFLOW_FEATURES[item.workflow].length > 0;
             return (
               <div key={item.workflow} className={`sc-pick${on ? " on" : ""}`}>
                 <label className="sc-check">
@@ -436,7 +288,7 @@ export function WorkflowsSection({
                   </div>
                 </label>
                 {/* Section toggles for this page — only while the page is enabled. */}
-                {on && hasFeatures && renderFeatureGroup(item.workflow)}
+                {on && hasFeatures(item.workflow) && renderFeatureGroup(item.workflow)}
               </div>
             );
           })}
@@ -448,11 +300,8 @@ export function WorkflowsSection({
           re-enabling lands them back where they were. Cross-group moves aren't
           offered — that would fight the sidebar's group headings. */}
       <div>
-        <p className="sc-grp-label">Sidebar order</p>
-        <p className="sc-note" style={{ margin: "-4px 0 9px 2px" }}>
-          Arrange pages within each section. This is the order everyone in the
-          organization sees in the sidebar.
-        </p>
+        <p className="sc-grp-label">{C.sidebarOrder}</p>
+        <p className="sc-note" style={{ margin: "-4px 0 9px 2px" }}>{C.orderNote}</p>
         <div className="space-y-4">
           {NAV_GROUPS.map((group) => {
             const items = order.get(group.label) ?? group.items;
@@ -466,7 +315,7 @@ export function WorkflowsSection({
                       <div key={label} className="sc-row sc-row-between">
                         <span className={`sc-row-key${off ? " is-off" : ""}`}>
                           {navDisplayName(label)}
-                          {off && <span className="sc-reorder-hidden">Hidden</span>}
+                          {off && <span className="sc-reorder-hidden">{C.hidden}</span>}
                         </span>
                         <div className="sc-reorder-btns">
                           <button
@@ -474,7 +323,7 @@ export function WorkflowsSection({
                             className="sc-iconbtn"
                             onClick={() => moveItem(group.label, i, -1)}
                             disabled={i === 0 || saving}
-                            aria-label={`Move ${navDisplayName(label)} up`}
+                            aria-label={C.moveUp(label)}
                           >
                             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M8 12V4M4 8l4-4 4 4" />
@@ -485,7 +334,7 @@ export function WorkflowsSection({
                             className="sc-iconbtn"
                             onClick={() => moveItem(group.label, i, 1)}
                             disabled={i === items.length - 1 || saving}
-                            aria-label={`Move ${navDisplayName(label)} down`}
+                            aria-label={C.moveDown(label)}
                           >
                             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M8 4v8M4 8l4 4 4-4" />
@@ -504,12 +353,12 @@ export function WorkflowsSection({
 
       <div className="sc-actions">
         <button onClick={save} disabled={!dirty || saving} className="sc-btn sc-btn-primary">
-          {saving ? "Saving…" : "Save changes"}
+          {saving ? C.saving : C.save}
         </button>
         <button onClick={reset} disabled={!dirty || saving} className="sc-btn sc-btn-ghost">
-          Reset
+          {C.reset}
         </button>
-        {dirty && <span className="sc-dirty">Unsaved</span>}
+        {dirty && <span className="sc-dirty">{C.unsaved}</span>}
       </div>
     </div>
   );

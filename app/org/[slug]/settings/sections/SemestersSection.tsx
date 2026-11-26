@@ -5,6 +5,7 @@ import { Modal } from "../../../../components/dashboard/primitives";
 import { useChapter } from "../../../../context/ChapterContext";
 import { requestJson } from "../../../../lib/api";
 import { invalidateSemesters } from "../../../../hooks/useActiveSemester";
+import { SEMESTERS_COPY as C, checkSemester, semesterBody, semesterRange, withActive, withCreated, withEdited } from "@/lib/settings/semesters";
 
 interface Semester {
   id: number;
@@ -30,20 +31,20 @@ function SemesterModal({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!label.trim() || !startDate || !endDate) { setFormError("All fields are required."); return; }
-    if (endDate < startDate) { setFormError("End date must be on or after the start date."); return; }
+    const problem = checkSemester(label, startDate, endDate);
+    if (problem) { setFormError(problem); return; }
     setSaving(true);
     setFormError(null);
     try {
       const s = await requestJson<Semester>(editing ? `/api/semesters/${editing.id}` : "/api/semesters", {
         method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: label.trim(), startDate, endDate, ...(editing ? { activate: false } : {}) }),
+        body: JSON.stringify(semesterBody(label, startDate, endDate, !!editing)),
       });
       onSaved(s);
       onClose();
     } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : editing ? "Failed to save semester." : "Failed to create semester.");
+      setFormError(err instanceof Error ? err.message : editing ? C.saveFailed : C.createFailed);
     } finally {
       setSaving(false);
     }
@@ -51,30 +52,30 @@ function SemesterModal({
 
   const inputStyle = { border: "1px solid var(--line)", background: "var(--paper-2)", color: "var(--ink)" };
   return (
-    <Modal title={editing ? "Edit semester" : "New semester"} onClose={onClose} tone="dusk">
+    <Modal title={editing ? C.editSemester : C.newSemester} onClose={onClose} tone="dusk">
       <form onSubmit={submit} className="space-y-4">
         {formError && (
           <div className="rounded-lg px-3 py-2 text-[12px]" style={{ border: "1px solid rgba(217,139,163,.25)", background: "var(--rose-bg)", color: "var(--rose)" }}>{formError}</div>
         )}
         <div className="space-y-3">
           <div>
-            <label className="ui-label mb-1.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>Label</label>
+            <label className="ui-label mb-1.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>{C.label}</label>
             <input
               value={label}
               onChange={e => setLabel(e.target.value)}
-              placeholder="e.g. Fall 2026"
+              placeholder={C.labelPlaceholder}
               className="ui-inp w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none"
               style={inputStyle}
             />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="min-w-0">
-              <label className="ui-label mb-1.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>Start date</label>
+              <label className="ui-label mb-1.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>{C.start}</label>
               <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
                 className="ui-inp w-full min-w-0 rounded-lg px-3 py-2 text-[13px] focus:outline-none" style={inputStyle} />
             </div>
             <div className="min-w-0">
-              <label className="ui-label mb-1.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>End date</label>
+              <label className="ui-label mb-1.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>{C.end}</label>
               <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
                 className="ui-inp w-full min-w-0 rounded-lg px-3 py-2 text-[13px] focus:outline-none" style={inputStyle} />
             </div>
@@ -84,12 +85,12 @@ function SemesterModal({
           <button type="button" onClick={onClose}
             className="ui-btn-ghost rounded-lg px-4 py-2 text-[12px] font-medium transition-colors"
             style={{ border: "1px solid var(--line)", background: "var(--card)", color: "var(--ink-soft)" }}>
-            Cancel
+            {C.cancel}
           </button>
           <button type="submit" disabled={saving}
             className="ui-btn-primary rounded-lg px-4 py-2 text-[12px] font-semibold transition-colors disabled:opacity-50"
             style={{ background: "var(--vio)", color: "#1a1206" }}>
-            {editing ? (saving ? "Saving…" : "Save") : (saving ? "Creating…" : "Create & activate")}
+            {editing ? (saving ? C.saving : C.save) : (saving ? C.creating : C.create)}
           </button>
         </div>
       </form>
@@ -114,7 +115,7 @@ export function SemestersSection({
   useEffect(() => {
     requestJson<Semester[]>("/api/semesters")
       .then(setSemesters)
-      .catch(() => onError("Could not load semesters."))
+      .catch(() => onError(C.loadFailed))
       .finally(() => setLoading(false));
   }, [onError]);
 
@@ -122,49 +123,49 @@ export function SemestersSection({
     setActivating(id);
     try {
       await requestJson(`/api/semesters/${id}`, { method: "PATCH" });
-      setSemesters(prev => prev.map(s => ({ ...s, isActive: s.id === id })));
+      setSemesters(prev => withActive(prev, id));
       invalidateSemesters();
-      onStatus("Active semester updated.");
+      onStatus(C.activated);
     } catch {
-      onError("Failed to switch active semester.");
+      onError(C.activateFailed);
     } finally {
       setActivating(null);
     }
   }
 
   function onCreated(s: Semester) {
-    setSemesters(prev => [s, ...prev.map(x => ({ ...x, isActive: false }))]);
+    setSemesters(prev => withCreated(prev, s));
     invalidateSemesters();
-    onStatus(`Semester "${s.label}" created and set active.`);
+    onStatus(C.created(s.label));
   }
 
   function onEdited(s: Semester) {
-    setSemesters(prev => prev.map(x => (x.id === s.id ? s : x)));
+    setSemesters(prev => withEdited(prev, s));
     invalidateSemesters();
-    onStatus(`Semester "${s.label}" saved.`);
+    onStatus(C.saved(s.label));
   }
 
   return (
     <>
       <div className="sc-stack-tight">
         <div className="flex items-center justify-between gap-3">
-          <p className="sc-lede" style={{ margin: 0 }}>Switch the active semester, fix one&rsquo;s dates, or create a new one.</p>
+          <p className="sc-lede" style={{ margin: 0 }}>{C.lede}</p>
           {canManage && (
             <button onClick={() => setNewOpen(true)} className="sc-btn sc-btn-accent sc-btn-sm">
               <svg viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
               </svg>
-              New semester
+              {C.newSemester}
             </button>
           )}
         </div>
 
         {loading ? (
-          <div className="py-8 text-center sc-note">Loading…</div>
+          <div className="py-8 text-center sc-note">{C.loading}</div>
         ) : semesters.length === 0 ? (
           <div className="sc-empty">
-            <div className="t">No semesters yet</div>
-            <div className="h">Create one to start scoping your reporting periods.</div>
+            <div className="t">{C.emptyTitle}</div>
+            <div className="h">{C.emptyHint}</div>
           </div>
         ) : (
           <div className="sc-card">
@@ -177,20 +178,20 @@ export function SemestersSection({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="sc-row-key truncate">{s.label}</span>
-                    {s.isActive && <span className="sc-pill sc-pill-vio shrink-0">Active</span>}
+                    {s.isActive && <span className="sc-pill sc-pill-vio shrink-0">{C.active}</span>}
                   </div>
-                  <p className="sc-row-sub">{s.startDate} – {s.endDate}</p>
+                  <p className="sc-row-sub">{semesterRange(s)[0]}{semesterRange(s)[1]}{semesterRange(s)[2]}</p>
                 </div>
                 {canManage && (
                   <div className="flex shrink-0 gap-2">
-                    <button onClick={() => setEditing(s)} className="sc-btn sc-btn-ghost sc-btn-sm">Edit</button>
+                    <button onClick={() => setEditing(s)} className="sc-btn sc-btn-ghost sc-btn-sm">{C.edit}</button>
                     {!s.isActive && (
                       <button
                         onClick={() => setActive(s.id)}
                         disabled={activating === s.id}
                         className="sc-btn sc-btn-ghost sc-btn-sm"
                       >
-                        {activating === s.id ? "Setting…" : "Set active"}
+                        {activating === s.id ? C.setting : C.setActive}
                       </button>
                     )}
                   </div>

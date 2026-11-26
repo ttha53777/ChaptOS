@@ -33,9 +33,12 @@ export function gatesOf(me: MeResponse): SectionGates {
 /** Billing never shows in the app (store rules): no row, no link. */
 export const inApp = (id: NavItem["id"]): id is SectionId => id !== "billing";
 
-/** The sections built so far (Phase 9a). Until a section's sub-phase lands it isn't
+/** The sections built so far (Phases 9a, 9b). Until a section's sub-phase lands it isn't
  *  listed at all: a row that leads nowhere would offer something the app can't do. */
-export const BUILT: ReadonlySet<SectionId> = new Set<SectionId>(["identity", "accounts", "invitations", "roles"]);
+export const BUILT: ReadonlySet<SectionId> = new Set<SectionId>([
+  "identity", "accounts", "invitations", "roles",
+  "workflows", "thresholds", "semesters", "custom-metrics", "calendar",
+]);
 
 export function visibleItems(me: MeResponse): (NavItem & { id: SectionId })[] {
   const g = gatesOf(me);

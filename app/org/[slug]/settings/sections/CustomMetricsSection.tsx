@@ -4,45 +4,17 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "../../../../components/dashboard/primitives";
 import { requestJson } from "../../../../lib/api";
 import type { CustomMetricDefinition } from "@/lib/metrics";
+import {
+  AGGREGATION_LABELS, EMPTY_FORM, MAX_METRICS, METRICS_COPY as C, createBody, editBody, metricSub, toEditState, withField,
+  type EditState, type NewMetricForm,
+} from "@/lib/settings/metrics";
 
 // Settings → Custom Metrics. Org-defined tracked metrics beyond the fixed built-ins.
 // Each definition has its own edit state — this is a list-based CRUD section,
 // not a fixed-shape draft like ThresholdsSection.
 
-const AGGREGATION_LABELS: Record<string, string> = {
-  avg:            "Average per member",
-  sum:            "Chapter total",
-  count_on_track: "# members on track",
-};
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 50);
-}
-
-interface EditState {
-  name:        string;
-  unit:        string;
-  goal:        string;
-  atRiskBelow: string;
-  watchBelow:  string;
-  aggregation: "avg" | "sum" | "count_on_track";
-}
-
-function toEditState(def: CustomMetricDefinition): EditState {
-  return {
-    name:        def.name,
-    unit:        def.unit ?? "",
-    goal:        String(def.goal),
-    atRiskBelow: String(def.atRiskBelow),
-    watchBelow:  def.watchBelow != null ? String(def.watchBelow) : "",
-    aggregation: def.aggregation,
-  };
-}
+// The headline choices, the slug rule, the forms, the bodies and every sentence
+// live in lib/settings/metrics.ts (the app renders the same section from it).
 
 function MetricRow({
   def,
@@ -68,20 +40,12 @@ function MetricRow({
   async function handleSave() {
     setSaving(true);
     try {
-      const body: Record<string, unknown> = {
-        name:        form.name.trim(),
-        unit:        form.unit.trim() || null,
-        goal:        parseFloat(form.goal),
-        atRiskBelow: parseFloat(form.atRiskBelow),
-        aggregation: form.aggregation,
-      };
-      if (form.watchBelow.trim()) body.watchBelow = parseFloat(form.watchBelow);
-      else body.watchBelow = null;
-
-      if (isNaN(body.goal as number) || isNaN(body.atRiskBelow as number)) {
-        onError("Goal and At-Risk threshold must be valid numbers");
+      const built = editBody(form);
+      if ("error" in built) {
+        onError(built.error);
         return;
       }
+      const body = built.body;
 
       const updated = await requestJson<CustomMetricDefinition>(
         `/api/metrics/definitions/${def.id}`,
@@ -90,7 +54,7 @@ function MetricRow({
       onUpdated(updated);
       setEditing(false);
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Failed to save metric");
+      onError(e instanceof Error ? e.message : C.saveFailed);
     } finally {
       setSaving(false);
     }
@@ -103,12 +67,13 @@ function MetricRow({
       await requestJson(`/api/metrics/definitions/${def.id}`, { method: "DELETE" });
       onDeleted(def.id);
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Failed to delete metric");
+      onError(e instanceof Error ? e.message : C.deleteFailed);
       setDeleting(false);
     }
   }
 
   if (!editing) {
+    const sub = metricSub(def);
     return (
       <div className="sc-row" style={{ borderBottom: "none" }}>
         <div className="flex-1 min-w-0">
@@ -117,23 +82,23 @@ function MetricRow({
             {def.unit && <span className="text-[11px]" style={{ color: "var(--faint)" }}>({def.unit})</span>}
           </div>
           <div className="sc-row-sub">
-            Goal: {def.goal}{def.unit ? ` ${def.unit}` : ""} · At risk below: {def.atRiskBelow} · {AGGREGATION_LABELS[def.aggregation]}
+            {sub[0]}{sub[1]}{sub[2]}{sub[3]}{sub[4]}{sub[5]}{sub[6]}
           </div>
         </div>
         <button
           onClick={() => { setForm(toEditState(def)); setEditing(true); }}
           className="sc-btn sc-btn-ghost sc-btn-sm shrink-0"
         >
-          Edit
+          {C.edit}
         </button>
         <button onClick={() => setConfirmDelete(true)} disabled={deleting} className="sc-btn sc-btn-danger sc-btn-sm shrink-0">
-          {deleting ? "Removing…" : "Remove"}
+          {deleting ? C.removing : C.remove}
         </button>
         {confirmDelete && (
           <ConfirmDialog
-            title={`Remove "${def.name}"?`}
-            message="Values already recorded against this metric are kept, but the metric stops appearing on the dashboard and in member profiles."
-            confirmLabel="Remove"
+            title={C.removeTitle(def.name)}
+            message={C.removeMessage}
+            confirmLabel={C.remove}
             tone="dusk"
             onConfirm={handleDelete}
             onCancel={() => setConfirmDelete(false)}
@@ -147,30 +112,30 @@ function MetricRow({
     <div className="rounded-xl px-4 py-3 space-y-3" style={{ border: "1px solid rgba(var(--vio-rgb),.35)", background: "var(--card)" }}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="sc-mlabel">Name</label>
+          <label className="sc-mlabel">{C.name}</label>
           <input className="sc-input sc-input-sm mt-1" value={form.name} onChange={e => field("name", e.target.value)} maxLength={40} />
         </div>
         <div>
-          <label className="sc-mlabel">Unit (optional)</label>
-          <input className="sc-input sc-input-sm mt-1" value={form.unit} onChange={e => field("unit", e.target.value)} placeholder="hrs, reps, %…" maxLength={10} />
+          <label className="sc-mlabel">{C.unit}</label>
+          <input className="sc-input sc-input-sm mt-1" value={form.unit} onChange={e => field("unit", e.target.value)} placeholder={C.unitPlaceholder} maxLength={10} />
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div>
-          <label className="sc-mlabel">Goal (per member)</label>
+          <label className="sc-mlabel">{C.goal}</label>
           <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.goal} onChange={e => field("goal", e.target.value)} />
         </div>
         <div>
-          <label className="sc-mlabel">At Risk below</label>
+          <label className="sc-mlabel">{C.atRisk}</label>
           <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.atRiskBelow} onChange={e => field("atRiskBelow", e.target.value)} />
         </div>
         <div>
-          <label className="sc-mlabel">Watch below (optional)</label>
-          <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.watchBelow} onChange={e => field("watchBelow", e.target.value)} placeholder="optional" />
+          <label className="sc-mlabel">{C.watch}</label>
+          <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.watchBelow} onChange={e => field("watchBelow", e.target.value)} placeholder={C.optional} />
         </div>
       </div>
       <div>
-        <label className="sc-mlabel">KPI card headline</label>
+        <label className="sc-mlabel">{C.headline}</label>
         <select className="sc-select sc-input-sm mt-1" value={form.aggregation} onChange={e => field("aggregation", e.target.value as EditState["aggregation"])}>
           {Object.entries(AGGREGATION_LABELS).map(([v, label]) => (
             <option key={v} value={v}>{label}</option>
@@ -179,37 +144,15 @@ function MetricRow({
       </div>
       <div className="flex gap-2 pt-1">
         <button onClick={handleSave} disabled={saving || !form.name.trim()} className="sc-btn sc-btn-primary sc-btn-sm">
-          {saving ? "Saving…" : "Save"}
+          {saving ? C.saving : C.save}
         </button>
         <button onClick={() => setEditing(false)} disabled={saving} className="sc-btn sc-btn-ghost sc-btn-sm">
-          Cancel
+          {C.cancel}
         </button>
       </div>
     </div>
   );
 }
-
-interface NewMetricForm {
-  name:        string;
-  slug:        string;
-  unit:        string;
-  goal:        string;
-  atRiskBelow: string;
-  watchBelow:  string;
-  aggregation: "avg" | "sum" | "count_on_track";
-  slugTouched: boolean;
-}
-
-const EMPTY_FORM: NewMetricForm = {
-  name:        "",
-  slug:        "",
-  unit:        "",
-  goal:        "",
-  atRiskBelow: "",
-  watchBelow:  "",
-  aggregation: "avg",
-  slugTouched: false,
-};
 
 export function CustomMetricsSection({
   onStatus,
@@ -235,7 +178,7 @@ export function CustomMetricsSection({
       const data = await requestJson<CustomMetricDefinition[]>("/api/metrics/definitions");
       if (mounted.current) setDefs(data);
     } catch {
-      if (mounted.current) onError("Failed to load custom metrics");
+      if (mounted.current) onError(C.loadFailed);
     } finally {
       if (mounted.current) setLoading(false);
     }
@@ -244,37 +187,18 @@ export function CustomMetricsSection({
   useEffect(() => { load(); }, [load]);
 
   function field(k: keyof Omit<NewMetricForm, "slugTouched">, v: string) {
-    setForm(prev => {
-      const next = { ...prev, [k]: v };
-      if (k === "name" && !prev.slugTouched) {
-        next.slug = slugify(v);
-      }
-      return next;
-    });
+    setForm(prev => k === "slug" ? { ...prev, slug: v } : withField(prev, k, v));
   }
 
   async function handleCreate() {
-    if (!form.name.trim() || !form.slug.trim() || !form.goal || !form.atRiskBelow) {
-      onError("Name, slug, goal, and at-risk threshold are required");
-      return;
-    }
-    const goalNum        = parseFloat(form.goal);
-    const atRiskBelowNum = parseFloat(form.atRiskBelow);
-    if (isNaN(goalNum) || isNaN(atRiskBelowNum)) {
-      onError("Goal and At-Risk threshold must be valid numbers");
+    const built = createBody(form);
+    if ("error" in built) {
+      onError(built.error);
       return;
     }
     setCreating(true);
     try {
-      const body: Record<string, unknown> = {
-        name:        form.name.trim(),
-        slug:        form.slug.trim(),
-        unit:        form.unit.trim() || null,
-        goal:        goalNum,
-        atRiskBelow: atRiskBelowNum,
-        aggregation: form.aggregation,
-      };
-      if (form.watchBelow.trim()) body.watchBelow = parseFloat(form.watchBelow);
+      const body = built.body;
 
       const created = await requestJson<CustomMetricDefinition>(
         "/api/metrics/definitions",
@@ -283,28 +207,26 @@ export function CustomMetricsSection({
       setDefs(prev => [...prev, created]);
       setForm(EMPTY_FORM);
       setShowNew(false);
-      onStatus(`Custom metric "${created.name}" created`);
+      onStatus(C.created(created.name));
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Failed to create metric");
+      onError(e instanceof Error ? e.message : C.createFailed);
     } finally {
       setCreating(false);
     }
   }
 
   if (loading) {
-    return <div className="py-8 text-center sc-note">Loading…</div>;
+    return <div className="py-8 text-center sc-note">{C.loading}</div>;
   }
 
   return (
     <div className="sc-stack-tight">
-      <p className="sc-lede" style={{ margin: 0 }}>
-        Define org-specific tracked metrics beyond the built-ins. Values are entered per member in the member drawer.
-      </p>
+      <p className="sc-lede" style={{ margin: 0 }}>{C.lede}</p>
 
       {defs.length === 0 && !showNew && (
         <div className="sc-empty">
-          <div className="t">No custom metrics yet</div>
-          <div className="h">Add one to start tracking additional data.</div>
+          <div className="t">{C.emptyTitle}</div>
+          <div className="h">{C.emptyHint}</div>
         </div>
       )}
 
@@ -315,7 +237,7 @@ export function CustomMetricsSection({
               <MetricRow
                 def={def}
                 onUpdated={updated => setDefs(prev => prev.map(d => d.id === updated.id ? updated : d))}
-                onDeleted={id => { setDefs(prev => prev.filter(d => d.id !== id)); onStatus("Metric removed"); }}
+                onDeleted={id => { setDefs(prev => prev.filter(d => d.id !== id)); onStatus(C.removed); }}
                 onError={onError}
               />
             </div>
@@ -323,50 +245,50 @@ export function CustomMetricsSection({
         </div>
       )}
 
-      {defs.length >= 20 && (
-        <p className="sc-note">Maximum of 20 custom metrics reached.</p>
+      {defs.length >= MAX_METRICS && (
+        <p className="sc-note">{C.maxed}</p>
       )}
 
       {showNew && (
         <div className="rounded-xl px-4 py-4 space-y-3" style={{ border: "1px solid rgba(var(--vio-rgb),.35)", background: "var(--card)" }}>
-          <h3 className="sc-h" style={{ fontSize: 14 }}>New metric</h3>
+          <h3 className="sc-h" style={{ fontSize: 14 }}>{C.newMetric}</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="sc-mlabel">Name *</label>
-              <input className="sc-input sc-input-sm mt-1" value={form.name} onChange={e => field("name", e.target.value)} placeholder="Practice Reps" maxLength={40} />
+              <label className="sc-mlabel">{C.nameReq}</label>
+              <input className="sc-input sc-input-sm mt-1" value={form.name} onChange={e => field("name", e.target.value)} placeholder={C.namePlaceholder} maxLength={40} />
             </div>
             <div>
-              <label className="sc-mlabel">Slug *</label>
+              <label className="sc-mlabel">{C.slugReq}</label>
               <input
                 className="sc-input sc-input-sm mt-1"
                 style={{ fontFamily: "var(--mono)" }}
                 value={form.slug}
                 onChange={e => { setForm(p => ({ ...p, slug: e.target.value, slugTouched: true })); }}
-                placeholder="practice-reps"
+                placeholder={C.slugPlaceholder}
                 maxLength={50}
               />
             </div>
           </div>
           <div>
-            <label className="sc-mlabel">Unit (optional)</label>
-            <input className="sc-input sc-input-sm mt-1" value={form.unit} onChange={e => field("unit", e.target.value)} placeholder="hrs, reps, %…" maxLength={10} />
+            <label className="sc-mlabel">{C.unit}</label>
+            <input className="sc-input sc-input-sm mt-1" value={form.unit} onChange={e => field("unit", e.target.value)} placeholder={C.unitPlaceholder} maxLength={10} />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
-              <label className="sc-mlabel">Goal (per member) *</label>
+              <label className="sc-mlabel">{C.goalReq}</label>
               <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.goal} onChange={e => field("goal", e.target.value)} placeholder="10" />
             </div>
             <div>
-              <label className="sc-mlabel">At Risk below *</label>
+              <label className="sc-mlabel">{C.atRiskReq}</label>
               <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.atRiskBelow} onChange={e => field("atRiskBelow", e.target.value)} placeholder="5" />
             </div>
             <div>
-              <label className="sc-mlabel">Watch below (optional)</label>
-              <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.watchBelow} onChange={e => field("watchBelow", e.target.value)} placeholder="optional" />
+              <label className="sc-mlabel">{C.watch}</label>
+              <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.watchBelow} onChange={e => field("watchBelow", e.target.value)} placeholder={C.optional} />
             </div>
           </div>
           <div>
-            <label className="sc-mlabel">KPI card headline</label>
+            <label className="sc-mlabel">{C.headline}</label>
             <select className="sc-select sc-input-sm mt-1" value={form.aggregation} onChange={e => field("aggregation", e.target.value as EditState["aggregation"])}>
               {Object.entries(AGGREGATION_LABELS).map(([v, label]) => (
                 <option key={v} value={v}>{label}</option>
@@ -375,22 +297,22 @@ export function CustomMetricsSection({
           </div>
           <div className="flex gap-2 pt-1">
             <button onClick={handleCreate} disabled={creating || !form.name.trim() || !form.slug.trim()} className="sc-btn sc-btn-primary sc-btn-sm">
-              {creating ? "Creating…" : "Create metric"}
+              {creating ? C.creating : C.create}
             </button>
             <button onClick={() => { setShowNew(false); setForm(EMPTY_FORM); }} disabled={creating} className="sc-btn sc-btn-ghost sc-btn-sm">
-              Cancel
+              {C.cancel}
             </button>
           </div>
         </div>
       )}
 
-      {!showNew && defs.length < 20 && (
+      {!showNew && defs.length < MAX_METRICS && (
         <button
           onClick={() => setShowNew(true)}
           className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] transition-colors"
           style={{ border: "1px dashed var(--line)", color: "var(--muted)" }}
         >
-          <span className="text-base leading-none">+</span> Add metric
+          <span className="text-base leading-none">+</span>{` ${C.add}`}
         </button>
       )}
     </div>

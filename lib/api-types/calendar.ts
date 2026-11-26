@@ -217,6 +217,29 @@ export interface CalendarSubscriptionView {
   validated: boolean;
   status: { state: "unknown" | "retrying" | "publishing" | "current"; updatedAt: string | null };
   generation: number;
+  /* Org admins only, and only without ?view=member: the Settings checklist. Absent otherwise. */
+  issues?: CalendarFeedIssue[];
+  /** A publication check is pending. */
+  validating?: boolean;
+  /** The pending check also turns the calendar on when it passes. */
+  turningOn?: boolean;
+  /** The server has the feed's secrets at all. */
+  configured?: boolean;
+  problem?: string | null;
+  health?: { pending: boolean; failedAt: string | null; processedAt: string | null; failures: number };
+}
+
+/** One thing the feed audit found (lib/calendar-feed/audit ScheduleIssue). */
+export interface CalendarFeedIssue {
+  source: "calendar" | "service" | "party" | "task";
+  id: number;
+  title: string;
+  issue: string;
+  blocking: boolean;
+  kind: "legacy-deadline" | "invalid-date" | "time-unconfirmed" | "unlinked-service" | "unlinked-party" | "invalid-due-date";
+  /** Calendar rows only: what the "Set time" editor prefills from. */
+  date?: string;
+  time?: string | null;
 }
 
 /* ── Meetings (the phone's Meetings page and its officer tools) ─────────────── */

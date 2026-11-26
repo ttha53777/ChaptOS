@@ -3,7 +3,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChapter } from "../../../../context/ChapterContext";
 import { requestJson } from "../../../../lib/api";
-import { DEFAULT_THRESHOLDS, THRESHOLD_KEYS, type Thresholds } from "@/lib/thresholds";
+import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
+import { THRESHOLD_GROUPS, THRESHOLDS_COPY as C, checkThreshold, thresholdsDirty } from "@/lib/settings/thresholds";
+import { saveErrorOf } from "@/lib/settings/workflows";
 import { useDirtyGuard } from "../SettingsDirtyContext";
 
 // Settings → Thresholds. Org-wide member-status cutoffs that drive every
@@ -44,16 +46,12 @@ function ThresholdRow({
   // back. Now an out-of-range value keeps the editor open and says why. Escape
   // is still the way to abandon an edit.
   function commit() {
-    const num = parseFloat(draft);
-    if (isNaN(num)) {
-      setInvalid("Enter a number.");
+    const checked = checkThreshold(draft, { min, max, unit });
+    if ("error" in checked) {
+      setInvalid(checked.error);
       return;
     }
-    if (num < min || num > max) {
-      setInvalid(`Must be between ${min} and ${max}${unit}.`);
-      return;
-    }
-    onChange(field, num);
+    onChange(field, checked.value);
     setInvalid(null);
     setEditing(false);
   }
@@ -135,10 +133,7 @@ export function ThresholdsSection({
     setDraft({ ...persisted });
   }, [persistedKey, persisted]);
 
-  const dirty = useMemo(
-    () => THRESHOLD_KEYS.some(k => draft[k] !== persisted[k]),
-    [draft, persisted],
-  );
+  const dirty = useMemo(() => thresholdsDirty(draft, persisted), [draft, persisted]);
   useDirtyGuard("thresholds", dirty);
 
   function update(field: keyof Thresholds, value: number) {
@@ -159,14 +154,9 @@ export function ThresholdsSection({
         body: JSON.stringify({ thresholds: draft }),
       });
       await refreshChapterData().catch(() => undefined);
-      onStatus("Thresholds saved for everyone in this org.");
+      onStatus(C.saved);
     } catch (e) {
-      const message = e instanceof Error ? e.message : "";
-      onError(
-        message.includes("403") || /forbidden/i.test(message)
-          ? "You need the Org settings permission to change thresholds."
-          : "Couldn't save your changes. Try again.",
-      );
+      onError(saveErrorOf(e instanceof Error ? e.message : "", C.forbidden));
     } finally {
       setSaving(false);
     }
@@ -174,43 +164,27 @@ export function ThresholdsSection({
 
   return (
     <div className="sc-stack-tight">
-      <p className="sc-lede">
-        Click any value to edit it inline. These cutoffs apply to everyone in your
-        org and drive the At-Risk / Watch badges and the health score. Saving
-        updates the dashboard for all members.
-      </p>
+      <p className="sc-lede">{C.lede}</p>
 
-      <div>
-        <p className="sc-grp-label">Attendance</p>
-        <div className="sc-card sc-card-pad">
-          <ThresholdRow label="At risk below" field="attendanceAtRisk" value={draft.attendanceAtRisk} unit="%" step={1} min={0} max={100} onChange={update} />
-          <ThresholdRow label="Watch below"   field="attendanceWatch"  value={draft.attendanceWatch}  unit="%" step={1} min={0} max={100} onChange={update} />
+      {THRESHOLD_GROUPS.map(g => (
+        <div key={g.label}>
+          <p className="sc-grp-label">{g.label}</p>
+          <div className="sc-card sc-card-pad">
+            {g.rows.map(r => (
+              <ThresholdRow key={r.field} label={r.label} field={r.field} value={draft[r.field]} unit={r.unit} step={r.step} min={r.min} max={r.max} onChange={update} />
+            ))}
+          </div>
         </div>
-      </div>
-
-      <div>
-        <p className="sc-grp-label">GPA</p>
-        <div className="sc-card sc-card-pad">
-          <ThresholdRow label="At risk below" field="gpaAtRisk" value={draft.gpaAtRisk} unit="" step={0.1} min={0} max={4} onChange={update} />
-          <ThresholdRow label="Watch below"   field="gpaWatch"   value={draft.gpaWatch}   unit="" step={0.1} min={0} max={4} onChange={update} />
-        </div>
-      </div>
-
-      <div>
-        <p className="sc-grp-label">Service</p>
-        <div className="sc-card sc-card-pad">
-          <ThresholdRow label="Hours goal" field="serviceHoursGoal" value={draft.serviceHoursGoal} unit="h" step={1} min={0} max={1000} onChange={update} />
-        </div>
-      </div>
+      ))}
 
       <div className="sc-actions">
         <button onClick={save} disabled={!dirty || saving} className="sc-btn sc-btn-primary">
-          {saving ? "Saving…" : "Save thresholds"}
+          {saving ? C.saving : C.save}
         </button>
         <button onClick={reset} disabled={saving} className="sc-btn sc-btn-ghost">
-          Reset to defaults
+          {C.reset}
         </button>
-        {dirty && <span className="sc-dirty">Unsaved</span>}
+        {dirty && <span className="sc-dirty">{C.unsaved}</span>}
       </div>
     </div>
   );

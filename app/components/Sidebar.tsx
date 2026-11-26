@@ -20,6 +20,7 @@ import { useWrapUpsDue } from "../hooks/useWrapUpsDue";
 import { useFundraisersToWrap } from "../hooks/useFundraisersToWrap";
 import "./sidebar.css";
 import { orgSubpath } from "@/lib/org-paths";
+import { NAV_DISPLAY_NAMES } from "@/lib/settings/workflows";
 
 // ─── Icon paths ───────────────────────────────────────────────────────────────
 
@@ -30,34 +31,14 @@ import { orgSubpath } from "@/lib/org-paths";
 export const NAV = NAV_LABELS;
 export const SETTINGS_NAV = "Settings";
 
-// Fixed display names for nav keys whose stored label is out of date. The key
-// stays the routing/persistence id (navOrder rows store it); only the text changes.
-export const NAV_DISPLAY_NAMES: Record<string, string> = {
-  Instagram: "Media",
-};
-export const navDisplayName = (label: string) => NAV_DISPLAY_NAMES[label] ?? label;
+// The nav keys' display names and the hideable pages' one-line descriptions live in
+// lib/settings/workflows.ts (shared with the app's Workflows page); re-exported here,
+// where the onboarding picker imports them from.
+export { NAV_DISPLAY_NAMES, NAV_DESCRIPTIONS, navDisplayName } from "@/lib/settings/workflows";
 
 // NAV_WORKFLOW_MAP + isNavVisible live in lib/nav-order.ts (server-safe; GET /api/dashboard
 // gates its cards with them too). Re-exported here, where pages import them from.
 export { NAV_WORKFLOW_MAP, isNavVisible };
-
-// One-line description of each hideable surface, keyed by nav label. Shown next
-// to the toggle in both the post-creation page picker (/[slug]/onboarding) and
-// the Workflows settings section, so the two surfaces describe a page the same
-// way. Only labels whose workflow is non-null in NAV_WORKFLOW_MAP need an entry;
-// the always-on surfaces (Dashboard/Timeline) are never toggled.
-export const NAV_DESCRIPTIONS: Record<string, string> = {
-  Chapter:     "Meeting minutes, agenda, and chapter-wide records.",
-  Tasks:       "Hand out tasks and deadlines to members or roles, and track what's done.",
-  Brotherhood: "Member roster, profiles, attendance, and dues.",
-  Treasury:    "Budget, transactions, and the running balance.",
-  Parties:     "Social events with door revenue and wrap-up tracking.",
-  Service:     "Service events and per-member service-hour totals.",
-  Programming: "Plan programs, socials, fundraisers, and community service.",
-  Instagram:   "Plan and track social posts and announcements.",
-  Docs:        "Pinned links and shared documents.",
-  Fundraisers: "Bake sales and car washes: a shopping list, one wrap-up total, and what each one made.",
-};
 
 // ─── SvgIcon ──────────────────────────────────────────────────────────────────
 

@@ -91,3 +91,26 @@ export interface OrgConfigSaved {
 export interface OrgLogoSaved {
   logoUrl: string | null;
 }
+
+/** One custom metric: GET /api/metrics/definitions (every member), POST (201) and PATCH /api/metrics/definitions/[id] (MANAGE_SETTINGS). */
+export interface MetricDefinition {
+  id: number;
+  organizationId: number;
+  /** kebab-case, fixed once created. */
+  slug: string;
+  name: string;
+  unit: string | null;
+  goal: number;
+  atRiskBelow: number;
+  watchBelow: number | null;
+  aggregation: "avg" | "sum" | "count_on_track";
+  displayOrder: number;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** PATCH /api/calendar/subscription (org admins). The app re-reads the view after. */
+export interface CalendarFeedChanged {
+  ok: true;
+}
