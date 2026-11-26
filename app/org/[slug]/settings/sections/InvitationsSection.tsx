@@ -2,29 +2,19 @@
 
 import Link from "next/link";
 import { useOrgPath } from "../../../../hooks/useOrgPath";
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "../../../../components/dashboard/primitives";
 import { useChapter } from "../../../../context/ChapterContext";
 import { useVocab } from "../../../../hooks/useVocab";
 import { scrollIntoViewSafe } from "../../../../lib/scroll";
 import { INVITE_EXPIRY_PRESETS, INVITE_LABEL_MAX, type InviteExpiry } from "@/lib/validation/invite";
-import type { InviteStatus } from "@/lib/state";
+import {
+  EXPIRY_LABELS, INVITE_COPY, capOf, capWarns, countsLine, dateParts, formatDate, isDead, joinPath, meterOf, pillOf,
+} from "@/lib/settings/invites";
+import type { InviteRow as InviteRowWire } from "@/lib/api-types";
 import { requestJson } from "../../../../lib/api";
 
-interface InviteRow {
-  id: number;
-  token: string;
-  label: string | null;
-  maxUses: number | null;
-  status: InviteStatus;
-  expiresAt: string | null;
-  revokedAt: string | null;
-  createdAt: string;
-  redemptionCount: number;
-  pendingCount: number;
-  availableUses: number | null;
-  createdByName: string | null;
-}
+type InviteRow = InviteRowWire;
 
 interface RedemptionRow {
   brotherId: number;
@@ -32,36 +22,9 @@ interface RedemptionRow {
   redeemedAt: string;
 }
 
-const EXPIRY_LABELS: Record<InviteExpiry, string> = {
-  "20m":   "20 minutes",
-  "1d":    "1 day",
-  "7d":    "7 days",
-  "14d":   "14 days",
-  "never": "Never",
-};
-
-const STATUS_PILL: Record<InviteStatus, { label: string; cls: string }> = {
-  active:    { label: "Active",    cls: "sc-pill-ok" },
-  expired:   { label: "Expired",   cls: "sc-pill-muted" },
-  revoked:   { label: "Revoked",   cls: "sc-pill-rose" },
-  exhausted: { label: "Admission limit reached", cls: "sc-pill-gold" },
-  reserved: { label: "All places reserved", cls: "sc-pill-gold" },
-};
-
 function joinUrl(token: string): string {
-  if (typeof window === "undefined") return `/join/${token}`;
-  return `${window.location.origin}/join/${token}`;
-}
-
-function formatExpiry(iso: string | null): string {
-  if (!iso) return "Never expires";
-  const d = new Date(iso);
-  if (d.getTime() <= Date.now()) return "Expired";
-  return `Expires ${d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
+  if (typeof window === "undefined") return joinPath(token);
+  return `${window.location.origin}${joinPath(token)}`;
 }
 
 /** The tick inside `.sc-box`. Matches the one WorkflowsSection draws. */
@@ -126,7 +89,7 @@ export function InvitationsSection({
       const rows = await requestJson<InviteRow[]>(`/api/invites${qs}`);
       if (revision === refreshRevision.current) setInvites(rows);
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Failed to load invites");
+      onError(e instanceof Error ? e.message : INVITE_COPY.loadFailed);
     } finally {
       if (revision === refreshRevision.current) setLoading(false);
     }
@@ -145,11 +108,9 @@ export function InvitationsSection({
 
   async function handleCreate() {
     if (creating) return;
-    const cap = capOn ? Number(maxUses) : undefined;
-    if (capOn && (!Number.isInteger(cap) || (cap ?? 0) < 1 || (cap ?? 0) > 500)) {
-      onError("Maximum uses must be a whole number from 1 to 500");
-      return;
-    }
+    const capped = capOf(capOn, maxUses);
+    if ("error" in capped) { onError(capped.error); return; }
+    const cap = capped.cap;
     setCreating(true);
     try {
       const created = await requestJson<InviteRow>("/api/invites", {
@@ -158,13 +119,13 @@ export function InvitationsSection({
         body: JSON.stringify({ expiry, label: label.trim() || undefined, maxUses: cap }),
       });
       setFresh(created);
-      onStatus("Invite link created");
+      onStatus(INVITE_COPY.created);
       setLabel("");
       await refresh({ includeInactive: showInactive });
       setFlashId(created.id);
       setTimeout(() => setFlashId(f => (f === created.id ? null : f)), 2200);
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Failed to create invite");
+      onError(e instanceof Error ? e.message : INVITE_COPY.createFailed);
     } finally {
       setCreating(false);
     }
@@ -176,7 +137,7 @@ export function InvitationsSection({
       setCopiedId(row.id);
       setTimeout(() => setCopiedId(c => (c === row.id ? null : c)), 2000);
     } catch {
-      onError("Couldn't copy to clipboard");
+      onError(INVITE_COPY.copyFailed);
     }
   }
 
@@ -185,10 +146,10 @@ export function InvitationsSection({
     try {
       await requestJson(`/api/invites/${row.id}`, { method: "DELETE" });
       setFresh(f => f?.id === row.id ? null : f);
-      onStatus("Invite link revoked");
+      onStatus(INVITE_COPY.revoked);
       await refresh({ includeInactive: showInactive });
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Failed to revoke invite");
+      onError(e instanceof Error ? e.message : INVITE_COPY.revokeFailed);
     }
   }
 
@@ -208,7 +169,7 @@ export function InvitationsSection({
   async function share(row: InviteRow) {
     setSharing(true);
     try { await navigator.share({ title: "Request to join", url: joinUrl(row.token) }); }
-    catch (e) { if (!(e instanceof DOMException && e.name === "AbortError")) onError("Couldn't share this link. You can copy it instead."); }
+    catch (e) { if (!(e instanceof DOMException && e.name === "AbortError")) onError(INVITE_COPY.shareFailed); }
     finally { setSharing(false); }
   }
   function prepareReplacement(row: InviteRow) {
@@ -219,18 +180,16 @@ export function InvitationsSection({
     setFresh(null);
     scrollIntoViewSafe(createRef.current, { block: "start", behavior: "smooth" });
     createRef.current?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
-    onStatus("Review the settings below to create a new link. The old link stays inactive.");
+    onStatus(INVITE_COPY.replacementNote);
   }
 
-  const capWarning = expiry === "never" && !capOn;
+  const capWarning = capWarns(expiry, capOn);
+  const lede = INVITE_COPY.lede(memberWord);
 
   return (
     <div className="sc-stack">
       <p className="sc-lede" style={{ margin: 0 }}>
-        Generate a link to invite people to your organization. Opening it lets
-        someone <b>ask</b> to join — they can’t see anything until an officer
-        approves them on the {memberWord} page. Links stay active until they
-        expire, fill up, or you revoke them.
+        {lede.a}<b>{lede.b}</b>{lede.c}
       </p>
 
       {can("MANAGE_BROTHERS") && <Link className="sc-btn sc-btn-ghost self-start" href={orgPath("/brothers#join-requests")}>Review join requests</Link>}
@@ -337,8 +296,9 @@ export function InvitationsSection({
         ) : (
           <ul className="flex flex-col gap-2">
             {invites.map(row => {
-              const dead = row.status !== "active" && row.status !== "reserved";
-              const pill = STATUS_PILL[row.status];
+              const dead = isDead(row);
+              const pill = pillOf(row);
+              const meter = meterOf(row);
               return (
                 <li
                   key={row.id}
@@ -346,36 +306,24 @@ export function InvitationsSection({
                   className={`sc-card sc-invite-row${flashId === row.id ? " flash" : ""}${dead ? " dead" : ""}`}
                 >
                   <div className="flex items-center gap-2">
-                    {row.status !== "active"
-                      ? <span className={`sc-pill ${pill.cls}`}>{pill.label}</span>
-                      : <span className="sc-pill sc-pill-vio">Active</span>}
-                    <span className="ml-auto sc-note">
-                      {row.redemptionCount} admitted · {row.pendingCount} waiting
-                      {row.availableUses !== null && <> · {row.availableUses} places available</>}
-                    </span>
+                    <span className={`sc-pill sc-pill-${pill.tone}`}>{pill.label}</span>
+                    <span className="ml-auto sc-note">{countsLine(row)}</span>
                   </div>
 
                   {row.label && (
                     <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)" }}>{row.label}</div>
                   )}
 
-                  {row.maxUses != null && (
+                  {meter != null && (
                     <div className="sc-meter" aria-hidden>
-                      <i style={{ width: `${Math.min(100, ((row.redemptionCount + row.pendingCount) / row.maxUses) * 100)}%` }} />
+                      <i style={{ width: `${meter}%` }} />
                     </div>
                   )}
 
                   <div className="flex flex-wrap items-center gap-1 sc-note">
-                    <span>
-                      {row.status === "revoked" && row.revokedAt
-                        ? `Revoked ${formatDate(row.revokedAt)}`
-                        : formatExpiry(row.expiresAt)}
-                    </span>
-                    <span>·</span>
-                    <span>Created {formatDate(row.createdAt)}</span>
-                    {row.createdByName && (
-                      <><span>·</span><span>{row.createdByName}</span></>
-                    )}
+                    {dateParts(row).map((part, i) => (
+                      <React.Fragment key={i}>{i > 0 && <span>·</span>}<span>{part}</span></React.Fragment>
+                    ))}
                   </div>
 
                   {/* A dead link's URL is noise — nobody should copy it. */}
@@ -427,8 +375,8 @@ export function InvitationsSection({
 
       {revokeTarget && (
         <ConfirmDialog
-          title="Revoke this invite link?"
-          message={`New requests will stop immediately. ${revokeTarget.pendingCount} pending requests will remain reviewable, and ${revokeTarget.redemptionCount} admitted people keep their access. This cannot be undone.`}
+          title={INVITE_COPY.revokeTitle}
+          message={INVITE_COPY.revokeMessage(revokeTarget)}
           confirmLabel="Revoke"
           tone="dusk"
           onConfirm={() => doRevoke(revokeTarget)}

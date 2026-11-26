@@ -26,7 +26,7 @@ import type {
   ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, DocSaved, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView, CalendarFeedLive,
   HomeResponse, MemberUpdated, MobileConfig, JoinRequestPage, JoinRequestApproved,
   AttendanceSummaryRow, ExcuseListItem, ExcuseDecided, EventDeletePreview, AgendaTemplate, MeetingSummarized, MinutesSaved,
-  ProgrammingEvent, ProgrammingDoc, RoleChip, EventFieldRow, Party, PartyRollRow, InstagramPost,
+  ProgrammingEvent, ProgrammingDoc, RoleChip, RoleDetail, RoleSaved, RoleGranted, InviteRow, InviteRedemption, EventFieldRow, Party, PartyRollRow, InstagramPost,
   ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
 } from "@/lib/api-types";
 import type { datedFromThings, logbookFromRecords, pastDueFromTasks } from "@/lib/ai-shapes-calendar";
@@ -58,7 +58,8 @@ import type { listParticipationForOrg, listParticipationForEvent, logMyParticipa
 import type { listFundraisers, getFundraiser, createFundraiser, updateFundraiser, addSupply, updateSupply, removeSupply, wrapUpFundraiser, reopenFundraiser } from "@/lib/services/fundraiser-service";
 import type { listDocs, createDoc, updateDoc, setDocPinned, refreshDocMetadata } from "@/lib/services/doc-service";
 import type { listProgrammingTasks, createProgrammingTask, updateProgrammingTask, setStage, listProgrammingEventDocs, attachProgrammingDoc } from "@/lib/services/programming-service";
-import type { listRoles } from "@/lib/services/role-service";
+import type { listRoles, createRole, updateRole, grantRole } from "@/lib/services/role-service";
+import type { listInvites, createInvite, listInviteRedemptions } from "@/lib/services/invite-service";
 import type { listEventFields, createEventField } from "@/lib/services/event-field-service";
 import type { listInstagramTasks, createInstagramTask, updateInstagramTask } from "@/lib/services/instagram-service";
 import type { listParties, createParty, updateParty, wrapUpParty, summarizePartyAttendance } from "@/lib/services/party-service";
@@ -201,6 +202,14 @@ export const mediaPosts: Widen<InstagramPost[]> = served<Served<typeof listInsta
 export const mediaPostCreated: Widen<InstagramPost> = served<Served<typeof createInstagramTask>>();
 export const mediaPostUpdated: Widen<InstagramPost> = served<Served<typeof updateInstagramTask>>();
 export const roles: Widen<RoleChip[]> = served<Served<typeof listRoles>>();
+// A MANAGE_ROLES holder's read: the detailed spread present.
+export const rolesDetailed: Widen<RoleDetail> = served<Required<Served<typeof listRoles>[number]>>();
+export const roleCreated: Widen<RoleSaved> = served<Served<typeof createRole>>();
+export const roleUpdated: Widen<RoleSaved> = served<Served<typeof updateRole>>();
+export const roleGranted: Widen<RoleGranted> = served<Served<typeof grantRole>>();
+export const invites: Widen<InviteRow[]> = served<Served<typeof listInvites>>();
+export const inviteCreated: Widen<InviteRow> = served<Served<typeof createInvite>>();
+export const inviteRedemptions: Widen<InviteRedemption[]> = served<Served<typeof listInviteRedemptions>>();
 export const docFolders: Widen<DocFolder[]> = served<Served<typeof listFolders>>();
 
 export const meetingSummary: Widen<MeetingSummary> = served<Served<typeof getMeetingSummary>>();

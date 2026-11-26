@@ -13,7 +13,11 @@ import { orgFetch, requestJson } from "../../../../lib/api";
 import { orgInitials } from "@/lib/org-initials";
 import { getOrgType } from "@/lib/org-types";
 import { SITE_URL } from "@/lib/seo";
-import { VOCAB_KEYS, DEFAULT_LABELS, resolveLabel, type VocabKey, type VocabOverrides } from "@/lib/vocab";
+import { DEFAULT_LABELS, resolveLabel, type VocabKey, type VocabOverrides } from "@/lib/vocab";
+import {
+  HANDLE_MAX, IDENTITY_COPY as C, MAX_LOGO_BYTES, PICKS, WHERE, WORD_GROUPS, WORD_MAX, changeCount, changedWordsOf, changesOf, cleanHandle,
+  handleOk, liveWordsOf, savedOrDraftHandle,
+} from "@/lib/settings/identity";
 import { useDirtyGuard } from "../SettingsDirtyContext";
 import { DangerZone } from "./DangerZone";
 import "./identity.css";
@@ -31,30 +35,9 @@ import "./identity.css";
 // Everyone can open it. Without MANAGE_SETTINGS it's read-only: no drop target,
 // no Instagram step, no quick actions, no danger zone.
 
-const GROUPS: { label: string; tint: string; keys: VocabKey[] }[] = [
-  { label: "People", tint: "var(--pp-lilac)",  keys: ["Member", "Admin", "Role"] },
-  { label: "Pages",  tint: "var(--pp-mint)",   keys: ["Treasury", "Meetings", "Service", "Dues", "Attendance", "Announcement", "Doc"] },
-  { label: "Time",   tint: "var(--pp-butter)", keys: ["Period", "Event"] },
-];
-
-const PICKS: Record<VocabKey, string[]> = {
-  Member: ["Brother", "Sister", "Sibling", "Player"], Admin: ["Officer", "Exec", "Board"], Role: ["Position", "Office", "Chair"],
-  Treasury: ["Finances", "Budget"], Dues: ["Fees", "Contributions"], Meetings: ["Chapter", "Sessions", "Board"],
-  Service: ["Philanthropy", "Volunteering"], Attendance: ["Check-in", "Roll call"], Announcement: ["Bulletin", "Update"],
-  Doc: ["File", "Resource"], Period: ["Term", "Quarter", "Season"], Event: ["Session", "Practice"],
-};
-
-// Only the keys whose reach isn't obvious from the word itself.
-const WHERE: Partial<Record<VocabKey, string>> = {
-  Member: "Sidebar, roster, member cards",
-  Treasury: "Sidebar & page title",
-  Meetings: "Sidebar & page title",
-  Service: "Sidebar & page title",
-};
-
-const MAX_LOGO_BYTES = 2 * 1024 * 1024;
-const cleanHandle = (h: string) => h.trim().replace(/^@+/, "");
-const handleOk = (h: string) => /^[A-Za-z0-9._]{0,30}$/.test(h);
+// The groups, suggestions, rules and words live in lib/settings/identity (shared
+// with the native app). Groups carry a tone; the CSS reads it as --pp-<tone>.
+const GROUPS = WORD_GROUPS.map(g => ({ ...g, tint: `var(--pp-${g.tone})` }));
 const SITE_HOST = new URL(SITE_URL).host;
 
 /** The logo as staged: untouched, a picked file awaiting Save, or removed. */
@@ -126,31 +109,22 @@ export function IdentitySection({
   const draftHandle = cleanHandle(handle);
   const handleBad = !handleOk(draftHandle);
   const wordOf = (k: VocabKey) => (words[k] ?? "").trim();
-  const changedWords = VOCAB_KEYS.filter(k => wordOf(k) !== (savedWords[k] ?? "").trim());
+  const changedWords = changedWordsOf(words, savedWords);
   const handleChanged = canEdit && igEnabled && draftHandle !== savedHandle;
 
-  const changes: string[] = [];
-  if (logo.kind === "new") changes.push("new icon");
-  if (logo.kind === "removed" && savedLogo) changes.push("icon removed");
-  if (handleChanged) changes.push("Instagram");
-  if (changedWords.length === 1) changes.push(`“${wordOf(changedWords[0]!) || DEFAULT_LABELS[changedWords[0]!]}”`);
-  else if (changedWords.length > 1) changes.push(`${changedWords.length} words`);
+  const changes = changesOf({ logo: logo.kind, savedLogo: !!savedLogo, handleChanged, changedWords, words });
   const dirty = canEdit && changes.length > 0;
   useDirtyGuard("identity", dirty);
 
   // Labels as the draft would render them — the previews read these.
-  const liveWords = useMemo(() => {
-    const o: VocabOverrides = {};
-    for (const k of VOCAB_KEYS) { const v = (words[k] ?? "").trim(); if (v) o[k] = v; }
-    return o;
-  }, [words]);
+  const liveWords = useMemo(() => liveWordsOf(words), [words]);
   const label = (k: VocabKey, plural = false) => resolveLabel(k, liveWords, plural);
 
   // ── Icon ─────────────────────────────────────────────────────────────────
   function takeFile(file: File | undefined) {
     if (!file) return;
-    if (!file.type.startsWith("image/")) { setLogoError("That isn't an image. Try a PNG, JPG or SVG."); return; }
-    if (file.size > MAX_LOGO_BYTES) { setLogoError("That image is over 2 MB. Try a smaller one."); return; }
+    if (!file.type.startsWith("image/")) { setLogoError(C.notImage); return; }
+    if (file.size > MAX_LOGO_BYTES) { setLogoError(C.tooBig); return; }
     setLogoError(null);
     setLogo({ kind: "new", file, preview: URL.createObjectURL(file) });
   }
@@ -184,7 +158,7 @@ export function IdentitySection({
         }
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          setLogoError(data?.error ?? "Couldn't save the icon. Try again.");
+          setLogoError(data?.error ?? C.iconFailed);
           return;
         }
       }
@@ -201,13 +175,13 @@ export function IdentitySection({
         });
       }
       await refreshChapterData().catch(() => undefined);
-      onStatus("Saved — the whole chapter sees it now.");
+      onStatus(C.saved);
     } catch (e) {
       const message = e instanceof Error ? e.message : "";
       onError(
         message.includes("403") || /forbidden/i.test(message)
-          ? "You need the Org settings permission to change this."
-          : "Couldn't save your changes. Try again.",
+          ? C.forbidden
+          : C.failed,
       );
     } finally {
       setSaving(false);
@@ -243,8 +217,8 @@ export function IdentitySection({
   }
   function handleRefresh() {
     refreshChapterData()
-      .then(() => { setMutationError(null); onStatus("Refreshed."); })
-      .catch(err => { console.error(err); onError("Couldn't refresh. Check your connection and try again."); });
+      .then(() => { setMutationError(null); onStatus(C.refreshed); })
+      .catch(err => { console.error(err); onError(C.refreshFailed); });
   }
 
   // ── Bits ─────────────────────────────────────────────────────────────────
@@ -266,7 +240,7 @@ export function IdentitySection({
       {!canEdit && (
         <div className="id-ro-note">
           <LockIcon />
-          You can see how your chapter is set up. Officers with Org settings can change it.
+          {C.readOnly}
         </div>
       )}
 
@@ -281,7 +255,7 @@ export function IdentitySection({
             {igEnabled && (
               <span className={`id-fact${badgeHandle ? "" : " off"}`}>
                 <IgIcon />
-                {badgeHandle ? `@${badgeHandle}` : "No Instagram"}
+                {badgeHandle ? `@${badgeHandle}` : C.noInstagram}
               </span>
             )}
             <span className="id-fact"><PeopleIcon />{brotherList.length} {brotherList.length === 1 ? label("Member") : label("Member", true)}</span>
@@ -289,15 +263,15 @@ export function IdentitySection({
           </div>
           <p className="id-name-note">
             <InfoIcon />
-            The name and web address were set when the chapter was created and can&apos;t be changed here yet.
+            {C.nameNote}
           </p>
         </div>
       </section>
 
       {/* ── 1 · Icon ── */}
       <section className="id-step" aria-labelledby="id-s1">
-        <div className="id-step-h"><span className="id-step-n" style={{ "--s": "var(--pp-lilac)" } as React.CSSProperties}>{n.icon}</span><h3 className="id-step-t" id="id-s1">Your icon</h3></div>
-        <p className="id-step-sub">The little picture people recognize your chapter by. Without one we use your initials.</p>
+        <div className="id-step-h"><span className="id-step-n" style={{ "--s": "var(--pp-lilac)" } as React.CSSProperties}>{n.icon}</span><h3 className="id-step-t" id="id-s1">{C.iconTitle}</h3></div>
+        <p className="id-step-sub">{C.iconSub}</p>
         <div className="id-step-body">
           <div className="id-icon-row">
             <div>
@@ -320,7 +294,7 @@ export function IdentitySection({
                     onDrop={e => { e.preventDefault(); setOver(false); takeFile(e.dataTransfer.files[0]); }}
                   >
                     {mark(104)}
-                    <span className="id-hint"><b>Drop an image here</b><br />or click to choose<br />Square works best · PNG, JPG or SVG · up to 2 MB</span>
+                    <span className="id-hint"><b>{C.iconHint[0]}</b><br />{C.iconHint[1]}<br />{C.iconHint[2]}</span>
                   </button>
                   {shownLogo && (
                     <div className="id-icon-btns">
@@ -334,14 +308,14 @@ export function IdentitySection({
               )}
             </div>
             <div>
-              <div className="id-where-h">Shows up in</div>
+              <div className="id-where-h">{C.showsUpIn}</div>
               <div className="id-places">
                 <div className="id-place">
                   <div className="id-scene sc-side">
                     <div className="id-sb-head">{mark(26, "thin")}<b>{orgName}</b><ChevronDown /></div>
                     <div className="id-ghost" style={{ width: "70%" }} /><div className="id-ghost" style={{ width: "52%" }} />
                   </div>
-                  <div className="id-cap">The sidebar<small>Top left, for everyone</small></div>
+                  <div className="id-cap">{C.places[0].title}<small>{C.places[0].sub}</small></div>
                 </div>
                 <div className="id-place">
                   <div className="id-scene sc-login">
@@ -349,7 +323,7 @@ export function IdentitySection({
                     <p>Sign in to {orgName}</p>
                     <span className="id-gbtn">Continue with Google</span>
                   </div>
-                  <div className="id-cap">Sign-in &amp; invites<small>The first thing new people see</small></div>
+                  <div className="id-cap">{C.places[1].title}<small>{C.places[1].sub}</small></div>
                 </div>
                 <div className="id-place">
                   <div className="id-scene">
@@ -358,10 +332,10 @@ export function IdentitySection({
                       <div className="id-mark thin tiny" style={{ "--sz": "20px" } as React.CSSProperties}>
                         {otherOrg ? orgInitials(otherOrg.orgName) : "…"}
                       </div>
-                      <span>{otherOrg ? otherOrg.orgName : "Another chapter"}</span>
+                      <span>{otherOrg ? otherOrg.orgName : C.anotherChapter}</span>
                     </div>
                   </div>
-                  <div className="id-cap">Chapter switcher<small>For people in more than one</small></div>
+                  <div className="id-cap">{C.places[2].title}<small>{C.places[2].sub}</small></div>
                 </div>
               </div>
             </div>
@@ -372,32 +346,32 @@ export function IdentitySection({
       {/* ── 2 · Instagram ── */}
       {showIg && (
         <section className="id-step" aria-labelledby="id-s2">
-          <div className="id-step-h"><span className="id-step-n" style={{ "--s": "var(--pp-peach)" } as React.CSSProperties}>{n.ig}</span><h3 className="id-step-t" id="id-s2">Instagram</h3></div>
-          <p className="id-step-sub">The account your Media page plans posts for. Leave it empty if you don&apos;t have one.</p>
+          <div className="id-step-h"><span className="id-step-n" style={{ "--s": "var(--pp-peach)" } as React.CSSProperties}>{n.ig}</span><h3 className="id-step-t" id="id-s2">{C.igTitle}</h3></div>
+          <p className="id-step-sub">{C.igSub}</p>
           <div className="id-step-body">
             <div className="id-ig-row">
               <div>
-                <label className="id-field-l" htmlFor="id-ig">Account handle</label>
+                <label className="id-field-l" htmlFor="id-ig">{C.igLabel}</label>
                 <div className={`id-at-field${handleBad ? " bad" : ""}`}>
                   <span>@</span>
                   <input
-                    id="id-ig" value={handle} maxLength={31} placeholder="yourchapter"
+                    id="id-ig" value={handle} maxLength={HANDLE_MAX} placeholder={C.igPlaceholder}
                     autoComplete="off" autoCapitalize="none" spellCheck={false} disabled={saving}
                     aria-describedby="id-ig-help" aria-invalid={handleBad || undefined}
                     onChange={e => setHandle(e.target.value.replace(/^@+/, ""))}
                   />
                 </div>
                 <p className={`id-help${handleBad ? " bad" : ""}`} id="id-ig-help">
-                  {handleBad ? "Only letters, numbers, dots and underscores, up to 30." : "Letters, numbers, dots and underscores."}
+                  {handleBad ? C.igBad : C.igHelp}
                 </p>
               </div>
               <div className="id-ig-prev" aria-hidden="true">
-                <div className="k">On your Media page</div>
+                <div className="k">{C.igPreviewKicker}</div>
                 <div className="hd">
                   <b>Media</b>
                   {draftHandle && !handleBad
                     ? <span className="id-ig-chip"><IgIcon />@{draftHandle}</span>
-                    : <span className="id-ig-chip off">Hidden — no account linked</span>}
+                    : <span className="id-ig-chip off">{C.igHidden}</span>}
                 </div>
                 <div className="tiles"><i /><i /><i /><i /></div>
               </div>
@@ -408,11 +382,9 @@ export function IdentitySection({
 
       {/* ── 3 · Words ── */}
       <section className="id-step" aria-labelledby="id-s3">
-        <div className="id-step-h"><span className="id-step-n" style={{ "--s": "var(--pp-butter)" } as React.CSSProperties}>{n.words}</span><h3 className="id-step-t" id="id-s3">Your words</h3></div>
+        <div className="id-step-h"><span className="id-step-n" style={{ "--s": "var(--pp-butter)" } as React.CSSProperties}>{n.words}</span><h3 className="id-step-t" id="id-s3">{C.wordsTitle}</h3></div>
         <p className="id-step-sub">
-          {canEdit
-            ? "Call things what your chapter calls them. Type your own or tap a suggestion. Empty means we use our word."
-            : "What this chapter calls things across the app."}
+          {canEdit ? C.wordsSubEdit : C.wordsSubRead}
         </p>
         <div className="id-step-body">
           {GROUPS.map(g => (
@@ -429,7 +401,7 @@ export function IdentitySection({
                         <ArrowIcon />
                         <input
                           aria-label={`Your word for ${DEFAULT_LABELS[k]}`}
-                          maxLength={40}
+                          maxLength={WORD_MAX}
                           placeholder={DEFAULT_LABELS[k]}
                           value={words[k] ?? ""}
                           readOnly={!canEdit}
@@ -469,7 +441,7 @@ export function IdentitySection({
 
       {canEdit && (
         <div className="id-also">
-          <span className="k">Also in here</span>
+          <span className="k">{C.alsoKicker}</span>
           {partiesEnabled && <button className="id-btn sm ghost" type="button" onClick={() => setActiveModal("revenue")}>Log revenue</button>}
           {igEnabled && <button className="id-btn sm ghost" type="button" onClick={() => setActiveModal("ig")}>Add IG task</button>}
           <Link className="id-btn sm ghost" href={orgPath("/tasks?new=1")}>Add task</Link>
@@ -485,7 +457,7 @@ export function IdentitySection({
       <div className={`id-savebar${dirty ? " up" : ""}`} role="region" aria-label="Unsaved changes" aria-hidden={!dirty || undefined} inert={!dirty || undefined}>
         <span className="pip" />
         <span className="msg">
-          <b>{changes.length === 1 ? "1 change" : `${changes.length} changes`}</b>
+          <b>{changeCount(changes.length)}</b>
           <span className="long"> · {changes.join(", ")}</span>
         </span>
         <span className="acts">
@@ -508,13 +480,6 @@ export function IdentitySection({
       )}
     </div>
   );
-}
-
-/** The badge shows the draft handle to an editor (it's a live preview) and the
- *  saved one to everyone else. Empty or invalid reads as none. */
-function savedOrDraftHandle(editing: boolean, draft: string, saved: string): string {
-  const h = editing ? draft : saved;
-  return h && handleOk(h) ? h : "";
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────────

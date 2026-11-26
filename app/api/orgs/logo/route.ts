@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { buildContext } from "@/lib/context";
 import { toResponse } from "@/lib/errors";
+import type { OrgLogoSaved } from "@/lib/api-types";
 import { setOrgLogo, clearOrgLogo } from "@/lib/services/org-service";
 import { logError } from "@/lib/observability";
 
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "No image file provided" }, { status: 400 });
     }
     const { logoUrl } = await setOrgLogo(ctx, file);
-    return Response.json({ logoUrl });
+    return Response.json({ logoUrl } satisfies OrgLogoSaved);
   } catch (e) {
     logError(e, { route: "/api/orgs/logo", method: "POST", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
     return toResponse(e);
@@ -42,7 +43,7 @@ export async function DELETE() {
   if (error) return error;
   try {
     await clearOrgLogo(ctx);
-    return Response.json({ logoUrl: null });
+    return Response.json({ logoUrl: null } satisfies OrgLogoSaved);
   } catch (e) {
     logError(e, { route: "/api/orgs/logo", method: "DELETE", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
     return toResponse(e);

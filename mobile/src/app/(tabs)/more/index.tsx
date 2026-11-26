@@ -12,6 +12,7 @@
  *              page is a door (~/more/PageDoor) with its live line, and a badge when
  *              something there needs you: overdue tasks (rose), wrap-ups due, fundraisers
  *              to count up, reimbursements waiting (all already gated on /me)
+ *   settings   Settings (everyone) and Invite people (MANAGE_SETTINGS), the web's profile menu
  *   this phone Appearance (System · Day · Night) inline, Sign out; then Leave and Delete
  *              account, quiet, at the bottom
  *
@@ -46,6 +47,7 @@ import { Button } from "~/paper/Button";
 import { Avatar, Kicker, Surface } from "~/paper/bits";
 import { OrgSheet, StampFace } from "~/shell/OrgStamp";
 import { Screen } from "~/shell/Screen";
+import { can } from "~/settings/model";
 import { viewerOf } from "~/tasks/model";
 import { usePaperSettings, useTheme } from "~/theme/PaperProvider";
 import { Segmented } from "~/ui/Segmented";
@@ -95,6 +97,7 @@ export default function More() {
   const name = mine?.name ?? me.name;
   const org = me.org;
   const many = me.memberships.length > 1;
+  const canInvite = can(me, "MANAGE_SETTINGS");
 
   const badges: Partial<Record<PageId, number>> = pageBadges(me, overdueMine(me, tasks.data, viewer, today), today);
   const lives: Partial<Record<PageId, Live>> = {
@@ -175,6 +178,24 @@ export default function More() {
           </DoorGrid>
         </View>
       ))}
+
+      {/* settings: everyone, as in the web's profile menu; Invite people with MANAGE_SETTINGS */}
+      <Surface style={[styles.list, { marginTop: 18 }]}>
+        <Pressable onPress={() => router.push("/more/settings" as Href)} accessibilityRole="button"
+          style={({ pressed }) => [styles.row, pressed && { backgroundColor: c.paper2 }]}>
+          <Icon name="gear" size={18} color={c.pastel.lilac.ink} />
+          <T v="callout" style={{ flex: 1 }}>Settings</T>
+          <Icon name="chev-r" size={16} color={c.ink3} />
+        </Pressable>
+        {canInvite ? (
+          <Pressable onPress={() => router.push("/more/settings/invitations" as Href)} accessibilityRole="button"
+            style={({ pressed }) => [styles.row, { borderTopWidth: 1, borderTopColor: c.line }, pressed && { backgroundColor: c.paper2 }]}>
+            <Icon name="envelope" size={18} color={c.pastel.peach.ink} />
+            <T v="callout" style={{ flex: 1 }}>Invite people</T>
+            <Icon name="chev-r" size={16} color={c.ink3} />
+          </Pressable>
+        ) : null}
+      </Surface>
 
       {/* this phone */}
       <View style={[styles.group, { marginTop: 18 }]}>

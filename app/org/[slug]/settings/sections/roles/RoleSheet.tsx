@@ -9,30 +9,14 @@ import { RankLadder } from "./RankLadder";
 import { RoleChip } from "./RoleChip";
 import { RoleColorPicker } from "./RoleColorPicker";
 import {
-  DEFAULT_COLOR, PERM_META, bitsOf, gapRank, heldPermissions, ladderRungs, permLabel, templatesFor,
+  DEFAULT_COLOR, PERM_META, bitsOf, heldPermissions, permLabel, templatesFor,
   type Draft, type RoleRow,
 } from "./role-copy";
+import { defaultRank, draftDirty, draftFromRole } from "@/lib/settings/roles";
 import "./role-sheet.css";
 
 export type SheetMode = "create" | "edit" | "view";
 
-function draftFromRole(role: RoleRow): Draft {
-  return {
-    name: role.name,
-    color: role.color ?? DEFAULT_COLOR,
-    rank: role.rank,
-    permissions: role.permissions,
-    // A persisted null color stays null unless someone picks one.
-    colorTouched: role.color !== null,
-  };
-}
-
-/** Where a new role lands by default: just above members with no role. */
-function defaultRank(roles: RoleRow[], myMaxRank: number): number {
-  const rungs = ladderRungs(roles);
-  const lowestAboveZero = rungs.filter(r => r.rank > 0).pop();
-  return gapRank(lowestAboveZero?.rank ?? null, 0, myMaxRank) ?? 0;
-}
 
 /**
  * Create, edit or (for roles at or above your own rank) view a role, as one
@@ -80,16 +64,7 @@ export function RoleSheet({
   const held = heldPermissions(draft.permissions);
   const bigs = held.filter(p => PERM_META[p].big).map(permLabel);
 
-  const dirty = useMemo(() => {
-    if (readOnly) return false;
-    if (creating) return name !== "" || draft.permissions !== 0;
-    return (
-      (!role?.isSystem && name !== initial.name) ||
-      (draft.colorTouched && draft.color.toLowerCase() !== (role?.color ?? "").toLowerCase()) ||
-      draft.rank !== initial.rank ||
-      draft.permissions !== initial.permissions
-    );
-  }, [readOnly, creating, name, draft, initial, role]);
+  const dirty = useMemo(() => draftDirty(mode, draft, initial, role), [mode, draft, initial, role]);
 
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange(false), [onDirtyChange]);

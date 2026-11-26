@@ -7,9 +7,10 @@ import type { Permission } from "@/lib/permissions";
 import { PaperIcon } from "../../../../../components/paper/PaperIcon";
 import { Face } from "./Face";
 import {
-  PERM_GROUPS, canSentence, firstName, heldPermissions, permLabel, permsOf,
+  PERM_GROUPS, firstName, heldPermissions, permLabel, permsOf,
   type AccountRow, type RoleInfo,
 } from "./access";
+import { heldLine, verdictOf } from "@/lib/settings/roles";
 
 export interface SheetPowers {
   /** MANAGE_BROTHERS — rename anyone, remove people. */
@@ -141,13 +142,8 @@ export function PersonSheet({
     if (!ok) setBusy(null);
   }
 
-  const verdict = p.isAdmin
-    ? <><b>{me ? "You" : firstName(p.name)}</b> {me ? "hold" : "holds"} the master key: {me ? "you" : "they"} can change every page here, manage billing, and make other admins.</>
-    : perms === null
-      ? <><b>{me ? "You" : firstName(p.name)}</b> {me ? "hold" : "holds"} {p.roles.length === 1 ? "the role" : "the roles"} {p.roles.map(r => r.name).join(", ")}. What each role unlocks is set in Roles.</>
-      : perms.length
-        ? <><b>{me ? "You" : firstName(p.name)}</b> can {canSentence(perms)}.</>
-        : <><b>{me ? "You" : firstName(p.name)}</b> can see the whole chapter and change {me ? "your" : "their"} own profile, RSVPs and tasks.{powers.roles ? ` Give ${me ? "yourself" : "them"} a role to unlock more.` : ""}</>;
+  const v = verdictOf(p, perms, powers.roles);
+  const verdict = <><b>{v.who}</b>{v.rest}</>;
 
   const sheet = (
     <div className="ac-sheet-root">
@@ -259,8 +255,7 @@ export function PersonSheet({
                   const on = p.roles.some(x => x.id === r.id);
                   const reachable = powers.roles && r.rank < powers.maxRank;
                   const others = (holders.get(r.id) ?? []).filter(x => x.id !== p.id);
-                  const names = others.slice(0, 2).map(x => firstName(x.name)).join(", ");
-                  const held = others.length ? (others.length > 2 ? `${names} +${others.length - 2}` : `${names} too`) : on ? "" : "Nobody yet";
+                  const held = heldLine(others, on);
                   const desc = r.permissions === undefined ? null
                     : heldPermissions(r.permissions).map(permLabel).join(" · ") || "A title, no extra pages";
                   return (

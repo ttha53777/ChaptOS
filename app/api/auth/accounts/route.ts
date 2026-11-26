@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { db } from "@/lib/db"; // lint-modules:ignore (read-only listing for admin UI)
 import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
+import type { AccountRow } from "@/lib/api-types";
 
 export async function GET() {
   const user = await requireUser();
@@ -70,7 +71,7 @@ export async function GET() {
         roles: (b.roles ?? [])
           .map(r => r.role)
           .sort((a, z) => z.rank - a.rank),
-      }))
+      })) satisfies AccountRow[]
     );
   } catch (e) {
     logError(e, { route: "/api/auth/accounts", method: "GET", userId: user?.id });

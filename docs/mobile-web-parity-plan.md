@@ -307,11 +307,11 @@ moment). Each replaces the current mock-styled screen.
 ### Phase 9 — Settings (admin)
 Port the sections the web phone shows, gated identically: Identity (+Vocabulary),
 Roles (cards, By person, role sheet), Accounts (By person / By area, PersonSheet),
-Workflows (+ nav order), Thresholds, Semesters, Event types, Event fields, Member
+Workflows (+ nav order), Thresholds, Semesters, Calendar subscription, Event types, Event fields, Member
 fields, Custom metrics, Transaction categories, Opening balance, Invitations, Activity
 log, Danger zone. `?section=` deep links. Billing excluded. This is the largest phase;
-split into 9a (Identity, Roles, Accounts, Invitations), 9b (Workflows, Thresholds,
-Semesters, metrics), 9c (event/member fields, categories, opening balance, activity log,
+split into 9a (Identity, Roles, Accounts, Invitations), 9b (Workflows + nav order,
+Thresholds, Semesters, Custom metrics, Calendar subscription), 9c (event/member fields, categories, opening balance, activity log,
 danger zone). Check each write route accepts bearer auth (several settings routes may
 still be cookie-only; add probes).
 

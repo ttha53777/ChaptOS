@@ -9,7 +9,8 @@ import { RoleSheet, type SheetMode } from "./roles/RoleSheet";
 import { RoleCards } from "./roles/RoleCards";
 import { PeopleRegister } from "./roles/PeopleRegister";
 import { HolderPicker, type PickTarget } from "./roles/HolderPicker";
-import { apiMessage, firstName, pairKey, type Person } from "./roles/holders";
+import { apiMessage, pairKey, type Person } from "./roles/holders";
+import { grantToast, rolePatch, sortRoles } from "@/lib/settings/roles";
 import type { Draft, RoleRow } from "./roles/role-copy";
 import "./roles/roles-page.css";
 
@@ -72,7 +73,7 @@ export function RolesSection({
         requestJson<RoleRow[]>("/api/roles"),
         requestJson<AccountRow[]>("/api/auth/accounts"),
       ]);
-      setRoles([...rolesData].sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name)));
+      setRoles(sortRoles(rolesData));
       setPeople(accounts.map(a => ({ id: a.id, name: a.name, avatarUrl: a.avatarUrl ?? null, isSelf: a.isSelf, isAdmin: a.isAdmin })));
       setPairs(new Set(accounts.flatMap(a => a.roles.map(r => pairKey(r.id, a.id)))));
     } catch (err) {
@@ -146,9 +147,7 @@ export function RolesSection({
         await requestJson(`/api/brothers/${personId}/roles/${roleId}`, { method: "DELETE" });
       }
       if (!opts.quiet && !pick) {
-        const who = person.isSelf ? "You" : firstName(person.name);
-        const verb = person.isSelf ? (adding ? "are now" : "are no longer") : (adding ? "is now" : "is no longer");
-        showToast(`${who} ${verb} ${role.name}`, () => { void toggleRef.current(roleId, personId, { quiet: true }); });
+        showToast(grantToast(person, role.name, adding), () => { void toggleRef.current(roleId, personId, { quiet: true }); });
       }
     } catch (err) {
       flip(!adding);
@@ -182,13 +181,9 @@ export function RolesSection({
         void refresh();
       } else if (sheetRole) {
         const target = sheetRole;
-        // Send only what changed: an unchanged bitfield can still carry bits the
-        // editor doesn't hold, which the server would refuse to re-assign.
-        const payload: Record<string, unknown> = {};
-        if (d.rank !== target.rank) payload.rank = d.rank;
-        if (d.permissions !== target.permissions) payload.permissions = d.permissions;
-        if (d.colorTouched && d.color.toLowerCase() !== (target.color ?? "").toLowerCase()) payload.color = d.color;
-        if (!target.isSystem && d.name !== target.name) payload.name = d.name;
+        // Send only what changed (rolePatch): an unchanged bitfield can still carry
+        // bits the editor doesn't hold, which the server would refuse to re-assign.
+        const payload = rolePatch(target, d);
         await requestJson(`/api/roles/${target.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },

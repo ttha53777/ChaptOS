@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import { PERMISSIONS, PERMISSION_LIST, type Permission } from "@/lib/permissions";
 import { PaperIcon } from "../../../../../components/paper/PaperIcon";
-import { PERM_GROUPS, PERM_META, andList, bitsOf, permLabel } from "./role-copy";
+import { PERM_GROUPS, PERM_META, bitsOf, permLabel } from "./role-copy";
+import { shelfLine } from "@/lib/settings/roles";
 
 /**
  * Every permission as a page tile on a shelf per group. Off = "Can see" (what
@@ -43,10 +44,8 @@ export function PermissionShelf({ bits, onChange, canGrant, readOnly, roleLabel 
         </>
       );
     }
-    const on = perms.filter(p => (bits & PERMISSIONS[p]) !== 0).map(permLabel);
-    if (on.length === 0) return <span>None picked. {roleLabel} can see these pages but not change them.</span>;
-    if (on.length === perms.length && perms.length > 1) return <span>{roleLabel} can change <b>all of these</b>.</span>;
-    return <span>{roleLabel} can change <b>{andList(on)}</b>.</span>;
+    const l = shelfLine(perms, bits, roleLabel);
+    return <span>{l.lead}{l.bold != null && <b>{l.bold}</b>}{l.tail}</span>;
   }
 
   return (

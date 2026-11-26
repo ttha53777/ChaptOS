@@ -65,7 +65,22 @@
  *   DELETE /api/programming/[id]/docs/[docId]  204                     (MANAGE_EVENTS)
  *   GET    /api/events/fields                  EventFieldRow[]         (every member; disabled rows too)
  *   POST   /api/events/fields                  EventFieldRow           (201; MANAGE_EVENTS; body createEventFieldInput: label + kind, the server derives the slug)
- *   GET    /api/roles                          RoleChip[]
+ *   GET    /api/roles                          RoleChip[]              (MANAGE_ROLES holders get RoleDetail: permissions + isSystem)
+ *   POST   /api/roles                          RoleSaved               (201; MANAGE_ROLES; body createRoleInput: ranked below yours, only bits you hold)
+ *   PATCH  /api/roles/[id]                     RoleSaved               (MANAGE_ROLES; body updateRoleInput, only what changed; below your rank)
+ *   DELETE /api/roles/[id]                     204                     (MANAGE_ROLES; not system roles; comes off its holders)
+ *   POST   /api/brothers/[id]/roles            RoleGranted             (201; MANAGE_ROLES; body { roleId }; 409 = already held)
+ *   DELETE /api/brothers/[id]/roles/[roleId]   204                     (MANAGE_ROLES; idempotent)
+ *   GET    /api/auth/accounts                  AccountRow[]            (Settings → Accounts and Roles; any member)
+ *   PATCH  /api/auth/accounts/[id]             AdminChanged            (platform admins; body { isAdmin }; not your own key)
+ *   DELETE /api/brothers/[id]                  204                     (MANAGE_BROTHERS; not yourself; erases this org's rows only)
+ *   GET    /api/invites                        InviteRow[]             (MANAGE_SETTINGS; ?include=all adds revoked/expired/full)
+ *   POST   /api/invites                        InviteRow               (201; MANAGE_SETTINGS; body createInviteInput)
+ *   DELETE /api/invites/[id]                   204                     (MANAGE_SETTINGS; revoke)
+ *   GET    /api/invites/[id]/redemptions       InviteRedemption[]      (MANAGE_SETTINGS)
+ *   PATCH  /api/orgs/config                    OrgConfigSaved          (MANAGE_SETTINGS; body updateOrgConfigInput; Identity sends instagramHandle / vocabularyOverrides)
+ *   POST   /api/orgs/logo                      OrgLogoSaved            (MANAGE_SETTINGS; multipart `file`, image ≤ 2 MB)
+ *   DELETE /api/orgs/logo                      OrgLogoSaved            (MANAGE_SETTINGS; clears the icon; logoUrl null)
  *   GET    /api/instagram                      InstagramPost[]         (everyone with the communications workflow)
  *   POST   /api/instagram                      InstagramPost           (201; MANAGE_INSTAGRAM; body createInstagramTaskInput)
  *   PATCH  /api/instagram/[id]                 InstagramPost           (MANAGE_INSTAGRAM; body updateInstagramTaskInput; status "posted" = Mark posted)
@@ -179,3 +194,4 @@ export type * from "./service";
 export type * from "./docs";
 export type * from "./home";
 export type * from "./dashboard";
+export type * from "./settings";

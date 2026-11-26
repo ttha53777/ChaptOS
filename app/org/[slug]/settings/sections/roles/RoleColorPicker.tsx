@@ -3,9 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { PaperIcon } from "../../../../../components/paper/PaperIcon";
 import { SWATCHES, swatchName } from "./role-copy";
+import { HEX3, HEX6, hexOf } from "@/lib/settings/roles";
 
-const HEX6 = /^[0-9a-f]{6}$/i;
-const HEX3 = /^[0-9a-f]{3}$/i;
 
 /**
  * Ten named swatches, then a rainbow dot that opens the native picker and a hex
@@ -86,8 +85,8 @@ export function RoleColorPicker({ color, touched, readOnly, onChange }: {
             onChange={e => {
               const v = e.target.value.replace(/[^0-9a-f]/gi, "").toUpperCase();
               setHex(v);
-              if (HEX6.test(v)) onChange(`#${v}`);
-              else if (HEX3.test(v)) onChange(`#${[...v].map(c => c + c).join("")}`);
+              const full = hexOf(v);
+              if (full) onChange(full);
             }}
           />
         </label>

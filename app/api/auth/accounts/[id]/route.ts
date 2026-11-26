@@ -3,6 +3,7 @@ import { buildContext } from "@/lib/context";
 import { toResponse, ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { emit } from "@/lib/events";
 import { logError } from "@/lib/observability";
+import type { AdminChanged } from "@/lib/api-types";
 
 // PATCH — promote or demote a brother's admin status. Platform-admin-only.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -32,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       name: target.name, isAdmin: body.isAdmin,
     });
 
-    return Response.json({ id: numId, isAdmin: body.isAdmin });
+    return Response.json({ id: numId, isAdmin: body.isAdmin } satisfies AdminChanged);
   } catch (e) {
     if (e && typeof e === "object" && "code" in e && (e as { code: string }).code === "P2025") {
       return toResponse(new NotFoundError("Brother"));

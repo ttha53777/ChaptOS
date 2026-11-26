@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { PERMISSIONS } from "@/lib/permissions";
 import { PaperIcon } from "../../../../../components/paper/PaperIcon";
-import { andList, gapRank, ladderRungs, type RoleRow } from "./role-copy";
+import { gapRank, ladderRungs, type RoleRow } from "./role-copy";
+import { ladderWhy, neighbours as neighboursOf } from "@/lib/settings/roles";
 import { RoleChip } from "./RoleChip";
 
 /**
@@ -28,13 +28,7 @@ export function RankLadder({ others, rank, onChange, myMaxRank, myRoleIds, name,
   const isLevel = rungs.some(r => r.rank === rank);
   const inGap = (hi: number | null, lo: number) => !isLevel && rank > lo && (hi === null || rank < hi);
 
-  const neighbours = (hi: number | null, lo: number) => {
-    const above = rungs.find(r => r.rank === hi);
-    const below = rungs.find(r => r.rank === lo);
-    const a = above?.roles.map(r => r.name).join(" / ");
-    const b = below && below.roles.length ? below.roles.map(r => r.name).join(" / ") : "members with no role";
-    return a ? `below ${a}, above ${b}` : `above ${b}`;
-  };
+  const neighbours = (hi: number | null, lo: number) => neighboursOf(rungs, hi, lo);
 
   function gap(hi: number | null, lo: number) {
     if (inGap(hi, lo)) {
@@ -57,8 +51,7 @@ export function RankLadder({ others, rank, onChange, myMaxRank, myRoleIds, name,
     );
   }
 
-  const givers = others.filter(r => r.rank > rank && (r.permissions & PERMISSIONS.MANAGE_ROLES)).map(r => r.name);
-  const below = others.filter(r => r.rank < rank).map(r => r.name);
+  const why = ladderWhy(others, rank, name);
 
   return (
     <div>
@@ -95,10 +88,8 @@ export function RankLadder({ others, rank, onChange, myMaxRank, myRoleIds, name,
         })}
       </div>
       <div className="rs-why">
-        <div><b>Who can give it out</b>{givers.length ? `${andList(givers)}, and org admins.` : "Org admins only."}</div>
-        <div><b>Who it can manage</b>{below.length
-          ? `If ${name} can change Roles, it could hand out ${andList(below)}.`
-          : `Nothing. No roles sit below ${name}.`}</div>
+        <div><b>Who can give it out</b>{why.givers}</div>
+        <div><b>Who it can manage</b>{why.manages}</div>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { toResponse } from "@/lib/errors";
 import { updateOrgConfigInput } from "@/lib/validation/org";
 import { setInstagramHandle, setWorkflows, setVocab, setThresholds, setDisabledFeatures, setCustomMemberFields, setNavOrder, setDashboardLayout, completeOnboarding } from "@/lib/services/org-config-service";
 import { logError } from "@/lib/observability";
+import type { OrgConfigSaved } from "@/lib/api-types";
 
 // PATCH /api/orgs/config — update the active org's config.
 //
@@ -52,7 +53,7 @@ export async function PATCH(req: NextRequest) {
       await completeOnboarding(ctx);
     }
 
-    return Response.json({ ok: true });
+    return Response.json({ ok: true } satisfies OrgConfigSaved);
   } catch (e) {
     logError(e, { route: "/api/orgs/config", method: "PATCH", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
     return toResponse(e);

@@ -16,6 +16,7 @@ import {
   PERM_GROUPS, TIERS, listJoin, permLabel, permsOf, tierOf, firstName,
   type AccountRow, type RoleInfo,
 } from "./accounts/access";
+import { accountMatches, canLineOf } from "@/lib/settings/roles";
 import "./accounts/accounts.css";
 
 // Settings → Accounts: who's in, and what each of them can change. Built from
@@ -183,25 +184,17 @@ export function AccountsSection({
   const open = accounts.find(a => a.id === openId) ?? null;
   const showAreas = permsKnown && view === "area";
 
-  const needle = q.trim().toLowerCase();
-  const matches = (a: AccountRow) => {
-    if (area) { const p = permsOf(a, roleMap); if (!p?.includes(area)) return false; }
-    if (!needle) return true;
-    return a.name.toLowerCase().includes(needle)
-      || (a.email ?? "").toLowerCase().includes(needle)
-      || a.roles.some(r => r.name.toLowerCase().includes(needle));
-  };
+  const matches = (a: AccountRow) => accountMatches(a, q, area, roleMap);
 
   const canLine = (a: AccountRow) => {
-    if (a.isAdmin) return <span className="ac-can all"><PaperIcon name="key" className="ac-ic" /><span>Everything</span></span>;
-    const p = permsOf(a, roleMap);
-    if (p === null) return <span className="ac-can" />;
-    if (!p.length) return <span className="ac-can view"><PaperIcon name="eye" className="ac-ic" /><span>Can view</span></span>;
-    const labels = p.map(permLabel);
+    const line = canLineOf(a, roleMap);
+    if (line.kind === "all") return <span className="ac-can all"><PaperIcon name="key" className="ac-ic" /><span>{line.text}</span></span>;
+    if (line.kind === "unknown") return <span className="ac-can" />;
+    if (line.kind === "view") return <span className="ac-can view"><PaperIcon name="eye" className="ac-ic" /><span>{line.text}</span></span>;
     return (
-      <span className="ac-can" title={labels.join(", ")}>
+      <span className="ac-can" title={line.full}>
         <PaperIcon name="star" className="ac-ic" />
-        <span>{labels.slice(0, 2).join(", ")}{labels.length > 2 ? ` +${labels.length - 2}` : ""}</span>
+        <span>{line.text}</span>
       </span>
     );
   };
@@ -221,7 +214,7 @@ export function AccountsSection({
     <div className="ac-roster"><div className="ac-empty"><b>Nobody matches</b>Try a different name, or clear the filter.</div></div>
   ) : groups.map(({ t, list }) => (
     <div key={t.id}>
-      <div className="ac-grp-h" style={{ "--s": t.tint } as React.CSSProperties}><i />{t.title}<span>{list.length}</span></div>
+      <div className="ac-grp-h" style={{ "--s": `var(--pp-${t.tone})` } as React.CSSProperties}><i />{t.title}<span>{list.length}</span></div>
       <div className="ac-roster">
         {list.map(a => (
           <button key={a.id} type="button" className="ac-row" onClick={() => setOpenId(a.id)}>

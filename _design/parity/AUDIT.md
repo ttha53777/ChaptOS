@@ -44,7 +44,7 @@ Legend: ✅ matches the web phone · 🟡 built, but from the paper mocks rather
 | Parties | `more/parties` | ✅ | Phase 8e: the house ledger at phone width, the one task, takings and the strip, drawers in place, the web's forms and two-step wrap-up with the roll, the door moment. See "Parties (Phase 8e)" below. |
 | Fundraisers | `more/fundraisers`, `more/fundraiser/[id]` | ✅ | Phase 8f: list, page, composer, shopping list, jar, wrap-up and the jar moment. |
 | Treasury (Overview, Transactions, Dues, Reports, Reimbursements) | `more/treasury` | ✅ | Phase 7: the five tabs, the open-books gate and member lock, every sheet, Dues with its drawer, Hand out and charge editor. See "Treasury (Phase 7)" below. |
-| Settings (15 sections) | — | ⬜ | Phase 9. |
+| Settings (15 sections) | `more/settings/*` | 🟨 | 9a landed (Identity, Accounts, Invitations, Roles); 9b and 9c to come. |
 | Sidebar profile menu | More → You block, toolbar stamp | ✅ Phase 1 | — |
 | Billing | — | ⬜ by decision | Not in the app. |
 | Check-in | `app/checkin.tsx` | ⭐ | Opened from the Home live band. |
@@ -681,3 +681,47 @@ Built 2026-11-20.
   - The live bearer smoke (it needs a Supabase token).
 - **Removed:** the read-only app screen and its invented captions ("No fundraisers yet.", "A jar each", "$X made" as the title, "Across N wrapped fundraisers, after supplies.", "No goal set"). `~/moments/Jar` stays because `lab/more` imports it.
 
+
+## Settings (Phase 9a), what landed
+
+Built 2026-11-25.
+
+- **Shared rules** (all pure; SHARED now whitelists `@/lib/settings/`, `@/lib/permissions`, `@/lib/vocab-keys`, `@/lib/org-initials`, `@/lib/org-types`, `@/lib/event-types`, `@/lib/transaction-categories`):
+  - `lib/settings/nav.ts`: every section (label, blurb, lede, group, icon path), `sectionVisible` (the web's gates), `sectionFromParam` (general/vocabulary → identity), `INDEX_COPY`, `DISCARD_COPY`, `GROUP_TITLE` / `GROUP_LEDE`.
+  - `lib/settings/identity.ts`: the word groups, picks, "where it shows", handle rules, the change list and every Identity sentence.
+  - `lib/settings/invites.ts`: expiry labels, status pills, counts/date lines, the cap check and every Invitations sentence.
+  - `lib/settings/roles.ts`: permission metadata and groups, swatches, templates, the rank ladder, role-sheet drafts (`rolePatch`, `draftDirty`), holder helpers and the Accounts tiers, can-lines and verdicts.
+  - `lib/vocab-keys.ts`: `VOCAB_KEYS` / `DEFAULT_LABELS` split out of `lib/vocab` (which re-exports them) so the app can read them without `pluralize`.
+  - The web's settings page and its Identity, Accounts (+ PersonSheet), Invitations and Roles (+ cards, picker, sheet, shelf, ladder, color picker) render from these.
+    - Pixdiff: the four sections' full frames (busy admin, day and night) are IDENTICAL to HEAD.
+    - Sheets, A/B in one session (390×844, WebKit): person sheet, remove confirm, By area, role edit, new role, holder picker by role, By person and holder picker by person all match HEAD. `person`, `area` and `person-remove` also vary between two HEAD captures (sheet slide timing). The index varies with the org splash's floating shapes; its text and layout match.
+- **Wire (additive):** `lib/api-types/settings.ts` (`AccountRow`, `RoleDetail`, `RoleSaved`, `RoleGranted`, `AdminChanged`, `InviteRow`, `InviteRedemption`, `OrgConfigSaved`, `OrgLogoSaved`). There are 17 route-map lines, covering roles CRUD, grant/revoke, accounts, the admin switch, member removal, invites (+ redemptions), `PATCH /api/orgs/config` and `POST`/`DELETE /api/orgs/logo`. Inline routes use `satisfies`; the service-backed ones have contract entries. There is a smoke probe for each (DELETE logo has no invalid input, so on an isolated server it clears the icon). Every one of these routes was already bearer-aware.
+- **App:**
+  - `mobile/src/settings/*` and `data/settings.ts`.
+  - Routes: `more/settings` (the index), plus `more/settings/[section]`. That route takes a section id (focus page) or a lowercase group (group page; Identity's group page is "How your chapter looks & talks"). An unknown or hidden section redirects to the index.
+  - **More:** a Settings row for everyone and "Invite people" (MANAGE_SETTINGS), as in the web's profile menu.
+  - **Index:** CONFIGURATION brief, the org strip ("N Brothers · N Tasks · N Parties", as the web writes it), binder tabs per group, ruled sheets of rows.
+  - **Identity:**
+    - The badge, icon picker (square crop, 512px), the three "Shows up in" scenes, Instagram (Media page on), and the words with picks.
+    - One floating save bar ("N changes · …", Discard, Save changes). Icon first, then one config PATCH, then /me.
+    - Read-only note without MANAGE_SETTINGS.
+    - "Also in here" offers Add IG task, Add task and Refresh data (the app's own forms).
+  - **Accounts:**
+    - By person / By area (only when role bits are visible), search, the area filter chip, tiers, and Your account (Leave / Delete use the app's existing flows).
+    - Person sheet: rename (undo), master key (platform admins, with confirm), roles with tick-to-give (undo), pages board, and remove (confirm, "Archive instead" → Members).
+  - **Invitations:** lede, Review join requests (→ Members), the ready card (Copy link, Share… via the system sheet, Done), the form (label, expiry, cap + warning), links with pill, meter, date line, Copy and Revoke (confirm), Review N waiting, replacement, and joins.
+  - **Roles:**
+    - By role cards (tags, tally / Locked stamp, holder lines with ×, Add) with a New role card; By person register with filters.
+    - The holder picker both ways, ticking in place.
+    - Role sheet: Start from, Name and color (swatches + hex), the permission shelf, the rank ladder, the preview, and delete/discard confirms. Saves send only what changed.
+  - **Unsaved drafts:** leaving with a dirty Identity draft or role sheet raises "Discard unsaved changes?" (`usePreventRemove`).
+  - Writes were driven in the preview against :3100 (role grant, invite create, role from a template, Identity word save; the tab bar then said "Sisters"), and the DB was restored exactly afterwards.
+- **Deliberate differences:**
+  - Billing never shows.
+  - Sections from 9b and 9c are hidden until they land, rather than listed with nowhere to go (`model.BUILT`).
+  - The "Also in here" shortcuts leave out Print and Log revenue: printing isn't a phone action, and Log revenue is the desktop party quick-add.
+  - Identity's icon is "Tap to choose" (no drag and drop).
+  - The role shelf's sub says "Each one says what it unlocks." instead of "Hover or focus one…". A tapped tile explains itself in the group line.
+  - Invitations' expiry is a row of pills (the web uses a select).
+  - The color picker has swatches and hex but no system color wheel.
+  - Danger zone (Identity, org admins) is Phase 9c.

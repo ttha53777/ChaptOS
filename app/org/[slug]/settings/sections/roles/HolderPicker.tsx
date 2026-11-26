@@ -4,6 +4,7 @@ import { PaperIcon } from "../../../../../components/paper/PaperIcon";
 import { HolderAvatar } from "./HolderAvatar";
 import { firstName, pairKey, permTags, roleColor, type Person } from "./holders";
 import type { RoleRow } from "./role-copy";
+import { whoTitle } from "@/lib/settings/roles";
 
 export type PickTarget = { kind: "role"; roleId: number } | { kind: "person"; personId: number };
 
@@ -104,7 +105,7 @@ export function HolderPicker({
     summary = n ? <><b>{firstName(p.name)}</b> holds {n} {n === 1 ? "role" : "roles"}</> : `${firstName(p.name)} has no role yet`;
   }
 
-  const title = role ? `Who's ${/^[aeiou]/i.test(role.name) ? "an" : "a"} ${role.name}?` : person!.name;
+  const title = role ? whoTitle(role.name) : person!.name;
 
   return (
     <Modal ariaLabel={title} onClose={onClose} hideHeader maxWidthClass="max-w-[460px]" accent="sky">
