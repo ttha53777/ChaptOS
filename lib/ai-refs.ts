@@ -21,6 +21,7 @@
 // A row that doesn't match keeps its `ask` and behaves exactly as it does today.
 
 import type { AnswerRow } from "./ai-tools";
+import type { AnswerRowEvent, AnswerRowTurnout } from "@/lib/api-types";
 
 /** Record kinds an answer row can open. Mirrors PeekType in lib/services/peek-service. */
 export const REF_TYPES = ["member", "event", "task", "transaction"] as const;
@@ -31,8 +32,27 @@ export interface EntityRef {
   id: number;
 }
 
+/** What this turn's reads said about an event — drawn on its row, never taken from the model's text. */
+export type EventFacts = AnswerRowEvent;
+type EventTurnout = AnswerRowTurnout;
+
 interface Collected extends EntityRef {
   label: string;
+  /** YYYY-MM-DD, when the tool row carried one. */
+  date?: string;
+  turnout?: EventTurnout;
+}
+
+function isoDay(v: unknown): string | undefined {
+  return typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : undefined;
+}
+
+function turnoutOf(v: unknown): EventTurnout | undefined {
+  if (typeof v !== "object" || v === null) return undefined;
+  const c = v as Record<string, unknown>;
+  const n = (x: unknown) => (typeof x === "number" && Number.isFinite(x) && x >= 0 ? Math.round(x) : null);
+  const attended = n(c.attended), absent = n(c.absent), excused = n(c.excused) ?? 0;
+  return attended == null || absent == null ? undefined : { attended, absent, excused };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -54,7 +74,8 @@ function fromList(value: unknown, labelKey: "name" | "title" | "description", ty
     const id = r.id;
     const label = r[labelKey];
     if (typeof id === "number" && Number.isInteger(id) && id > 0 && typeof label === "string" && label.trim()) {
-      out.push({ type, id, label: label.trim() });
+      const date = type === "event" || type === "task" ? isoDay(r.date) : undefined;
+      out.push({ type, id, label: label.trim(), ...(date ? { date } : {}) });
     }
   }
   return out;
@@ -96,7 +117,11 @@ const EXTRACTORS: Record<string, Extractor> = {
   list_calendar_events: r => fromList(listRows(r), "title", "event"),
   search_meeting_notes: r => fromList(listRows(r), "title", "event"),
   get_event_attendance: r => [
-    ...fromRecord(prop(r, "event"), "title", "event"),
+    // The one read that carries turnout: counts ride on the event it describes.
+    ...fromRecord(prop(r, "event"), "title", "event").map(e => {
+      const turnout = turnoutOf(prop(r, "counts"));
+      return turnout ? { ...e, turnout } : e;
+    }),
     ...fromList(prop(r, "candidates"), "title", "event"),
   ],
   list_deadlines: r => fromList(listRows(r), "title", "task"),
@@ -127,6 +152,32 @@ function normalize(label: string): string {
     .trim();
 }
 
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const DATE_PATTERNS: Array<[RegExp, (m: RegExpExecArray) => string | null]> = [
+  [/\b(\d{4})-(\d{2})-(\d{2})\b/g, m => `${m[2]}-${m[3]}`],
+  [/\b(\d{1,2})\/(\d{1,2})(?:\/\d{2,4})?\b/g, m => md(+m[1], +m[2])],
+  [/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b/gi, m => md(MONTHS.indexOf(m[1].toLowerCase()) + 1, +m[2])],
+];
+function md(month: number, day: number): string | null {
+  return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? `${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` : null;
+}
+
+/** Month-days ("10-05") a row's text names — how "Chapter Meeting 11/10" says which of nine it is. */
+export function monthDaysIn(text: string): string[] {
+  const out = new Set<string>();
+  for (const [re, f] of DATE_PATTERNS) {
+    for (const m of text.matchAll(re)) { const v = f(m as RegExpExecArray); if (v) out.add(v); }
+  }
+  return [...out];
+}
+
+/** The title with any date written into it removed, so "CHAPTER MEETING 11/10" keys as "chapter meeting". */
+function stripDates(title: string): string {
+  let t = title;
+  for (const [re] of DATE_PATTERNS) t = t.replace(re, " ");
+  return t.replace(/\s[-–—·]\s*$/, "").trim();
+}
+
 /** A label that resolved to more than one id — never guessed at, always dropped. */
 const AMBIGUOUS = Symbol("ambiguous");
 type Slot = Collected | typeof AMBIGUOUS;
@@ -141,8 +192,14 @@ const KIND_TO_TYPE: Partial<Record<AnswerRow["kind"], RefType>> = {
 export interface RefIndex {
   /** Fold one tool result in. Unknown tools and malformed payloads are no-ops. */
   add(toolName: string, result: unknown): void;
-  /** Resolve a row's title, or null when unseen or ambiguous. */
-  lookup(title: string, kind: AnswerRow["kind"]): EntityRef | null;
+  /**
+   * Resolve a row's title, or null when unseen or ambiguous. Same-titled events
+   * (nine "Chapter Meeting"s) resolve when the row's date — its own `date`, or
+   * one written in its title/subtitle — picks out exactly one of them.
+   */
+  lookup(title: string, kind: AnswerRow["kind"], hint?: { date?: string; text?: string }): EntityRef | null;
+  /** What this turn's reads said about an event: its date, and its turnout if attendance was read. */
+  eventFacts(id: number): EventFacts | null;
   /** Distinct records seen this turn — telemetry only. */
   size(): number;
   /** Every label that resolves to exactly one record, as the tool wrote it. */
@@ -156,6 +213,10 @@ export function createRefIndex(): RefIndex {
   // for a typed row while correctly refusing to for an untyped one.
   const byTypeLabel = new Map<string, Slot>();
   const byLabel = new Map<string, Slot>();
+  // Every distinct dated record per kind-qualified label, kept even once the
+  // label is ambiguous, so a date can still pick one out.
+  const dated = new Map<string, Map<number, string>>();
+  const facts = new Map<number, { date?: string; turnout?: EventTurnout }>();
 
   function put(map: Map<string, Slot>, key: string, ref: Collected) {
     const existing = map.get(key);
@@ -185,14 +246,45 @@ export function createRefIndex(): RefIndex {
         if (!key) continue;
         put(byTypeLabel, `${ref.type}|${key}`, ref);
         put(byLabel, key, ref);
+        if (ref.date) {
+          const k = `${ref.type}|${key}`;
+          if (!dated.has(k)) dated.set(k, new Map());
+          dated.get(k)!.set(ref.id, ref.date);
+        }
+        if (ref.type === "event") {
+          const f = facts.get(ref.id) ?? {};
+          facts.set(ref.id, { date: ref.date ?? f.date, turnout: ref.turnout ?? f.turnout });
+        }
       }
     },
 
-    lookup(title, kind) {
+    lookup(title, kind, hint) {
+      const type = KIND_TO_TYPE[kind];
       const key = normalize(title);
       if (!key) return null;
-      const type = KIND_TO_TYPE[kind];
-      return type ? read(byTypeLabel, `${type}|${key}`) : read(byLabel, key);
+      const direct = type ? read(byTypeLabel, `${type}|${key}`) : read(byLabel, key);
+      if (direct || type !== "event") return direct;
+      // Same-titled meetings: let the row's date choose. Exact ISO first, then
+      // a month-day written in the row — accepted only when it picks out one.
+      const bare = normalize(stripDates(title));
+      const pool = dated.get(`event|${bare}`) ?? dated.get(`event|${key}`);
+      if (!pool) return null;
+      const entries = [...pool.entries()];
+      if (hint?.date) {
+        const hit = entries.filter(([, d]) => d === hint.date);
+        if (hit.length === 1) return { type: "event", id: hit[0][0] };
+      }
+      const mds = monthDaysIn(`${title} ${hint?.text ?? ""}`);
+      if (mds.length === 1) {
+        const hit = entries.filter(([, d]) => d.slice(5) === mds[0]);
+        if (hit.length === 1) return { type: "event", id: hit[0][0] };
+      }
+      return null;
+    },
+
+    eventFacts(id) {
+      const f = facts.get(id);
+      return f?.date ? { date: f.date, turnout: f.turnout ?? null } : null;
     },
 
     size() {
@@ -243,7 +335,9 @@ export function noteRefs(text: string, index: RefIndex): Array<{ text: string; r
  */
 export function attachRefs(rows: AnswerRow[], index: RefIndex): AnswerRow[] {
   return rows.map(row => {
-    const ref = index.lookup(row.title, row.kind);
-    return ref ? { ...row, ref } : row;
+    const ref = row.ref ?? index.lookup(row.title, row.kind, { date: row.date, text: row.subtitle });
+    if (!ref) return row;
+    const event = ref.type === "event" ? index.eventFacts(ref.id) : null;
+    return { ...row, ref, ...(event ? { event } : {}) };
   });
 }

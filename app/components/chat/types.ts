@@ -5,7 +5,7 @@
 // The wire shapes (what POST /api/ai/chat streams) live in lib/api-types, shared
 // with the native app; re-exported so existing imports from here keep working.
 export type {
-  RefType, EntityRef, AnswerTier, AnswerRow, AskBackSelect, AskBackQuestion, AskBack,
+  RefType, EntityRef, AnswerTier, AnswerRow, AnswerRowEvent, AnswerRowTurnout, AskBackSelect, AskBackQuestion, AskBack,
   AnswerData, ProposalPermInfo, ProposalDisplayInfo,
   AnswerShape, AskBackPerson, TallyShape, TallyMark, BreakdownShape, BreakdownPart, WeekShape, WeekItem, MissingShape,
   DatedShape, LogbookShape, PastDueShape, PastDueOwner, ShapeTruncation,

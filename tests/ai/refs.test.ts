@@ -150,3 +150,45 @@ describe("attachRefs", () => {
     expect(original.ref).toBeUndefined();
   });
 });
+
+describe("same-named events resolve by date, and carry their facts", () => {
+  const meetings = [
+    { id: 31, title: "Chapter Meeting", date: "2026-03-10" },
+    { id: 34, title: "Chapter Meeting", date: "2026-04-21" },
+    { id: 40, title: "Chapter Meeting", date: "2026-11-10" },
+  ];
+  const ev = (title: string, extra: Partial<AnswerRow> = {}): AnswerRow => ({ kind: "event", title, ...extra });
+  function index() {
+    const ix = createRefIndex();
+    ix.add("list_calendar_events", meetings);
+    ix.add("get_event_attendance", { event: meetings[0], counts: { attended: 8, absent: 1, excused: 0 }, absent: [], excused: [] });
+    return ix;
+  }
+
+  it("stays unresolved with no date to choose by", () => {
+    expect(attachRefs([ev("Chapter Meeting")], index())[0].ref).toBeUndefined();
+  });
+
+  it("resolves by the row's own date", () => {
+    const [r] = attachRefs([ev("Chapter Meeting", { date: "2026-04-21" })], index());
+    expect(r.ref).toEqual({ type: "event", id: 34 });
+    expect(r.event).toEqual({ date: "2026-04-21", turnout: null });
+  });
+
+  it("resolves by a date written into the title, and attaches the turnout it read", () => {
+    const [a, b] = attachRefs([ev("CHAPTER MEETING 11/10"), ev("Chapter meeting", { subtitle: "Mar 10 · 8 attended" })], index());
+    expect(a.ref).toEqual({ type: "event", id: 40 });
+    expect(b.ref).toEqual({ type: "event", id: 31 });
+    expect(b.event).toEqual({ date: "2026-03-10", turnout: { attended: 8, absent: 1, excused: 0 } });
+  });
+
+  it("refuses a date that matches none of them", () => {
+    expect(attachRefs([ev("Chapter Meeting", { date: "2026-05-01" })], index())[0].ref).toBeUndefined();
+  });
+
+  it("a uniquely named event gets its facts too", () => {
+    const ix = createRefIndex();
+    ix.add("list_calendar_events", [{ id: 9, title: "Boba Fundraiser", date: "2026-05-14" }]);
+    expect(attachRefs([ev("Boba Fundraiser")], ix)[0].event).toEqual({ date: "2026-05-14", turnout: null });
+  });
+});

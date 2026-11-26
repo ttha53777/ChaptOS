@@ -41,7 +41,7 @@ import { offeredShapeTypes, formsEnabled, kitEnabled, TALLY_METRICS, RANK_METRIC
 import { PLAYBOOK_KEYS } from "@/lib/ai-howto";
 import { noteTerms, noteExcerpts } from "@/lib/ai-text";
 import { FILE_TOOLS, FILE_TOOL_NAMES, FILE_TOOL_UI, runFileTool, withCitations, CITE_TAG_RE } from "@/lib/ai-file-tools";
-import type { AnswerCitation, AskBackArea, ReasonPanel } from "@/lib/api-types";
+import type { AnswerCitation, AnswerRowEvent, AskBackArea, ReasonPanel } from "@/lib/api-types";
 import type { FileToolContext } from "@/lib/ai-files";
 
 export { noteTerms, noteExcerpts };
@@ -1045,7 +1045,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                 ask:      { type: "string", description: "Follow-up question to send if the user taps this row." },
                 tier:     { type: "string", enum: ["high", "medium", "later"], description: "ADVISORY ONLY: impact. Rows are ranked, so tiers must never improve further down the list." },
                 screen:   { type: "string", enum: ["dashboard", "roster", "events", "attendance", "tasks", "treasury", "dues", "service", "instagram", "parties", "docs", "settings"], description: "ADVISORY ONLY: which screen this change lives on. Tapping the row navigates there." },
-                ...(formsEnabled() ? { date: { type: "string", description: "The record's YYYY-MM-DD date, for dated records." } } : {}),
+                date:     { type: "string", description: "The record's YYYY-MM-DD date, for dated records (events, deadlines). Always set it on event rows: it tells same-named meetings apart." },
                 ...(kitEnabled() ? { panel: { type: "string", enum: [...REASON_PANEL_KEYS], description: "shape reasons only: what this reason rests on (gauge = the % vs the bar, strip = specific meetings, rest = the rest of their record)." } } : {}),
               },
               required: ["kind", "title"],
@@ -1153,6 +1153,8 @@ export interface AnswerRow {
    * results. See lib/ai-refs.
    */
   ref?: { type: "member" | "event" | "task" | "transaction"; id: number };
+  /** Server-attached with an event ref: the event's date and, when read this turn, its turnout. See lib/ai-refs. */
+  event?: AnswerRowEvent;
   /**
    * Impact tier for an advisory row, rendered in the same mono slot a data row
    * uses for its figure. Advisory rows are RANKED — that order is the argument —
@@ -1175,8 +1177,9 @@ export interface AnswerRow {
   cite?: string[];
   /**
    * The record's own date (YYYY-MM-DD), when the model gave one. Only used to
-   * tell same-titled records apart (nine "Chapter Meeting"s) when a shape picks
-   * its set from this turn's reads; stripped before the wire.
+   * tell same-titled records apart (nine "Chapter Meeting"s) — when attaching
+   * refs and when a shape picks its set from this turn's reads; stripped before
+   * the wire (the attested date rides on `event` instead).
    */
   date?: string;
 }

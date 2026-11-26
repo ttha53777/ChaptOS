@@ -60,6 +60,21 @@ export interface AnswerRow {
   citations?: AnswerCitation[];
   /** Reasons answers only: which part of the case file this reason rests on. */
   panel?: ReasonPanel;
+  /**
+   * Server-attested facts about an event row (from this turn's reads, never the
+   * model's text): its date, and its turnout when attendance was read — `null`
+   * when it wasn't. A turnout of all zeros means nothing has been logged.
+   */
+  event?: AnswerRowEvent;
+}
+
+/** Turnout as attendance counts it: an approved excuse is neither present nor absent. */
+export interface AnswerRowTurnout { attended: number; absent: number; excused: number }
+
+export interface AnswerRowEvent {
+  /** YYYY-MM-DD. */
+  date: string;
+  turnout: AnswerRowTurnout | null;
 }
 
 /** The colour of an answer's one mark: on track, needs attention, neutral, your own record, Chapt asking or drafting. */
