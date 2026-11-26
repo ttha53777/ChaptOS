@@ -55,8 +55,9 @@ interface ClientMessage {
 // note_refs  { refs: [{ text, ref }] }      — after a plain-text reply: names in it that are records
 //                                             this turn read (lib/ai-refs noteRefs)
 // done       {}
-// The client renders steps as the reasoning ledger (pending → active → done on a
-// ruled margin) and keeps a standing "Composing the answer" line.
+// The client renders steps as the working line (chat/WorkingLine.tsx): one chip
+// per record, pending → reading → read with its finding, under a status line
+// that says "Writing the answer" once `composing` arrives.
 //
 // Step ids are `${iter}:${rawDeltaIndex}` — the RAW tool_calls delta index, never
 // a position in a filtered array. A compacted index would drift the instant any

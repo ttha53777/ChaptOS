@@ -213,15 +213,13 @@
 .chat-root .askback .chiprow { display: flex; flex-wrap: wrap; gap: 7px; }
 
 /* Sources / Consulted chips (the SAME chip component). */
-.chat-root .sources, .chat-root .consulted { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
-.chat-root .consulted { margin-top: 15px; }
-.chat-root .sources .lbl, .chat-root .consulted .lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.chat-root .sources { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.chat-root .sources .lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
 .chat-root .src {
   display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--ink-soft);
   border: 1px solid var(--line); border-radius: 7px; padding: 3px 8px;
 }
 .chat-root .src i { width: 4px; height: 4px; border-radius: 50%; background: var(--vio); display: inline-block; }
-.chat-root .src.chip-in { animation: cs-chip-pop .34s var(--spring) both; }
 @keyframes cs-chip-pop { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: none; } }
 
 /* Follow-up chips + feedback */
@@ -258,62 +256,11 @@
 .chat-root .fbtn:hover { border-color: var(--vio-line); color: var(--vio); }
 .chat-root .fbtn.on { border-color: var(--vio-line); color: var(--vio); background: var(--vio-bg); }
 
-/* ── Reasoning ledger — the thinking made legible ────────────────────────── */
+/* Shared spinners (the working line has its own: chat/working-line.css). */
 @keyframes cs-spin { to { transform: rotate(360deg); } }
 @keyframes cs-halo { 0% { transform: scale(1); opacity: .5; } 100% { transform: scale(3.6); opacity: 0; } }
 
-.chat-root .reason { padding: 2px 0; }
-.chat-root .reason-intent { display: flex; align-items: center; gap: 11px; }
-.chat-root .reason-intent .pulse { position: relative; width: 7px; height: 7px; flex-shrink: 0; }
-.chat-root .reason-intent .pulse i { position: absolute; inset: 0; border-radius: 50%; background: var(--vio); }
-.chat-root .reason-intent .pulse::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--vio); animation: cs-halo 1.7s var(--ease) infinite; }
-.chat-root .reason-intent .lbl { font-family: var(--serif); font-style: italic; font-size: 15.5px; letter-spacing: -.01em; color: var(--ink-soft); }
-.chat-root .reason-intent .count { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
-
-.chat-root .ledger { margin-top: 15px; position: relative; display: flex; flex-direction: column; }
-.chat-root .ledger::before { content: ''; position: absolute; left: 7px; top: 13px; bottom: 15px; width: 1px; background: var(--line); }
-.chat-root .lstep { position: relative; display: flex; align-items: flex-start; gap: 13px; padding: 5px 0; }
-.chat-root .lstep .node { position: relative; z-index: 1; width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; display: grid; place-items: center; }
-.chat-root .lstep .node .dot  { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--faint); background: var(--paper); box-sizing: border-box; }
-.chat-root .lstep .node .arc  { width: 15px; height: 15px; border: 1.5px solid var(--vio-line); border-top-color: var(--vio); border-radius: 50%; animation: cs-spin .7s linear infinite; box-shadow: 0 0 0 4px var(--vio-glow); }
-.chat-root .lstep .node .disc { width: 15px; height: 15px; border-radius: 50%; background: var(--vio-bg); border: 1.5px solid var(--vio-line); color: var(--vio); display: grid; place-items: center; }
 .chat-root .arc.sm { width: 12px; height: 12px; border: 1.5px solid var(--vio-line); border-top-color: var(--vio); border-radius: 50%; animation: cs-spin .7s linear infinite; display: inline-block; }
-
-.chat-root .lstep .lmain { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 12px; }
-.chat-root .lstep .lverb { font-family: var(--sans); font-size: 13.5px; letter-spacing: -.005em; color: var(--muted); transition: color .25s var(--ease); }
-.chat-root .lstep.active  .lverb { color: var(--ink); }
-.chat-root .lstep.done    .lverb { color: var(--ink-soft); }
-.chat-root .lstep.pending .lverb { color: var(--faint); }
-.chat-root .lstep .lfind { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.chat-root .lstep .lfind em { color: var(--vio); font-style: normal; }
-.chat-root .lstep.active .lfind { color: var(--vio); }
-
-.chat-root .lstep-in { animation: cs-lstep-in .32s var(--ease) both; }
-@keyframes cs-lstep-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
-/* A finding slides in from the right toward the margin, landing hot and cooling
-   into the record — the mock gets that violet from the step still spinning; here
-   the figure is already final, so it cools instead of counting. */
-.chat-root .lfind.fin-in { animation: cs-fin-in .34s var(--ease) both, cs-fin-cool .55s var(--ease) both; }
-@keyframes cs-fin-in { from { opacity: 0; transform: translateX(7px); } to { opacity: 1; transform: none; } }
-@keyframes cs-fin-cool { from { color: var(--vio); } to { color: var(--ink-soft); } }
-
-/* The deliberation lifts away as the answer takes its place. */
-.chat-root .reason-out { animation: cs-resolve-out .18s var(--ease) both; }
-@keyframes cs-resolve-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-6px); } }
-
-/* ── Trace — the reasoning persists, collapsed, above the answer ─────────── */
-.chat-root .trace { margin-bottom: 15px; }
-.chat-root .trace-toggle {
-  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; background: transparent; border: 0;
-  padding: 3px 0; max-width: 100%; font-family: var(--mono); font-size: 10px; letter-spacing: .03em;
-  color: var(--faint); transition: color .15s; text-align: left;
-}
-.chat-root .trace-toggle:hover { color: var(--muted); }
-.chat-root .trace-toggle .tk { color: var(--ok); display: inline-flex; flex-shrink: 0; }
-.chat-root .trace-toggle .cv { display: inline-flex; flex-shrink: 0; transition: transform .2s var(--ease); }
-.chat-root .trace.open .trace-toggle .cv { transform: rotate(90deg); }
-.chat-root .trace-body { margin: 11px 0 2px; padding: 13px 14px; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--card-2); animation: cs-fin-in .28s var(--ease) both; }
-.chat-root .trace-body .ledger { margin-top: 0; }
 
 /* ── Writ card — propose-then-commit ─────────────────────────────────────── */
 .chat-root .writ { margin-top: 14px; border: 1px solid var(--line-med); border-radius: 15px; background: var(--card-2); overflow: hidden; }

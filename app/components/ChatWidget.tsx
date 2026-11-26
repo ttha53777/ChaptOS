@@ -22,7 +22,7 @@ import { useChapter } from "../context/ChapterContext";
 import { IcAlert, IcArrow, IcCal, IcClip, IcCoin, IcFlag, IcMic, IcRedo, IcSend, IcStop, IcUsers } from "./chat/icons";
 import { Slip } from "./chat/Slip";
 import { MarkdownLite } from "./chat/MarkdownLite";
-import { LedgerHandoff, ReasoningLedger, TraceBlock } from "./chat/ReasoningLedger";
+import { AnswerSkeleton, MarkedQuestion, WorkingLine } from "./chat/WorkingLine";
 import { AnswerBlock } from "./chat/AnswerBlock";
 import { PeekSheet, type PeekSeed } from "./chat/PeekSheet";
 import { EventIdeaPanel, type EventIdeaSeed } from "./chat/EventIdeaPanel";
@@ -38,7 +38,7 @@ import { ExcerptSheet } from "./chat/ExcerptSheet";
 import { parseCitations } from "./chat/CitationChips";
 import { refreshDuesStandings } from "../hooks/useDuesStandings";
 import { dropOtherPeoplesChats } from "../lib/local-session";
-import { dropProvisional, intentFor, planFor, reconcileStep, settleLedger } from "./chat/intent";
+import { dropProvisional, intentFor, planFor, reconcileStep, settleHalted, settleLedger } from "./chat/intent";
 import {
   newId,
   rowAction,
@@ -96,6 +96,15 @@ const APPROVED_TEXT_BY_ACTION: Record<string, string> = {
 
 function approvedText(card: ProposalCard): string {
   return APPROVED_TEXT_BY_ACTION[card.action] ?? APPROVED_TEXT[card.display.kind] ?? "Approved.";
+}
+
+/**
+ * Stamp how long the turn took, once: the first thing that replaces the
+ * working line's placeholder (an answer, prose, a card) or the end of the turn
+ * if nothing did. Kept on the message so the settled trace can say it.
+ */
+function stampElapsed(m: ChatMessage): ChatMessage {
+  return m.elapsedMs !== undefined || !m.startedAt ? m : { ...m, elapsedMs: Date.now() - m.startedAt };
 }
 
 /** Text a message contributes to the request history (the server wants prose). */
@@ -512,6 +521,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
       content: "",
       steps: planFor(trimmed),
       intent: intentFor(trimmed),
+      startedAt: Date.now(),
     };
     const payloadHistory = [...messagesRef.current, userMsg]
       .map(m => ({ role: m.role, content: messageText(m) }))
@@ -623,14 +633,14 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                 ? { shape: a.shape }
                 : {}),
             };
-            patchMessage(aid, m => ({ ...m, answer, steps: settleLedger(m.steps) }));
+            patchMessage(aid, m => stampElapsed({ ...m, answer, steps: settleLedger(m.steps) }));
           }
         } else if (event === "text") {
           flushStage();
           const delta = (parsed as { delta?: string }).delta ?? "";
           // After a notice, the text is that status written for older clients —
           // the slip already says it.
-          patchMessage(aid, m => (m.notice ? m : { ...m, content: m.content + delta, steps: settleLedger(m.steps) }));
+          patchMessage(aid, m => (m.notice ? m : stampElapsed({ ...m, content: m.content + delta, steps: settleLedger(m.steps) })));
         } else if (event === "notice") {
           flushStage();
           const kind = (parsed as { kind?: string }).kind;
@@ -662,11 +672,11 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
               iat: typeof p.iat === "number" ? p.iat : Date.now(),
               state: "pending",
             };
-            patchMessage(aid, m => ({ ...m, proposals: [...(m.proposals ?? []), card] }));
+            patchMessage(aid, m => stampElapsed({ ...m, proposals: [...(m.proposals ?? []), card] }));
           }
         } else if (event === "done") {
           flushStage();
-          patchMessage(aid, m => ({ ...m, steps: settleLedger(m.steps), composing: false }));
+          patchMessage(aid, m => stampElapsed({ ...m, steps: settleLedger(m.steps), composing: false }));
           break;
         }
       }
@@ -675,11 +685,11 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
       if ((e as { name?: string })?.name === "AbortError") {
         // Stopped by the user — keep whatever arrived, mark the turn stopped,
         // and remember how far it got before the ledger settles.
-        patchMessage(aid, m => ({
+        patchMessage(aid, m => stampElapsed({
           ...m,
           stopped: true,
           stoppedAfter: (m.steps ?? []).filter(s => !s.provisional && s.status === "done").length,
-          steps: settleLedger(m.steps),
+          steps: settleHalted(m.steps),
           composing: false,
         }));
       } else {
@@ -687,7 +697,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
         // Where it broke: the source the active step was reading, if any.
         patchMessage(aid, m => {
           const at = (m.steps ?? []).find(s => !s.provisional && s.status === "active")?.source;
-          return { ...m, error: at ? { at } : {}, steps: settleLedger(m.steps), composing: false };
+          return stampElapsed({ ...m, error: at ? { at } : {}, steps: settleHalted(m.steps), composing: false });
         });
       }
     } finally {
@@ -1037,9 +1047,11 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                 <div ref={threadRef} className="cs-thread" aria-live="polite" onScroll={onThreadScroll}>
                   {messages.map((m, mi) => {
                     if (m.role === "user") {
+                      // Its reply is the live turn: mark what the guess keyed on.
+                      const replyLive = streaming && messages[mi + 1] === lastMsg;
                       return (
                         <div key={m.id} className="msg user send-in">
-                          {m.content}
+                          <MarkedQuestion text={m.content} live={replyLive} />
                           {m.attachments?.length ? (
                             <span className="msg-files">
                               <IcClip size={12} />{m.attachments.join(", ")}
@@ -1052,101 +1064,101 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                     // The question this turn answered — what Try again and Finish it re-send.
                     const asked = messages[mi - 1]?.role === "user" ? messages[mi - 1].content : undefined;
                     const drafted = m.proposals?.filter(p => p.state === "pending" && p.perm.canApprove).length ?? 0;
-                    const showLedgerLive = isLive && !m.answer && !m.content && (!m.proposals || m.proposals.length === 0);
+                    const answered = !!m.answer || !!m.content || (m.proposals?.length ?? 0) > 0;
                     return (
                       <div key={m.id} className="msg ai think-in">
                         <div className="who"><i />Ask Chapt</div>
-                        {/* The deliberation lifts away first; the answer mounts
-                            into the space it left, never on top of it. */}
-                        <LedgerHandoff
-                          showLedger={showLedgerLive}
-                          ledger={
-                            <ReasoningLedger
-                              steps={m.steps ?? []}
-                              intent={m.intent ?? "Consulting the records…"}
-                              composing={m.composing}
-                            />
-                          }
-                          body={
-                            <>
-                              {m.answer && (
-                                <AnswerBlock
-                                  answer={m.answer}
-                                  steps={m.steps ?? []}
-                                  selectedRow={m === lastAnswer ? selRow : -1}
-                                  feedback={m.feedback}
-                                  onAsk={q => void sendMessage(q)}
-                                  onPeek={openPeek}
-                                  onNav={navRow}
-                                  onIdea={openIdea}
-                                  onFeedback={v => giveFeedback(m, v)}
-                                  onCite={openCite}
-                                />
-                              )}
-                              {!m.answer && m.content && (
-                                <>
-                                  {(m.steps?.length ?? 0) > 0 && <TraceBlock steps={m.steps!} />}
-                                  <MarkdownLite
-                                    text={m.content}
-                                    trailing={isLive ? <span className="cs-caret" aria-hidden /> : undefined}
-                                    refs={m.noteRefs}
-                                    onRef={r => openPeek({ kind: r.ref.type === "member" ? "person" : r.ref.type === "transaction" ? "money" : r.ref.type, title: r.text, ref: r.ref })}
-                                  />
-                                </>
-                              )}
-                              {!m.answer && !m.content && !isLive && (m.steps?.length ?? 0) > 0 && <TraceBlock steps={m.steps!} />}
-                              {/* Status is a slip, never a line of prose that reads like the answer. */}
-                              {!isLive && m.stopped && !m.answer && (
-                                <Slip
-                                  tone="now"
-                                  dashed
-                                  icon={<IcStop size={12} />}
-                                  title={m.stoppedAfter
-                                    ? `You stopped it after ${m.stoppedAfter} ${m.stoppedAfter === 1 ? "check" : "checks"}.`
-                                    : "You stopped it."}
-                                  action={asked ? { label: "Finish it", icon: <IcArrow />, onClick: () => void sendMessage(asked) } : undefined}
-                                >
-                                  {m.content ? "That's as far as it got. Nothing was changed." : "No answer yet. Nothing was changed."}
-                                </Slip>
-                              )}
-                              {!isLive && m.notice && !m.answer && (
-                                <Slip
-                                  tone={m.notice.kind === "cut_short" ? "now" : "watch"}
-                                  icon={<IcAlert size={14} />}
-                                  title={m.notice.kind === "timeout" ? "That took too long and timed out." : m.notice.kind === "error" ? "Something went wrong on my end." : "That answer was cut short."}
-                                  action={asked && m.notice.kind !== "cut_short" ? { label: "Try again", icon: <IcRedo />, onClick: () => void sendMessage(asked) } : undefined}
-                                >
-                                  {m.notice.kind === "cut_short" ? "Ask about a narrower part to see the rest." : "Nothing was changed."}
-                                </Slip>
-                              )}
-                              {!isLive && m.error && !m.answer && (
-                                <Slip
-                                  tone="watch"
-                                  icon={<IcAlert size={14} />}
-                                  title={m.error.at ? `Lost the connection while reading ${m.error.at}.` : "Lost the connection."}
-                                  action={asked ? { label: "Try again", icon: <IcRedo />, onClick: () => void sendMessage(asked) } : undefined}
-                                >
-                                  Nothing was changed.
-                                </Slip>
-                              )}
-                              {m.proposals?.map(card => (
-                                <WritCard
-                                  key={card.id}
-                                  card={card}
-                                  onApprove={c => void approveProposal(m.id, c)}
-                                  onDiscard={c => discardProposal(m.id, c)}
-                                  onEdit={(c, payload, rows) => editProposal(m.id, c, payload, rows)}
-                                  choices={choices}
-                                />
-                              ))}
-                              {!isLive && drafted > 0 && (
-                                <Slip tone="chapt" icon={<IcFlag size={14} />} title={drafted === 1 ? "Drafted, not sent." : `${drafted} changes drafted, none sent.`}>
-                                  {drafted === 1 ? "Nothing changes until you approve the card above." : "Nothing changes until you approve the cards above."}
-                                </Slip>
-                              )}
-                            </>
-                          }
+                        {/* The working line stays put for the whole turn: its
+                            status becomes the trace, its chips the record of
+                            what was read, and the placeholder below holds the
+                            verdict's space — nothing above the reader moves. */}
+                        <WorkingLine
+                          steps={m.steps ?? []}
+                          intent={m.intent ?? "Searching the records…"}
+                          composing={m.composing}
+                          live={isLive}
+                          startedAt={m.startedAt}
+                          elapsedMs={m.elapsedMs}
+                          stopped={m.stopped}
+                          failed={!!m.error || !!m.notice}
+                          answered={answered}
                         />
+                        {isLive && !answered && <AnswerSkeleton writing={!!m.composing} />}
+                        <>
+                          {m.answer && (
+                            <AnswerBlock
+                              answer={m.answer}
+                              steps={m.steps ?? []}
+                              selectedRow={m === lastAnswer ? selRow : -1}
+                              feedback={m.feedback}
+                              onAsk={q => void sendMessage(q)}
+                              onPeek={openPeek}
+                              onNav={navRow}
+                              onIdea={openIdea}
+                              onFeedback={v => giveFeedback(m, v)}
+                              onCite={openCite}
+                            />
+                          )}
+                          {!m.answer && m.content && (
+                            <>
+                              <MarkdownLite
+                                text={m.content}
+                                trailing={isLive ? <span className="cs-caret" aria-hidden /> : undefined}
+                                refs={m.noteRefs}
+                                onRef={r => openPeek({ kind: r.ref.type === "member" ? "person" : r.ref.type === "transaction" ? "money" : r.ref.type, title: r.text, ref: r.ref })}
+                              />
+                            </>
+                          )}
+                          {/* Status is a slip, never a line of prose that reads like the answer. */}
+                          {!isLive && m.stopped && !m.answer && (
+                            <Slip
+                              tone="now"
+                              dashed
+                              icon={<IcStop size={12} />}
+                              title={m.stoppedAfter
+                                ? `You stopped it after ${m.stoppedAfter} ${m.stoppedAfter === 1 ? "check" : "checks"}.`
+                                : "You stopped it."}
+                              action={asked ? { label: "Finish it", icon: <IcArrow />, onClick: () => void sendMessage(asked) } : undefined}
+                            >
+                              {m.content ? "That's as far as it got. Nothing was changed." : "No answer yet. Nothing was changed."}
+                            </Slip>
+                          )}
+                          {!isLive && m.notice && !m.answer && (
+                            <Slip
+                              tone={m.notice.kind === "cut_short" ? "now" : "watch"}
+                              icon={<IcAlert size={14} />}
+                              title={m.notice.kind === "timeout" ? "That took too long and timed out." : m.notice.kind === "error" ? "Something went wrong on my end." : "That answer was cut short."}
+                              action={asked && m.notice.kind !== "cut_short" ? { label: "Try again", icon: <IcRedo />, onClick: () => void sendMessage(asked) } : undefined}
+                            >
+                              {m.notice.kind === "cut_short" ? "Ask about a narrower part to see the rest." : "Nothing was changed."}
+                            </Slip>
+                          )}
+                          {!isLive && m.error && !m.answer && (
+                            <Slip
+                              tone="watch"
+                              icon={<IcAlert size={14} />}
+                              title={m.error.at ? `Lost the connection while reading ${m.error.at}.` : "Lost the connection."}
+                              action={asked ? { label: "Try again", icon: <IcRedo />, onClick: () => void sendMessage(asked) } : undefined}
+                            >
+                              Nothing was changed.
+                            </Slip>
+                          )}
+                          {m.proposals?.map(card => (
+                            <WritCard
+                              key={card.id}
+                              card={card}
+                              onApprove={c => void approveProposal(m.id, c)}
+                              onDiscard={c => discardProposal(m.id, c)}
+                              onEdit={(c, payload, rows) => editProposal(m.id, c, payload, rows)}
+                              choices={choices}
+                            />
+                          ))}
+                          {!isLive && drafted > 0 && (
+                            <Slip tone="chapt" icon={<IcFlag size={14} />} title={drafted === 1 ? "Drafted, not sent." : `${drafted} changes drafted, none sent.`}>
+                              {drafted === 1 ? "Nothing changes until you approve the card above." : "Nothing changes until you approve the cards above."}
+                            </Slip>
+                          )}
+                        </>
                       </div>
                     );
                   })}

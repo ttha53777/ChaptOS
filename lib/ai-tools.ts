@@ -3828,7 +3828,7 @@ export function chatToolsFor(hasFiles: boolean): OpenAI.Chat.Completions.ChatCom
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Per-tool UI metadata — feeds the client's reasoning ledger.
+// Per-tool UI metadata — feeds the client's working line (verb, chip, finding).
 //
 // Each tool call the model makes renders as one ledger step: `verb` is the
 // step's line ("Checking payments"), `source` the Consulted/Sources chip label

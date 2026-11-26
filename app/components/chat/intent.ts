@@ -73,6 +73,49 @@ export function intentFor(question: string): string {
 }
 
 /**
+ * The spans of the question the guess keyed on, as [start, end) offsets into
+ * the ORIGINAL text, widened to whole words — so the user's own bubble can
+ * mark what we think the question is about while the turn is live.
+ *
+ * Only the winning guess's terms, because those are the only words that
+ * actually shaped anything on screen. No match → [] and nothing is marked.
+ */
+export function keywordsFor(question: string): Array<[number, number]> {
+  const guess = guessFor(question);
+  if (!guess) return [];
+  // Rebuild normalize()'s output alongside a map back to source offsets.
+  let norm = "";
+  const at: number[] = [];
+  let gap = true;
+  for (let i = 0; i < question.length; i++) {
+    const ch = question[i].toLowerCase();
+    if (/[a-z0-9]/.test(ch)) { norm += ch; at.push(i); gap = false; }
+    else if (!gap) { norm += " "; at.push(i); gap = true; }
+  }
+  const word = /[\p{L}\p{N}'’]/u;
+  const spans: Array<[number, number]> = [];
+  for (const term of guess.match) {
+    let from = 0;
+    for (let hit = norm.indexOf(term, from); hit !== -1; hit = norm.indexOf(term, from)) {
+      let s = at[hit];
+      let e = at[hit + term.length - 1] + 1;
+      while (s > 0 && word.test(question[s - 1])) s--;
+      while (e < question.length && word.test(question[e])) e++;
+      spans.push([s, e]);
+      from = hit + term.length;
+    }
+  }
+  spans.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const sp of spans) {
+    const last = merged[merged.length - 1];
+    if (last && sp[0] <= last[1]) last[1] = Math.max(last[1], sp[1]);
+    else merged.push([sp[0], sp[1]]);
+  }
+  return merged;
+}
+
+/**
  * Pending rows to show while the model decides. Empty when we can't tell —
  * an empty ledger is better than an invented one.
  */
@@ -121,4 +164,14 @@ export function settleLedger(steps: LedgerStep[] | undefined): LedgerStep[] {
   const changed = keep.length !== steps.length || keep.some(s => s.status !== "done");
   if (!changed) return steps;
   return keep.map(s => (s.status === "done" ? s : { ...s, status: "done" as const }));
+}
+
+/**
+ * Freeze the ledger of a turn that was cut off (Stop, a dropped connection).
+ * Unlike settleLedger, a step that was still running is DROPPED rather than
+ * settled: it never returned, so the trace mustn't list it as read. The slip
+ * names the record it broke on.
+ */
+export function settleHalted(steps: LedgerStep[] | undefined): LedgerStep[] {
+  return (steps ?? []).filter(s => !s.provisional && s.status === "done");
 }

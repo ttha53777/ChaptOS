@@ -1,8 +1,8 @@
 /* ── Paper aesthetic: Ask Chapt ────────────────────────────────────────────────
    The ⌘K spotlight (app/components/chat-spotlight.css + app/components/chat/*)
    drawn as the "Ask Chapt" section of _design/Dashboard Paper Mock.html: an
-   ink-bordered card on a hard lilac shadow, a reasoning ledger on a margin rule
-   with lilac nodes, rows in a ruled box, and the writ — every proposal card,
+   ink-bordered card on a hard lilac shadow, the working line (its own file:
+   chat/working-line.css), rows in a ruled box, and the writ — every proposal card,
    read-only or editable — as a ticket: ink border, pastel hard shadow (butter
    to approve, peach when blocked, sky when it only touches your own record),
    notched tear-line foot, and a rubber stamp once it settles.
@@ -79,43 +79,9 @@ html[data-aesthetic="paper"] .chat-root .msg.user {
 html[data-aesthetic="paper"] .chat-root .msg.ai .who { color: var(--muted); font-weight: 600; }
 html[data-aesthetic="paper"] .chat-root .msg.ai .who i { border-radius: 2px; transform: rotate(45deg); background: var(--pp-lilac-ink); }
 
-/* Reasoning ledger: a margin rule, lilac nodes that tick, findings posted on butter */
-html[data-aesthetic="paper"] .chat-root .reason-intent .pulse i,
-html[data-aesthetic="paper"] .chat-root .reason-intent .pulse::after,
 html[data-aesthetic="paper"] .chat-root .idea-why .iwait .pulse i,
 html[data-aesthetic="paper"] .chat-root .idea-why .iwait .pulse::after { background: var(--pp-lilac-ink); }
-html[data-aesthetic="paper"] .chat-root .reason-intent .lbl { font-family: var(--font-geist-sans); font-style: normal; font-weight: 600; font-size: 13.5px; color: var(--ink); }
-html[data-aesthetic="paper"] .chat-root .reason-intent .count { font-weight: 600; color: var(--muted); }
-html[data-aesthetic="paper"] .chat-root .ledger::before { left: 7px; width: 1.5px; background: var(--line-med); }
-html[data-aesthetic="paper"] .chat-root .lstep .node .dot { width: 15px; height: 15px; border: 1.5px solid var(--line-med); background: var(--card); }
-html[data-aesthetic="paper"] .chat-root .lstep .node .arc { border: 1.5px solid var(--pp-lilac-ink); border-top-color: transparent; box-shadow: 0 0 0 4px var(--pp-lilac-soft); }
-html[data-aesthetic="paper"] .chat-root .lstep .node .disc { background: var(--pp-lilac-ink); border-color: var(--pp-lilac-ink); color: var(--card); }
-html[data-aesthetic="paper"] .chat-root .lstep .lverb { font-size: 13.5px; color: var(--muted); }
-html[data-aesthetic="paper"] .chat-root .lstep.active .lverb { color: var(--ink); }
-html[data-aesthetic="paper"] .chat-root .lstep.done .lverb { color: var(--ink-soft); }
-html[data-aesthetic="paper"] .chat-root .lstep .lfind { font-size: 12px; color: var(--ink-soft); padding: 1px 7px; border-radius: 6px; }
-html[data-aesthetic="paper"] .chat-root .lstep .lfind em { color: var(--ink); font-weight: 600; }
-html[data-aesthetic="paper"] .chat-root .lstep.active .lfind { color: var(--ink); }
-html[data-aesthetic="paper"] .chat-root .lfind.fin-in { animation: cs-fin-in .34s var(--ease) both, pp-post 1.2s var(--pp-ease-out); }
-@keyframes pp-post {
-  0%, 35% { background: var(--pp-butter-soft); box-shadow: 0 0 0 1.5px var(--pp-butter-bd); }
-  100%    { background: transparent; box-shadow: 0 0 0 1.5px transparent; }
-}
 html[data-aesthetic="paper"] .chat-root .arc.sm { border-color: var(--pp-lilac-ink); border-top-color: transparent; border-width: 2px; }
-
-/* Trace: a dashed rule you can open */
-html[data-aesthetic="paper"] .chat-root .trace-toggle {
-  width: 100%; padding: 7px 0; border-bottom: 1px dashed var(--line-med); font-family: var(--font-geist-sans);
-  font-size: 12.5px; letter-spacing: 0; color: var(--muted);
-}
-html[data-aesthetic="paper"] .chat-root .trace-toggle:hover { color: var(--ink); }
-html[data-aesthetic="paper"] .chat-root .trace-toggle .tk {
-  width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--pp-lilac-soft); border: 1.5px solid var(--pp-lilac-bd); color: var(--pp-lilac-ink);
-}
-html[data-aesthetic="paper"] .chat-root .trace-toggle .tk svg { width: 9px; height: 9px; }
-html[data-aesthetic="paper"] .chat-root .trace-toggle .cv { margin-left: auto; }
-html[data-aesthetic="paper"] .chat-root .trace-body { border: 1.5px dashed var(--line-med); background: var(--paper-2); border-radius: 14px; }
 
 /* Answer */
 html[data-aesthetic="paper"] .chat-root .verdict {
@@ -238,7 +204,7 @@ html[data-aesthetic="paper"] .chat-root .src {
   border: 1.5px solid var(--line); border-radius: 999px; padding: 2px 9px; background: var(--paper);
 }
 html[data-aesthetic="paper"] .chat-root .src i { width: 6px; height: 6px; background: var(--pp-lilac-ink); }
-html[data-aesthetic="paper"] .chat-root :is(.sources, .consulted) .lbl,
+html[data-aesthetic="paper"] .chat-root .sources .lbl,
 html[data-aesthetic="paper"] .chat-root .feedback .fl {
   font-family: var(--font-geist-sans); font-size: 10px; font-weight: 700; letter-spacing: .1em; color: var(--muted);
 }

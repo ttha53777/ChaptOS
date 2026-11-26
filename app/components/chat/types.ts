@@ -111,12 +111,16 @@ export interface ChatMessage {
   role: "user" | "assistant";
   /** Plain-prose fallback (refusals, how-to, fast-path) — the serif note style. */
   content: string;
-  /** The reasoning ledger: live while streaming, then frozen as the trace. */
+  /** The steps the working line draws as chips: live while streaming, then the record of what was read. */
   steps?: LedgerStep[];
   /** Serif intent line for the live ledger, derived from the question client-side. */
   intent?: string;
   /** The model is writing the answer rather than calling tools (server-signalled). */
   composing?: boolean;
+  /** Client clock when the question went — drives the working line's timer. */
+  startedAt?: number;
+  /** Question → first thing that replaced the placeholder (or the end, if nothing did). */
+  elapsedMs?: number;
   /** Structured verdict+rows answer (compose_answer path). */
   answer?: AnswerData | null;
   proposals?: ProposalCard[];

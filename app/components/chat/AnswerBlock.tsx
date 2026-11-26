@@ -9,7 +9,6 @@
 import { useState, type CSSProperties } from "react";
 
 import { IcArrow, IcChev, IcPlus, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
-import { TraceBlock } from "./ReasoningLedger";
 import { ShapeBlock, isKnownShape } from "./shapes";
 import { PlanBlock, isPlanRows } from "./shapes/Plan";
 import { DrawerBlock, isDrawerRows } from "./shapes/Drawers";
@@ -19,14 +18,29 @@ import { AREA_TILE, AreaGlyph } from "./area-glyphs";
 import { initialsOf, rowAction, type AnswerCitation, type AnswerData, type AnswerRow, type AskBack, type AskBackQuestion, type LedgerStep } from "./types";
 import { EventStub, TurnoutStrip, eventState, titleWithoutDate } from "./EventBits";
 
+/**
+ * Words fade in one after another into the space the working line's placeholder
+ * was holding. Still React text — the delay is the only thing added.
+ */
+function Words({ text, from }: { text: string; from: number }) {
+  return (
+    <>
+      {text.split(/(\s+)/).map((w, i) => (!w || /^\s+$/.test(w)
+        ? w
+        : <span key={i} className="vw" style={{ animationDelay: `${Math.min(from + i, 40) * 14}ms` }}>{w}</span>))}
+    </>
+  );
+}
+
 function Verdict({ text }: { text: string }) {
   const m = /\*([^*]+)\*/.exec(text);
-  if (!m || m.index === undefined) return <p className="verdict in in-2">{text.replace(/\*/g, "")}</p>;
+  if (!m || m.index === undefined) return <p className="verdict"><Words text={text.replace(/\*/g, "")} from={0} /></p>;
   const before = text.slice(0, m.index);
   const after = text.slice(m.index + m[0].length).replace(/\*/g, "");
+  const n = (t: string) => t.split(/(\s+)/).length;
   return (
-    <p className="verdict in in-2">
-      {before}<em>{m[1]}</em>{after}
+    <p className="verdict">
+      <Words text={before} from={0} /><em><Words text={m[1]} from={n(before)} /></em><Words text={after} from={n(before) + n(m[1])} />
     </p>
   );
 }
@@ -323,9 +337,9 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
   };
   const shape = isKnownShape(answer.shape) ? answer.shape : null;
   const cited = answer.rows.some(r => r.citations?.length);
+  const consulted = new Set(steps.filter(s => !s.provisional && s.status === "done").map(s => s.source ?? s.verb));
   return (
     <div className={`answer t-${answerTone(answer)}`}>
-      <TraceBlock steps={steps} />
       <Verdict text={answer.verdict} />
       <CitationChips citations={answer.citations} onOpen={onCite} className="verdict-cites in in-2" />
       {shape && <ShapeBlock shape={shape} rows={answer.rows} h={{ selectedRow, act, onPeek, onAsk, onIdea }} renderRow={renderRow} />}
@@ -344,7 +358,10 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
           the same strip under every answer, whatever its body. */}
       <div className="in in-4">
         <div className="footing">
-          <SourcesRow sources={answer.sources} />
+          {/* The working line's chips already name what was read; the
+              server's list earns its row only when it adds to them (a file
+              the answer quotes, say). */}
+          {answer.sources.some(s => !consulted.has(s)) && <SourcesRow sources={answer.sources} />}
           <FeedbackRow value={feedback} onFeedback={onFeedback} />
         </div>
         {!answer.askback && answer.follows.length > 0 && (
