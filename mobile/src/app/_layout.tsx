@@ -18,6 +18,7 @@ import { forgetLetter, takeLetter, type Letter } from "~/entry/letter";
 import { UpdateScreen } from "~/entry/UpdateScreen";
 import { useEntry } from "~/entry/useEntry";
 import { isBelow } from "~/lib/version";
+import { PushRouting } from "~/push/routing";
 import { useChrome } from "~/shell/chrome";
 import { SheetHost } from "~/shell/sheets";
 import { ToastHost } from "~/shell/toast";
@@ -117,6 +118,7 @@ function Shell() {
               </Stack>
             </SheetHost>
             {letter && entry.kind === "ready" ? <JoinApproved letter={letter} onDone={() => setLetter(null)} /> : null}
+            {entry.kind === "ready" ? <PushRouting memberships={entry.me.memberships} /> : null}
             <ToastHost />
           </View>
         </EntryContext.Provider>

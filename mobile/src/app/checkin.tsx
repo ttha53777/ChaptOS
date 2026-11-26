@@ -11,18 +11,21 @@
  *                  counts you, or the phone is offline. The window is re-read so the
  *                  ticket shows what's really true.
  *   cancelled      rose VOID stamp, "not counted", no button
+ *   first time     after a check-in goes through, the one-time push offer (~/push/PushOffer)
  *
  * The live check-in comes from the cache the band filled (and the foreground prefetch),
  * so this opens instantly; it keeps polling while open.
  */
 import type { LiveCheckIn } from "@/lib/api-types";
 import { router } from "expo-router";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { ApiError, NetworkError, errorMessage } from "~/api/errors";
 import { refreshLive, setCheckedIn, useLiveCheckIn } from "~/data/home";
 import { CheckInTicket, type CheckInTicketHandle } from "~/moments/CheckInTicket";
 import { Avatar } from "~/paper/bits";
+import { setOnCheckInScreen } from "~/push";
+import { PushOffer } from "~/push/PushOffer";
 import { Button } from "~/paper/Button";
 import { Screen } from "~/shell/Screen";
 import { EmptyState, ErrorState, SkeletonCard } from "~/shell/states";
@@ -49,6 +52,8 @@ function refusal(e: unknown): { title: string; detail: string; short: string } {
 
 export default function CheckIn() {
   const live = useLiveCheckIn(true);
+  // A check-in push arriving while this screen is up doesn't banner over it.
+  useEffect(() => { setOnCheckInScreen(true); return () => setOnCheckInScreen(false); }, []);
   const done = () => (router.canGoBack() ? router.back() : router.replace("/"));
 
   return (
@@ -78,10 +83,13 @@ function Live({ live, fetchedAt }: { live: LiveCheckIn; fetchedAt: number }) {
   const { win, closingLabel } = windowView(live, fetchedAt, now);
   const face = ticketFace(live);
   const id = live.event.id;
+  // After a check-in goes through, offer push once (~/push/PushOffer).
+  const [justIn, setJustIn] = useState(false);
 
   async function checkIn() {
     try {
       await setCheckedIn(id, true);
+      setJustIn(true);
       // The ticket plays the undo when it's on screen; after Done, the toast's Undo still works.
       toast.show("You're checked in", {
         detail: live.event.title, tone: "mint",
@@ -126,6 +134,8 @@ function Live({ live, fetchedAt }: { live: LiveCheckIn; fetchedAt: number }) {
         onCheckIn={checkIn}
         onUndo={undo}
       />
+
+      <PushOffer when={justIn} />
 
       {win === "void" ? (
         <T v="meta" color={c.ink3}>{endedLine(live)}</T>

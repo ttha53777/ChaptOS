@@ -74,6 +74,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ["expo-splash-screen", { backgroundColor: "#FFFCF6", dark: { backgroundColor: "#15110D" } }],
     "expo-web-browser",
     "expo-secure-store",
+    // Push (app plan Phase 5): adds the iOS aps-environment entitlement and the
+    // Android small icon. Channels are created at runtime (src/push/index.ts),
+    // one per category; "default" catches the always-on "You're in".
+    ["expo-notifications", { icon: "./assets/android-icon-monochrome.png", color: "#15110D", defaultChannel: "default" }],
     ["expo-image-picker", {
       photosPermission: "Chapt uses your photos so you can pick a profile picture.",
       cameraPermission: "Chapt uses the camera so you can take a profile picture.",

@@ -49,6 +49,7 @@ Legend: ✅ matches the web phone · 🟡 built, but from the paper mocks rather
 | Billing | — | ⬜ by decision | Not in the app. |
 | Check-in | `app/checkin.tsx` | ⭐ | Opened from the Home live band. |
 | Yours: Attendance, Excuses, Dues, Reimbursements | `more/attendance`, `excuses`, `dues`, `reimbursements` | ⭐ | A second grid in More. |
+| Push notifications | `src/push/*`, `more/notifications` | ⭐ | App plan Phase 5 (2026-11-26). The web has no push. More → Notifications holds this phone's state and the chapter's category switches; the soft ask comes after the first check-in. |
 
 The 🟡 rows get a line-by-line diff (sections, copy, writes) when their phase starts, against the captures above. None has been changed yet.
 

@@ -200,6 +200,24 @@ and a reimbursement with a photo receipt reaches the web treasury.
 
 ## Phase 5 — Push notifications
 
+**Status 2026-11-26: BUILT** on branch `mobile-push` (two `feat(push)` commits: server, then app),
+dark behind `PUSH_ENABLED`. Choices made at build time, where they differ from or
+add to the plan below:
+- `PushDevice` is keyed by **authUserId**, not brotherId, so someone waiting on a
+  join request can register and still get "You're in". RLS is on with no policy;
+  only `lib/push/devices.ts` touches it, as `prismaPrivileged`.
+- Sends go through an outbox (`PushMessage`, unique `dedupeKey`). They run right
+  after the response via `after()`, plus a daily sweep (`/api/cron/push`, the Hobby
+  limit) for retries, expiry and receipts.
+- Categories: checkin, tasks (and polls), dues, attendance (excuse approved), and
+  requests (officer-only, new join requests, which pulls part of Phase 9 forward).
+  "You're in" always sends.
+- `calendar.notes_saved` sends nothing: it fires on every collaborative save.
+  **Meeting reminders are deferred.** They need a minute-level scheduler and
+  `Organization.timeZone` (nullable).
+- The permission ask comes after the first check-in, never on launch. Taps switch
+  org with `setActiveOrg`, then route.
+
 Server:
 - `PushDevice` table: `brotherId`, `token`, `platform`, `appVersion`, `lastSeenAt`,
   unique on token. It's identity-level (one device serves all a person's orgs), so

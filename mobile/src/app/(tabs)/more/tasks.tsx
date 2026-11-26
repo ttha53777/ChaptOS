@@ -11,12 +11,14 @@
  *   votes     Votes + New poll / "N open", the vote cards; a question opens the ballot
  *   day one   no tasks and no polls: "Nothing to do yet", the two little piles, one button
  *
+ * ?open=<taskId> / ?poll=<pollId> (from a push) opens that task's spotlight or poll's ballot.
  * Reads GET /api/tasks, GET /api/polls, GET /api/brothers (names, faces, role holders).
  * Sheets sit in slots, so opening one doesn't re-render the lists.
  */
 import type { Poll, Task } from "@/lib/api-types";
 import { canComplete, canVote, pollShelf, startOfToday, taskPiles, type Me } from "@/lib/tasks/list";
-import { useCallback, useMemo, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { usePolls, useRoster, useTasks } from "~/data/tasks";
 import { useEntryOf } from "~/entry/EntryContext";
@@ -48,6 +50,21 @@ export default function Tasks() {
   const doomedTask = useSlot<Task>();
   const doomedPoll = useSlot<Poll>();
   const today = useMemo(() => startOfToday(), []);
+  // A push opens a task's spotlight (?open=<id>) or a poll's ballot (?poll=<id>), once
+  // the list holding it has loaded; the param is then cleared so Back doesn't reopen it.
+  const params = useLocalSearchParams<{ open?: string; poll?: string }>();
+  useEffect(() => {
+    const id = Number(params.open);
+    if (!params.open || !tasks.data) return;
+    if (tasks.data.some(t => t.id === id)) spot.set(id);
+    router.setParams({ open: undefined });
+  }, [params.open, tasks.data, spot]);
+  useEffect(() => {
+    const id = Number(params.poll);
+    if (!params.poll || !polls.data) return;
+    if (polls.data.some(p => p.id === id)) ballot.set(id);
+    router.setParams({ poll: undefined });
+  }, [params.poll, polls.data, ballot]);
 
   const meRow = entry?.me ?? null;
   const me: Me = useMemo(() => ({ selfId: meRow?.id ?? null, myRoleIds: new Set((meRow?.roles ?? []).map(r => r.id)) }), [meRow]);

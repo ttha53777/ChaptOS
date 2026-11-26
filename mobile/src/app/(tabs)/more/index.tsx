@@ -15,7 +15,7 @@
  *   settings   under its own "Settings" rule: Chapter settings (everyone; its line names the
  *              sections you can open) and Invite people (MANAGE_SETTINGS; "approve requests"
  *              only with MANAGE_BROTHERS, which is what reviewing a join request needs)
- *   this phone Appearance (System · Day · Night) inline, Sign out; then Leave and Delete
+ *   this phone Appearance (System · Day · Night) inline, Notifications (more/notifications), Sign out; then Leave and Delete
  *              account, quiet, at the bottom
  *
  * Haptics: only on commits: an appearance change (Segmented) and a chapter switch
@@ -212,6 +212,12 @@ export default function More() {
             <Segmented label="Appearance" value={settings.appearance} onChange={v => settings.set({ appearance: v })}
               options={[{ value: "system", label: "System" }, { value: "day", label: "Day" }, { value: "night", label: "Night" }]} />
           </View>
+          <Pressable onPress={() => router.push("/more/notifications" as Href)} accessibilityRole="button" accessibilityHint="What this chapter can buzz you about"
+            style={({ pressed }) => [styles.row, { borderTopWidth: 1, borderTopColor: c.line, backgroundColor: pressed ? c.paper2 : "transparent" }]}>
+            <Icon name="megaphone" size={18} color={c.pastel.peach.ink} />
+            <T v="callout" style={{ flex: 1 }}>Notifications</T>
+            <Icon name="chev-r" size={14} color={c.ink3} />
+          </Pressable>
           <Pressable onPress={() => void signOutHere()} accessibilityRole="button"
             style={({ pressed }) => [styles.row, { borderTopWidth: 1, borderTopColor: c.line, backgroundColor: pressed ? c.paper2 : "transparent" }]}>
             <Icon name="out" size={18} color={c.pastel.sky.ink} />
