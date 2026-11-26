@@ -51,7 +51,13 @@ import { T } from "~/ui/T";
 
 const BROTHERS = 1 << 0, TREASURY = 1 << 1, ATTENDANCE = 1 << 6;
 type SortKey = "attendance" | "gpa" | "serviceHours" | "duesOwed";
-const SORT_LABEL: Record<SortKey, string> = { attendance: "attendance, lowest first", gpa: "GPA, lowest first", serviceHours: "hours, fewest first", duesOwed: "dues, most owed first" };
+type SortDir = "asc" | "desc";
+const SORT_LABEL: Record<SortKey, Record<SortDir, string>> = {
+  attendance: { asc: "attendance, lowest first", desc: "attendance, highest first" },
+  gpa: { asc: "GPA, lowest first", desc: "GPA, highest first" },
+  serviceHours: { asc: "hours, fewest first", desc: "hours, most first" },
+  duesOwed: { asc: "dues, least owed first", desc: "dues, most owed first" },
+};
 
 export default function Members() {
   const entry = useEntryOf("ready");
@@ -71,6 +77,7 @@ export default function Members() {
   const rosterY = useRef(0);
   const [filter, setFilter] = useState<StatusFilter>("All");
   const [sort, setSort] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [q, setQ] = useState("");
   // Which member's card / pay sheet is up lives outside the screen's state: opening one
   // then re-renders only its slot, not the whole roster under the sheet sliding up.
@@ -107,9 +114,9 @@ export default function Members() {
     if (!list || !t) return null;
     const out = filterRoster(list, dq, filter, t, measured);
     if (!sort) return out;
-    const dir = sort === "duesOwed" ? -1 : 1;
+    const dir = sortDir === "desc" ? -1 : 1;
     return [...out].sort((a, b) => (a[sort] - b[sort]) * dir || a.name.localeCompare(b.name));
-  }, [list, t, measured, dq, filter, sort]);
+  }, [list, t, measured, dq, filter, sort, sortDir]);
   const derived = useMemo(() => (summary0 && shown ? { ...summary0, shown } : null), [summary0, shown]);
 
   const openCard = useCallback((b: Brother) => cardSlot.set(b.id), [cardSlot]);
@@ -128,7 +135,8 @@ export default function Members() {
 
   const focus = (f: Focus) => {
     haptics.select();
-    if (f === "good") { setFilter("Good"); setSort(null); } else setSort(f);
+    // As the web's focusRoster: money owed sorts largest-first, the averages worst-first.
+    if (f === "good") { setFilter("Good"); setSort(null); } else { setSort(f); setSortDir(f === "duesOwed" ? "desc" : "asc"); }
     toRoster();
   };
   const exportCsv = async () => {
@@ -166,7 +174,7 @@ export default function Members() {
         {sort ? (
           <Animated.View entering={m.reduced ? undefined : FadeInDown.duration(180).reduceMotion(ReduceMotion.System)} style={styles.sortLine}>
             <Icon name="updown" size={13} color={c.ink3} />
-            <T v="callout" size={13} color={c.ink3} style={{ flex: 1 }}>{`Sorted by ${SORT_LABEL[sort]}`}</T>
+            <T v="callout" size={13} color={c.ink3} style={{ flex: 1 }}>{`Sorted by ${SORT_LABEL[sort][sortDir]}`}</T>
             <Pressable onPress={() => { haptics.select(); setSort(null); }} accessibilityRole="button" hitSlop={8}>
               <T v="callout" size={13} color={c.ink} style={{ fontWeight: "600" }}>Clear</T>
             </Pressable>
@@ -174,6 +182,12 @@ export default function Members() {
         ) : null}
         <RosterCard roster={list} shown={derived.shown} counts={derived.counts} t={t} tracked={tracked} measured={measured}
           nothingMeasured={nothingMeasured} filter={filter} onFilter={setFilter} q={q} onQ={setQ}
+          duesSort={sort === "duesOwed" ? sortDir : null}
+          onDuesSort={() => {
+            // The web's toggleSort: the same column flips, a new one starts ascending.
+            if (sort === "duesOwed") setSortDir(d => (d === "asc" ? "desc" : "asc"));
+            else { setSort("duesOwed"); setSortDir("asc"); }
+          }}
           lateDays={late} excuses={canAttendance ? excuses : null} canPay={canTreasury} onPay={openPay} onOpen={openCard}
           meId={me.id} myPhoto={me.avatarUrl ?? null} words={{ members, dues: duesWord, service: serviceWord }} />
       </View>

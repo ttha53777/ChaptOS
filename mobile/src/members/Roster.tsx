@@ -190,10 +190,11 @@ function Dim({ on, style, children }: { on: boolean; style?: object; children: R
 
 /* ── Roster ───────────────────────────────────────────────────────────────────── */
 
-export function RosterCard({ roster, shown, counts, t, tracked, measured, nothingMeasured, filter, onFilter, q, onQ, lateDays, excuses, canPay, onPay, onOpen, meId, myPhoto, words }: {
+export function RosterCard({ roster, shown, counts, t, tracked, measured, nothingMeasured, filter, onFilter, q, onQ, duesSort, onDuesSort, lateDays, excuses, canPay, onPay, onOpen, meId, myPhoto, words }: {
   roster: Brother[]; shown: Brother[]; counts: Record<StatusFilter, number>;
   t: Thresholds; tracked: TrackedMetrics; measured: TrackedMetrics; nothingMeasured: boolean;
   filter: StatusFilter; onFilter: (f: StatusFilter) => void; q: string; onQ: (q: string) => void;
+  duesSort: "asc" | "desc" | null; onDuesSort: () => void;
   lateDays: (id: number) => number; excuses: Record<number, number> | null;
   canPay: boolean; onPay: (b: Brother) => void; onOpen: (b: Brother) => void;
   meId: number; myPhoto: string | null; words: { members: string; dues: string; service: string };
@@ -240,7 +241,17 @@ export function RosterCard({ roster, shown, counts, t, tracked, measured, nothin
 
       <View style={[styles.thead, { backgroundColor: c.paper2, borderColor: c.line }]}>
         <T v="label" size={10.5} color={c.ink3} style={{ flex: 1 }}>Member</T>
-        {tracked.duesOwed ? <T v="label" size={10.5} color={c.ink3} style={{ width: 82, textAlign: "right" }}>{words.dues}</T> : null}
+        {tracked.duesOwed ? (
+          // The web phone's sortable Dues header: tap flips the order, the arrow shows it.
+          <Pressable onPress={() => { haptics.select(); onDuesSort(); }} hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+            accessibilityRole="button" accessibilityLabel={`Sort by ${words.dues}`}
+            accessibilityValue={{ text: duesSort === "asc" ? "ascending" : duesSort === "desc" ? "descending" : "not sorted" }}
+            style={({ pressed }) => [{ width: 82 }, pressed && pressedDim]}>
+            <T v="label" size={10.5} color={duesSort ? c.ink : c.ink3} style={{ textAlign: "right" }}>
+              {words.dues}{duesSort ? <T v="mono" size={10.5} color={c.pastel.lilac.ink}>{duesSort === "asc" ? " ↑" : " ↓"}</T> : null}
+            </T>
+          </Pressable>
+        ) : null}
         <T v="label" size={10.5} color={c.ink3} style={{ width: 70, textAlign: "right" }}>Status</T>
       </View>
 
