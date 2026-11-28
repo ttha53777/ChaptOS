@@ -3,16 +3,17 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { todayISO } from "@/lib/dates";
-import { IcClock, IcFlag, IcPin, IcTick } from "../icons";
-import { Affordance, RowButton, Sheet, addDays, catVars, dayNum, daysBetween, dowShort, fmtDay, iv, monShort, useSelectedScroll, type RowHandlers } from "./common";
+import { IcTick } from "../icons";
+import { Affordance, RowButton, addDays, catVars, dayNum, daysBetween, dowShort, fmtDay, iv, monShort, type RowHandlers } from "./common";
 import { rowAction, type AnswerRow, type WeekItem, type WeekShape } from "../types";
 import "./week.css";
 
 // ─── Week ───────────────────────────────────────────────────────────────────
-// A planner page (_design/Ask Chapt Week Answer Mock.html): the week's outline
-// as a strip, one ticket for what's next, then a card for everything else. "Next" and
-// its countdown are worked out here from the clock, never sent, so an answer
-// reopened from storage tomorrow still points at the right thing.
+// The paper week (_design/Ask Chapt Paper.html, "This week"): a day strip with a
+// dot per thing on it, one ticket for what's next, then a dated rail of the
+// whole week. "Next" and its countdown are worked out here from the clock,
+// never sent, so an answer reopened from storage tomorrow still points at the
+// right thing. The rail lines up 1:1 with `rows`, so keyboard selection walks it.
 
 /** "7:00 PM" / "19:00" → minutes past midnight; null for free text or no time. */
 function minutesOf(time: string | null): number | null {
@@ -24,15 +25,7 @@ function minutesOf(time: string | null): number | null {
   return h * 60 + Number(m[2] ?? 0);
 }
 
-/** The strip's chip: "7p", "8:30a", "due". */
-function chipLabel(it: WeekItem): string {
-  if (it.kind === "deadline") return "due";
-  const m = minutesOf(it.time);
-  if (m == null) return it.time ? it.time.slice(0, 6) : "all day";
-  const h = Math.floor(m / 60), min = m % 60;
-  return `${h % 12 || 12}${min ? `:${String(min).padStart(2, "0")}` : ""}${h < 12 ? "a" : "p"}`;
-}
-
+/** Category colours for an event; a deadline carries none and draws peach. */
 const itemVars = (it: WeekItem): CSSProperties => (it.cat && it.kind !== "deadline" ? catVars(it.cat.slug, it.cat.color, it.cat.colorDark) : {});
 
 function useNow(): Date {
@@ -55,13 +48,6 @@ function nextIndex(items: WeekItem[], today: string, nowMin: number): number {
   return timedToday >= 0 ? timedToday : items.findIndex(ahead);
 }
 
-/** "Tonight" / "Today" / "Tomorrow" / "Sat". */
-function whenLabel(it: WeekItem, today: string): string {
-  const n = daysBetween(today, it.date);
-  if (n === 0) return (minutesOf(it.time) ?? 0) >= 17 * 60 ? "Tonight" : "Today";
-  return n === 1 ? "Tomorrow" : dowShort(it.date);
-}
-
 /** The ticket's right edge: a clock countdown inside a day, a day count past it. */
 function countdown(it: WeekItem, today: string, nowMin: number): { big: string; small?: string } {
   const days = daysBetween(today, it.date);
@@ -75,59 +61,57 @@ function countdown(it: WeekItem, today: string, nowMin: number): { big: string; 
   }
   if (days <= 0) return { big: "Today" };
   if (days === 1) return { big: "Tomorrow" };
-  if (days < 14) return { big: `in ${days} days` };
-  return { big: `in ${Math.round(days / 7)} weeks` };
+  if (days < 14) return { big: `${days} days`, small: "from today" };
+  return { big: `${Math.round(days / 7)} weeks`, small: "from today" };
+}
+
+/** "7:00 PM · Library 204" / "Deadline · yours". */
+function factsOf(it: WeekItem): string {
+  if (it.kind === "deadline") return [it.cat ? "Deadline" : "Task", it.time, it.mine ? "yours" : null].filter(Boolean).join(" · ");
+  return [it.time ?? "All day", it.place ?? it.cat?.label].filter(Boolean).join(" · ");
 }
 
 function Tags({ it, past }: { it: WeekItem; past: boolean }) {
+  const went = past && it.attended === true;
+  if (!went && !(it.mine && it.kind !== "deadline") && !it.mandatory) return null;
   return (
     <span className="tg">
-      {past && it.attended === true && <span className="wkp-pill went"><IcTick size={10} />You were there</span>}
-      {it.mine && <span className="wkp-pill mine">Yours</span>}
-      {it.mandatory && !(past && it.attended === true) && <span className="wkp-stamp">Mandatory</span>}
+      {went && <span className="wk-pill went"><IcTick size={10} />You were there</span>}
+      {it.mine && it.kind !== "deadline" && <span className="wk-pill mine">Yours</span>}
+      {it.mandatory && !went && <span className="wk-stamp">Mandatory</span>}
     </span>
   );
 }
 
-function Ticket({ it, kicker, cd, ghost, selected = false, onOpen }: {
+function Ticket({ it, kicker, cd, ghost, onOpen }: {
   it: WeekItem;
   kicker: string;
   cd: { big: string; small?: string };
   ghost?: boolean;
-  /** Keyboard selection is on this item's row (it has no card of its own). */
-  selected?: boolean;
   onOpen?: () => void;
 }) {
-  const ref = useSelectedScroll<HTMLButtonElement>(selected);
   return (
     <button
-      ref={ref}
       type="button"
-      className={`wkp-next${ghost ? " ghost" : ""}${it.kind === "deadline" ? " due" : ""}${selected ? " sel" : ""}`}
+      className={`wk-ticket${ghost ? " ghost" : ""}${it.kind === "deadline" ? " due" : ""}`}
       style={itemVars(it)}
       disabled={!onOpen}
       onClick={onOpen}
     >
-      <span className="stub">
-        <span className="dw">{dowShort(it.date)}</span>
-        <span className="dn">{dayNum(it.date)}</span>
-        <span className="mo">{monShort(it.date)}</span>
+      <span className="tstub">
+        <small>{monShort(it.date)}</small>
+        <b>{dayNum(it.date)}</b>
+        <small>{dowShort(it.date)}</small>
       </span>
-      <span className="body">
-        <span className="kick">
+      <span className="tb">
+        <span className="k-cap">
           {kicker}
-          {it.mandatory && !ghost && <span className="wkp-stamp">Mandatory</span>}
+          {it.mandatory && !ghost && <span className="wk-stamp">Mandatory</span>}
         </span>
         <span className="ttl">{it.title}</span>
-        <span className="facts">
-          {it.kind === "deadline"
-            ? <span><IcFlag size={13} /><span className="tm">Due</span></span>
-            : it.time && <span><IcClock size={13} /><span className="tm">{it.time}</span></span>}
-          {it.place && <span><IcPin size={13} />{it.place}</span>}
-          {!it.place && it.cat && it.kind !== "deadline" && <span>{it.cat.label}</span>}
-        </span>
+        <span className="facts">{factsOf(it)}</span>
       </span>
-      <span className="cd"><b>{cd.big}</b>{cd.small && <span>{cd.small}</span>}</span>
+      <span className="cd"><b>{cd.big}</b>{cd.small && <small>{cd.small}</small>}</span>
     </button>
   );
 }
@@ -139,29 +123,19 @@ export function WeekSheet({ shape, rows, h }: { shape: WeekShape; rows: AnswerRo
   const days = Array.from({ length: 7 }, (_, i) => addDays(shape.start, i));
   const end = days[6];
   const [picked, setPicked] = useState<string | null>(null);
-  const agenda = useRef<HTMLDivElement | null>(null);
+  const rail = useRef<HTMLDivElement | null>(null);
 
-  // Items keep their index so each mark binds to its row (selection + action).
-  const byDay = new Map<string, Array<{ it: WeekItem; i: number }>>();
-  shape.items.forEach((it, i) => {
-    const list = byDay.get(it.date) ?? [];
-    list.push({ it, i });
-    byDay.set(it.date, list);
-  });
+  const byDay = new Map<string, WeekItem[]>();
+  for (const it of shape.items) byDay.set(it.date, [...(byDay.get(it.date) ?? []), it]);
 
   const next = nextIndex(shape.items, today, nowMin);
   const nextItem = next >= 0 ? shape.items[next] : null;
   const nextRow = next >= 0 ? rows[next] : undefined;
-  // Everything but what the ticket already says, one card each.
-  const cards = shape.items.map((it, i) => ({ it, i })).filter(c => c.i !== next);
-  const left = shape.items.filter(it => it.date >= today);
-  const events = left.filter(it => it.kind === "event").length;
-  const free = days.filter(d => d >= today && !byDay.has(d));
   const after = shape.after ?? null;
 
   const jump = (day: string) => {
     setPicked(day);
-    const el = agenda.current?.querySelector<HTMLElement>(`[data-day="${day}"]`)?.closest<HTMLElement>(".wkp-card");
+    const el = rail.current?.querySelector<HTMLElement>(`[data-day="${day}"]`)?.closest<HTMLElement>(".wk-row");
     if (!el) return;
     el.scrollIntoView({ block: "nearest", behavior: "smooth" });
     el.classList.remove("flash");
@@ -170,38 +144,26 @@ export function WeekSheet({ shape, rows, h }: { shape: WeekShape; rows: AnswerRo
   };
 
   return (
-    <Sheet
-      className="shp-wk"
-      kicker={`${fmtDay(shape.start)} – ${monShort(shape.start) === monShort(end) ? dayNum(end) : fmtDay(end)}`}
-      legend={shape.items.length > 1 && (
-        <>
-          {shape.items.some(it => it.mandatory) && <span><i className="k-mand" />Mandatory</span>}
-          {shape.items.some(it => it.kind === "deadline") && <span><i className="k-due" />Due</span>}
-          {free.length > 0 && <span><i className="k-free" />Free</span>}
-        </>
-      )}
-    >
-      <div className="wkp-strip">
+    <div className="shp shp-wk in in-3">
+      <div className="wk-strip">
         {days.map((day, k) => {
           const items = byDay.get(day) ?? [];
           const past = day < today;
-          const cls = `wkp-d${past ? " past" : ""}${day === today ? " today" : ""}${!past && !items.length ? " open" : ""}${picked === day ? " on" : ""}`;
+          const cls = `wk-day${past ? " past" : ""}${day === today ? " today" : ""}${items.length ? "" : " quiet"}${picked === day ? " on" : ""}`;
           return (
             <button
               key={day}
               type="button"
               className={cls}
               style={{ ["--k" as string]: k } as CSSProperties}
-              aria-label={`${dowShort(day)} ${fmtDay(day)}, ${items.length ? `${items.length} ${items.length === 1 ? "item" : "items"}` : "nothing on"}`}
+              aria-label={`${dowShort(day)} ${fmtDay(day)}, ${items.length ? `${items.length} ${items.length === 1 ? "thing" : "things"}` : "nothing on"}`}
+              aria-pressed={picked === day}
               onClick={() => jump(day)}
             >
-              <span className="dw">{dowShort(day)}</span>
-              <span className="dn">{dayNum(day)}</span>
-              <span className="pp">
-                {items.map(({ it, i }) => (
-                  <i key={i} className={`${it.kind === "deadline" ? "due" : ""}${it.mandatory ? " mand" : ""}`} style={itemVars(it)}><b>{chipLabel(it)}</b></i>
-                ))}
-                {!items.length && !past && <em>free</em>}
+              <small>{dowShort(day)}</small>
+              <b>{dayNum(day)}</b>
+              <span className="dots">
+                {items.slice(0, 4).map((it, i) => <i key={i} className={it.kind === "deadline" ? "due" : ""} style={itemVars(it)} />)}
               </span>
             </button>
           );
@@ -211,42 +173,43 @@ export function WeekSheet({ shape, rows, h }: { shape: WeekShape; rows: AnswerRo
       {nextItem && (
         <Ticket
           it={nextItem}
-          kicker={`Up next · ${whenLabel(nextItem, today)}`}
+          kicker={`Up next · ${nextItem.kind === "deadline" ? "deadline" : nextItem.cat?.label.toLowerCase() ?? "event"}`}
           cd={countdown(nextItem, today, nowMin)}
-          selected={next === h.selectedRow}
           onOpen={nextRow && rowAction(nextRow) ? () => h.act(nextRow) : undefined}
         />
       )}
+
       {shape.items.length === 0 && (
-        <div className="wkp-clear">
+        <div className="wk-clear">
           <b>{today > end ? "Nothing was on" : "Clear all week"}</b>
           <span>No events on the calendar, and no open tasks due.</span>
         </div>
       )}
 
-      {cards.length > 0 && (
-        <div className="wkp-cards" ref={agenda}>
-          {cards.map(({ it, i }, n) => {
+      {shape.items.length > 0 && (
+        <div className="wk-rail" ref={rail}>
+          {shape.items.map((it, i) => {
             const past = it.date < today;
+            const firstOfDay = shape.items.findIndex(x => x.date === it.date) === i;
             return (
               <RowButton
                 key={`${it.ref.type}-${it.ref.id}`}
                 row={rows[i]}
                 i={i}
                 h={h}
-                className={`wkp-card${it.kind === "deadline" ? " due" : ""}${past ? " gone" : ""}${it.date === today ? " today" : ""}`}
-                style={{ ...itemVars(it), ...iv(n) }}
+                className={`wk-row${it.kind === "deadline" ? " due" : ""}${past ? " gone" : ""}${it.date === today ? " today" : ""}${i === next ? " up" : ""}`}
+                style={{ ...itemVars(it), ...iv(i) }}
+                label={`${it.title}, ${dowShort(it.date)} ${fmtDay(it.date)}, ${factsOf(it)}`}
               >
-                <span className="dt" data-day={it.date}>
-                  <b>{it.date === today ? "Today" : dowShort(it.date)}</b>
-                  <i>{dayNum(it.date)}</i>
+                <span className="dt" {...(firstOfDay ? { "data-day": it.date } : {})}>
+                  {it.date === today ? "Today" : `${dowShort(it.date)} ${dayNum(it.date)}`}
                 </span>
-                <span className="bd">
-                  <span className="tm">{it.kind === "deadline" ? <><IcFlag size={12} />{it.time ?? "Due"}</> : it.time ?? "All day"}</span>
-                  <span className="t">{it.title}</span>
-                  <span className="s">{it.kind === "deadline" ? (it.cat ? "Deadline" : "Task") : it.place ?? it.cat?.label ?? ""}</span>
-                  <Tags it={it} past={past} />
+                <span className="cat" />
+                <span className="m">
+                  <b>{it.title}</b>
+                  <small>{factsOf(it)}</small>
                 </span>
+                <Tags it={it} past={past} />
                 <Affordance action={rows[i] ? rowAction(rows[i]) : null} />
               </RowButton>
             );
@@ -255,27 +218,17 @@ export function WeekSheet({ shape, rows, h }: { shape: WeekShape; rows: AnswerRo
       )}
 
       {after && today <= end && (
-        <Ticket
-          it={after}
-          ghost
-          kicker="After this week"
-          cd={countdown(after, today, nowMin)}
-          onOpen={() => h.onPeek({ kind: "event", title: after.title, ref: after.ref })}
-        />
+        <button
+          type="button"
+          className="wk-after"
+          style={itemVars(after)}
+          onClick={() => h.onPeek({ kind: "event", title: after.title, ref: after.ref })}
+        >
+          <span className="k-cap">After this week</span>
+          <span className="cat" />
+          <span className="m"><b>{after.title}</b><small>{dowShort(after.date)} {fmtDay(after.date)}{after.time ? ` · ${after.time}` : ""}</small></span>
+        </button>
       )}
-
-      <div className="wkp-foot">
-        <span><b>{events}</b> {events === 1 ? "event" : "events"} left</span>
-        <span><b>{left.length - events}</b> due</span>
-        <span><b>{left.filter(it => it.mandatory).length}</b> mandatory</span>
-        {today <= end && (
-          <span className="free">
-            Free: {free.length === 0 ? "no days" : free.length === 7 ? "all week" : free.length > 3 && daysBetween(free[0], free[free.length - 1]) === free.length - 1
-              ? `${dowShort(free[0])} – ${dowShort(free[free.length - 1])}`
-              : free.map(dowShort).join(" · ")}
-          </span>
-        )}
-      </div>
-    </Sheet>
+    </div>
   );
 }

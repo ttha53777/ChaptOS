@@ -100,13 +100,13 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
   // Short answers first, as plain viewport shots; the long one last, unclipped.
   const ORDER = ["light", "clear", "full"];
   for (const k of ORDER) {
-    await p.fill(".cs-dock textarea", `${k} week: what do I have this week?`);
+    await p.fill(".cs-spot textarea", `${k} week: what do I have this week?`);
     await p.keyboard.press("Enter");
     await p.waitForFunction(n => document.querySelectorAll(".shp-wk").length === n, ORDER.indexOf(k) + 1, { timeout: 20000 }).catch(() => console.log("MISSING", k));
     await p.waitForTimeout(2000);
     const sheet = p.locator(".shp-wk").last();
     await sheet.scrollIntoViewIfNeeded();
-    console.log(k, "sheet overflow:", await sheet.evaluate(el => el.scrollWidth - el.clientWidth), "strip cells:", await sheet.locator(".wkp-d").count());
+    console.log(k, "sheet overflow:", await sheet.evaluate(el => el.scrollWidth - el.clientWidth), "strip cells:", await sheet.locator(".wk-day").count());
     if (k !== "full") {
       await sheet.evaluate(el => el.closest(".answer, .msg")?.scrollIntoView({ block: "start" }));
       await p.waitForTimeout(300);
@@ -118,8 +118,8 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     await p.waitForTimeout(200);
     await sheet.screenshot({ path: `${OUT}/${k}-${THEME}-${W}.png` });
   }
-  await p.locator(".shp-wk").last().locator(".wkp-d").nth(Math.min(6, todayIdx + 1)).dispatchEvent("click");
-  console.log("picked:", await p.locator(".shp-wk").last().locator(".wkp-d.on").count(), "flash:", await p.locator(".wkp-card.flash").count());
+  await p.locator(".shp-wk").last().locator(".wk-day").nth(Math.min(6, todayIdx + 1)).dispatchEvent("click");
+  console.log("picked:", await p.locator(".shp-wk").last().locator(".wk-day.on").count(), "flash:", await p.locator(".wk-row.flash").count());
   console.log("page overflow:", await p.evaluate(() => document.documentElement.scrollWidth - innerWidth), "errors", errors);
   await b.close();
   process.exit(0);
