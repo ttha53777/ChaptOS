@@ -50,6 +50,18 @@
   html[data-aesthetic] body .chat-root[data-scene="briefing"] .cs-bar .tick,
   html[data-aesthetic] body .chat-root[data-scene="briefing"] .cs-bar .title { visibility: visible; }
   html[data-aesthetic] body .chat-root .cs-bar .title { font-size: 16px; }
+  /* The mark beside the tick, left of the title (28px; the bubbles rise into the bar's padding). */
+  html[data-aesthetic] body .chat-root .cs-mark { width: 28px; height: 28px; flex: none; display: grid; place-items: center; overflow: visible; }
+  /* Title, Approvals and New stay one line each with the mark in the bar. */
+  html[data-aesthetic] body .chat-root .cs-bar :is(.title, .apprchip, .newq) { white-space: nowrap; }
+  html[data-aesthetic] body .chat-root .cs-bar .title { margin-left: 0; }
+  /* Under 360px (first-gen SE) the decorative tick gives its room to the mark. */
+  @media (max-width: 359px) {
+    html[data-aesthetic] body .chat-root .cs-bar { gap: 4px; padding-left: 6px; padding-right: 8px; }
+    html[data-aesthetic] body .chat-root .cs-bar .tick { display: none; }
+    html[data-aesthetic] body .chat-root .cs-close { width: 34px; }
+    html[data-aesthetic] body .chat-root .cs-bar :is(.apprchip, .newq) { padding: 0 8px; }
+  }
   html[data-aesthetic] body .chat-root .cs-bar :is(.apprchip, .newq) { min-height: 34px; padding: 0 12px; }
 
   /* ── Composer: docked on the keyboard ─────────────────────────────────── */

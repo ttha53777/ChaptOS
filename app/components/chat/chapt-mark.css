@@ -1,0 +1,143 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   The Ask Chapt mark (ChaptMark.tsx) — poses and loops from
+   _design/Ask Chapt Talking Tile.html. Kept in a component file, not
+   app/globals.css, which the dev server has served stale before.
+
+   One SVG, every state a data-state on it. Wrappers that *transition* to a
+   pose (.cmk-pose, .cmk-look, .cmk-eye) are kept apart from wrappers that
+   *loop* inside them (.cmk-motion, .cmk-drift, .cmk-blink), so leaving a state
+   eases out of its pose instead of snapping when its loop stops.
+
+   Only transform and opacity move; fill and stroke transition only for the
+   offline drain. The tile keeps its own lilac and ink in both themes, like a
+   sticker. Units are the mark's 40×40 grid.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.cmk {
+  --cmk-ink: #26211B; --cmk-fill: #E3D9FF;
+  --cmk-spring: cubic-bezier(.16,.9,.3,1.02);
+  --cmk-ease: cubic-bezier(.45,0,.25,1);
+  display: block; flex: none; overflow: visible;
+}
+.cmk * { transform-box: fill-box; transform-origin: center; }
+/* Placement groups pivot in the viewBox, not on their own box: the shared rule
+   above would also move the pivot of the pencil's transform attribute. */
+.cmk .cmk-pose, .cmk .cmk-motion { transform-box: view-box; transform-origin: 20px 27px; }
+.cmk .cmk-pmove { transform-box: view-box; transform-origin: 0 0; }
+
+.cmk .cmk-pose { transition: transform .55s var(--cmk-spring); }
+.cmk .cmk-look { transition: transform .5s var(--cmk-spring); }
+.cmk .cmk-eye  { transition: transform .35s var(--cmk-spring); }
+.cmk .cmk-tile {
+  fill: var(--cmk-fill); stroke: var(--cmk-ink); stroke-width: 2.4; stroke-linejoin: round;
+  transition: fill .5s var(--cmk-ease), stroke .5s var(--cmk-ease);
+}
+.cmk .cmk-pupil, .cmk .cmk-m-o-shape { fill: var(--cmk-ink); transition: fill .5s var(--cmk-ease); }
+.cmk :is(.cmk-happy, .cmk-dash, .cmk-m-smile, .cmk-m-flat, .cmk-m-wave) {
+  fill: none; stroke: var(--cmk-ink); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;
+}
+/* Swappable features rest hidden and slightly shrunk; a state turns one on. */
+.cmk :is(.cmk-happy, .cmk-dash, .cmk-m-smile, .cmk-m-o, .cmk-m-flat, .cmk-m-wave) {
+  opacity: 0; transform: scale(.55);
+  transition: opacity .2s var(--cmk-ease), transform .4s var(--cmk-spring), stroke .5s var(--cmk-ease);
+}
+.cmk .cmk-pupil-wrap { transition: opacity .2s var(--cmk-ease), transform .35s var(--cmk-spring); }
+
+/* Blink: on by default, staggered per instance by --bd (seeded from useId). */
+.cmk .cmk-blink { animation: cmk-blink 5.4s var(--bd, 0s) infinite; }
+@keyframes cmk-blink { 0%, 93%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.08); } }
+
+/* idle — a small closed smile, a breath you barely notice */
+.cmk[data-state="idle"] .cmk-m-smile { opacity: 1; transform: none; }
+.cmk[data-state="idle"] .cmk-motion { animation: cmk-breathe 4.8s var(--cmk-ease) infinite; }
+@keyframes cmk-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-.45px); } }
+
+/* hover — leans in (the old tile's −4° tilt), looks up at you. Live as a state,
+   and on the launcher straight off :hover / :focus-visible, so the pointer
+   never costs a React render. Touch screens get a press dip instead (below). */
+.cmk[data-state="hover"] .cmk-pose { transform: translateY(-.9px) rotate(-4deg); }
+.cmk[data-state="hover"] .cmk-look { transform: translate(0, -.7px); }
+.cmk[data-state="hover"] .cmk-m-smile { opacity: 1; transform: scale(1.14, 1.1); }
+.chat-launcher:focus-visible .cmk[data-state="idle"] .cmk-pose { transform: translateY(-.9px) rotate(-4deg); }
+.chat-launcher:focus-visible .cmk[data-state="idle"] .cmk-look { transform: translate(0, -.7px); }
+.chat-launcher:focus-visible .cmk[data-state="idle"] .cmk-m-smile { transform: scale(1.14, 1.1); }
+@media (hover: hover) {
+  .chat-launcher:hover .cmk[data-state="idle"] .cmk-pose { transform: translateY(-.9px) rotate(-4deg); }
+  .chat-launcher:hover .cmk[data-state="idle"] .cmk-look { transform: translate(0, -.7px); }
+  .chat-launcher:hover .cmk[data-state="idle"] .cmk-m-smile { transform: scale(1.14, 1.1); }
+}
+@media (hover: none) {
+  .chat-launcher .cmk .cmk-pose { transition-duration: .3s; }
+  .chat-launcher:active .cmk .cmk-pose { transform: translateY(.8px) scale(.93); transition-duration: .08s; }
+}
+
+/* listening — eyes open a touch, mouth a small o, slow nod */
+.cmk[data-state="listening"] .cmk-eye { transform: scale(1.16); }
+.cmk[data-state="listening"] .cmk-m-o { opacity: 1; transform: scale(.5); }
+.cmk[data-state="listening"] .cmk-motion { animation: cmk-nod 2.8s var(--cmk-ease) infinite; }
+@keyframes cmk-nod { 0%, 100% { transform: rotate(0); } 28% { transform: rotate(-2.4deg); } 56% { transform: rotate(.8deg); } }
+
+/* thinking — glances up and drifts across, mouth pulled to one side, thought
+   bubbles building in a row over the right of its head */
+.cmk[data-state="thinking"] .cmk-look { transform: translate(1px, -1.5px); }
+.cmk[data-state="thinking"] .cmk-drift { animation: cmk-drift 4.2s var(--cmk-ease) infinite; }
+.cmk[data-state="thinking"] .cmk-m-flat { opacity: 1; transform: translateX(1.1px) scaleX(.85); }
+.cmk[data-state="thinking"] .cmk-blink { animation-duration: 7s; }
+@keyframes cmk-drift { 0%, 100% { transform: translate(0, 0); } 38% { transform: translate(-1.8px, 0); } 70% { transform: translate(-.7px, .3px); } }
+.cmk .cmk-thought circle { fill: #FFFCF6; stroke: var(--cmk-ink); stroke-width: 1; opacity: 0; transform: scale(.3); }
+.cmk[data-state="thinking"] .cmk-thought .cmk-t1 { animation: cmk-bub 2.1s var(--cmk-spring) infinite; }
+.cmk[data-state="thinking"] .cmk-thought .cmk-t2 { animation: cmk-bub 2.1s var(--cmk-spring) .25s infinite; }
+.cmk[data-state="thinking"] .cmk-thought .cmk-t3 { animation: cmk-bub 2.1s var(--cmk-spring) .5s infinite; }
+@keyframes cmk-bub {
+  0% { opacity: 0; transform: scale(.3); }
+  16%, 64% { opacity: 1; transform: none; }
+  80%, 100% { opacity: 0; transform: scale(.85); }
+}
+
+/* answering — it writes rather than talks: a pencil scribbles two cursive
+   words under the bubble. The motion itself is Web Animations keyframes
+   (chapt-mark-path.ts); CSS only fades the pencil and the writing in and out. */
+.cmk :is(.cmk-pencil, .cmk-script) { opacity: 0; transition: opacity .2s var(--cmk-ease); }
+.cmk .cmk-p-body { fill: #FFE5A0; }
+.cmk .cmk-p-wood { fill: #F4D6AE; }
+.cmk .cmk-p-band { fill: #D3C9BA; }
+.cmk .cmk-p-rub  { fill: #FFC9D3; }
+.cmk :is(.cmk-p-body, .cmk-p-wood, .cmk-p-band, .cmk-p-rub) { stroke: var(--cmk-ink); stroke-width: 1.6; stroke-linejoin: round; }
+.cmk .cmk-p-lead { fill: var(--cmk-ink); }
+.cmk .cmk-script path {
+  fill: none; stroke: var(--cmk-ink); stroke-width: 1.15; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+}
+.cmk[data-state="answering"] :is(.cmk-pencil, .cmk-script) { opacity: 1; }
+.cmk[data-state="answering"] .cmk-m-smile { opacity: 1; transform: scale(.8); }
+.cmk[data-state="answering"] .cmk-look { transform: translate(.4px, .9px); }
+
+/* done — happy eyes, wider smile, one small hop on arrival */
+.cmk[data-state="done"] .cmk-pupil-wrap { opacity: 0; transform: scale(.4); }
+.cmk[data-state="done"] .cmk-happy { opacity: 1; transform: none; }
+.cmk[data-state="done"] .cmk-m-smile { opacity: 1; transform: scale(1.3, 1.2); }
+.cmk[data-state="done"] .cmk-motion { animation: cmk-hop .9s var(--cmk-spring) 1; }
+@keyframes cmk-hop { 0% { transform: none; } 30% { transform: translateY(-1.2px) scale(1.05); } 60% { transform: scale(.985); } 100% { transform: none; } }
+
+/* unsure — head tilt, one eye raised, wavering mouth (decline / ask-back) */
+.cmk[data-state="unsure"] .cmk-eye-l { transform: translateY(-.5px); }
+.cmk[data-state="unsure"] .cmk-m-wave { opacity: 1; transform: none; }
+.cmk[data-state="unsure"] .cmk-motion { animation: cmk-tilt 3.6s var(--cmk-ease) infinite; }
+@keyframes cmk-tilt { 0%, 100% { transform: rotate(0); } 35%, 72% { transform: rotate(6deg); } }
+
+/* offline — the colour drains, eyes close to dashes, nothing moves (a turn that failed) */
+.cmk[data-state="offline"] { --cmk-ink: #8C8174; --cmk-fill: #EFEAE2; }
+.cmk[data-state="offline"] .cmk-pupil-wrap { opacity: 0; transform: scale(.4); }
+.cmk[data-state="offline"] .cmk-dash { opacity: 1; transform: none; }
+.cmk[data-state="offline"] .cmk-m-flat { opacity: 1; transform: scaleX(.8); }
+.cmk[data-state="offline"] .cmk-blink { animation: none; }
+
+/* Reduced motion: still faces, each still readable — the bubbles stay up, the
+   pencil rests with both words written (its JS never starts), done is happy
+   eyes with no hop. */
+@media (prefers-reduced-motion: reduce) {
+  .cmk, .cmk * { animation: none !important; }
+  .cmk * { transition-duration: .01ms !important; }
+  .cmk[data-state="thinking"] .cmk-thought circle { opacity: 1; transform: none; }
+  .cmk[data-state="answering"] .cmk-script path { stroke-dashoffset: 0; }
+}

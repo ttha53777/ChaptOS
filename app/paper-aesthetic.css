@@ -1773,7 +1773,6 @@ html[data-aesthetic="paper"] .chat-launcher {
   transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
 }
 html[data-aesthetic="paper"] .chat-launcher:hover { transform: translate(-1.5px,-1.5px); box-shadow: 6px 6px 0 var(--pp-lilac); border-color: var(--ink); }
-html[data-aesthetic="paper"] .chat-launcher .spark { color: var(--pp-lilac-ink); }
 
 @media (prefers-reduced-motion: reduce) {
   html[data-aesthetic="paper"] .dash .wave,

@@ -8,7 +8,7 @@
 
 import { useState, type CSSProperties } from "react";
 
-import { IcArrow, IcChev, IcPlus, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
+import { IcArrow, IcChev, IcAsk, IcPlus, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
 import { ShapeBlock, isKnownShape } from "./shapes";
 import { PlanBlock, isPlanRows } from "./shapes/Plan";
 import { DrawerBlock, isDrawerRows } from "./shapes/Drawers";
@@ -138,7 +138,7 @@ function ResultRow({ row, selected, onAsk, onPeek, onNav, onIdea }: {
         {action === "peek" && <IcChev />}
         {action === "idea" && <IcPlus />}
         {action === "nav" && <IcArrow />}
-        {action === "ask" && <IcSpark size={14} />}
+        {action === "ask" && <IcAsk size={14} />}
       </span>
     </button>
   );
@@ -398,7 +398,7 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, settleVerdic
             {answer.follows.map(f => (
               <button key={f.label} type="button" className="chip next" onClick={() => onAsk(f.ask)}>
                 {/* The tile is desktop-only (chat/spotlight-desk.css); the phone keeps the arrow chip. */}
-                <span className="tile" aria-hidden><IcSpark /></span>
+                <span className="tile" aria-hidden><IcAsk /></span>
                 <IcArrow />{f.label}
               </button>
             ))}

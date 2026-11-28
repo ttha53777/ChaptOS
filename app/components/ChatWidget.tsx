@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation";
 import { orgFetch } from "../lib/api";
 import { iterSSE } from "../lib/sse";
 import { useChapter } from "../context/ChapterContext";
-import { IcAlert, IcArrow, IcCal, IcClip, IcCoin, IcFile, IcFlag, IcMic, IcPlus, IcRedo, IcSend, IcSpark, IcStop, IcUsers, IcX } from "./chat/icons";
+import { IcAlert, IcArrow, IcCal, IcClip, IcCoin, IcFile, IcFlag, IcMic, IcPlus, IcRedo, IcSend, IcStop, IcUsers, IcX } from "./chat/icons";
 import { Slip } from "./chat/Slip";
 import { MarkdownLite } from "./chat/MarkdownLite";
 import { AnswerSkeleton, MarkedQuestion, WorkingLine } from "./chat/WorkingLine";
@@ -29,6 +29,8 @@ import { EventIdeaPanel, type EventIdeaSeed } from "./chat/EventIdeaPanel";
 import { WritCard } from "./chat/WritCard";
 import { useProposalChoices } from "./chat/useProposalChoices";
 import { usePhoneSheet, useSheetDrag } from "./chat/usePhoneSheet";
+import { ChaptMark } from "./chat/ChaptMark";
+import { useMarkState } from "./chat/useMarkState";
 import { useDictation } from "./chat/useDictation";
 import { PhoneLanding } from "./chat/PhoneLanding";
 import { ApprovalsView } from "./chat/ApprovalsView";
@@ -198,18 +200,6 @@ function saveHistory(storageKey: string, msgs: ChatMessage[]) {
   } catch { /* localStorage full — silently drop */ }
 }
 
-// Launcher sparkle — outlined, matches the app's heroicons-style SVG language.
-// Deliberately not the solid `IcSpark` the spotlight panel's chrome uses.
-function SparkleIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
-      <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z" />
-      <path d="M5 15l.6 1.6L7.2 17l-1.6.6L5 19l-.6-1.6L2.8 17l1.6-.4L5 15z" />
-    </svg>
-  );
-}
-
 /**
  * `storageKey` is this person's thread in this org (chatHistoryKey). The gate
  * also passes it as the React key, so switching org or account remounts the
@@ -265,6 +255,16 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
     requestAnimationFrame(() => { if (textareaRef.current) autosize(textareaRef.current); });
   });
   const cancelDictation = dictation.cancel;
+
+  // The header mark's face: listening, thinking, answering, done… Recomputed
+  // every render but it only changes at phase boundaries (useMarkState).
+  const markTail = messages[messages.length - 1];
+  const markState = useMarkState({
+    streaming,
+    dictating: dictation.listening,
+    typed: input.trim().length > 0,
+    turn: markTail?.role === "assistant" ? markTail : null,
+  });
 
   // The option sets a card's category picker offers. Fetched on first open
   // rather than on mount: the widget rides every dashboard route, and a member
@@ -1275,7 +1275,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
       {/* Launcher — visible only when the spotlight is closed */}
       {!open && (
         <button onClick={openSpotlight} aria-label="Ask Chapt" className={`chat-launcher${pulse ? " pulse" : ""}`}>
-          <SparkleIcon className="spark" />
+          <ChaptMark state="idle" size={24} />
           <span>Ask Chapt</span>
           <kbd className="hint">{shortcut}</kbd>
         </button>
@@ -1290,11 +1290,11 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
               <button type="button" className="cs-close" aria-label="Close" onClick={closeSpotlight}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
               </button>
-              {phone ? (
-                <span className="tick" aria-hidden />
-              ) : (
-                <span className="cs-mark" aria-hidden><IcSpark size={15} /></span>
-              )}
+              {/* The mark is a second status read beside the working line. On a
+                  phone the tick stays and the mark sits beside it; a press on
+                  the mark doesn't start a sheet drag (useSheetDrag). */}
+              {phone && <span className="tick" aria-hidden />}
+              <span className="cs-mark" aria-hidden><ChaptMark state={markState} size={phone ? 28 : 30} /></span>
               <span className="title">Ask Chapt</span>
               <span className="spacer" />
               <button

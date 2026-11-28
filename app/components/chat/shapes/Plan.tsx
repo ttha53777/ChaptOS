@@ -11,7 +11,7 @@
 
 import type { ReactNode } from "react";
 
-import { IcArrow, IcChev, IcPlus, IcSpark } from "../icons";
+import { IcArrow, IcAsk, IcChev, IcPlus } from "../icons";
 import { rowAction, type AnswerRow, type AnswerTier } from "../types";
 import { iv, useSelectedScroll, type RowHandlers } from "./common";
 
@@ -29,7 +29,7 @@ function Go({ row }: { row: AnswerRow }): ReactNode {
   if (action === "idea") return <span className="go plus"><IcPlus size={11} />Draft the event</span>;
   if (action === "nav") return <span className="go">{row.screen!.label}<IcArrow size={11} /></span>;
   if (action === "peek") return <span className="go">Open<IcChev size={11} /></span>;
-  if (action === "ask") return <span className="go ask"><IcSpark size={11} />Ask</span>;
+  if (action === "ask") return <span className="go ask"><IcAsk size={11} />Ask</span>;
   return null;
 }
 

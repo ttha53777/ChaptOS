@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { paperCatVars } from "@/lib/event-hue";
-import { IcArrow, IcChev, IcPlus, IcSpark } from "../icons";
+import { IcArrow, IcAsk, IcChev, IcPlus } from "../icons";
 import { rowAction, type AnswerRow, type RowAction } from "../types";
 
 export interface RowHandlers {
@@ -111,7 +111,7 @@ export function Affordance({ action, className = "chev" }: { action: RowAction |
       {action === "peek" && <IcChev />}
       {action === "idea" && <IcPlus />}
       {action === "nav" && <IcArrow />}
-      {action === "ask" && <IcSpark size={14} />}
+      {action === "ask" && <IcAsk size={14} />}
     </span>
   );
 }

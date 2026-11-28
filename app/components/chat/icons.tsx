@@ -17,10 +17,13 @@ function base(size: number) {
   };
 }
 
-export function IcSpark({ size = 15, className }: IconProps) {
+/** "Ask this": the Ask Chapt mark's bubble silhouette, outline only, no face
+ *  (the face stays on the one mark that's alive, chat/ChaptMark.tsx). Same
+ *  weight as IcChev / IcArrow / IcPlus, so a row's trailing glyph reads by shape. */
+export function IcAsk({ size = 15, className }: IconProps) {
   return (
-    <svg {...base(size)} className={className} stroke="none">
-      <path d="M12 3l1.5 5L18 9.5 13.5 11 12 16l-1.5-5L6 9.5 10.5 8 12 3z" fill="currentColor" />
+    <svg {...base(size)} className={className} strokeWidth={2}>
+      <path d="M7.3 3.3h9.4a4.8 4.8 0 0 1 4.8 4.8v5a4.8 4.8 0 0 1-4.8 4.8h-5.4l-4.1 3.4v-3.5a4.8 4.8 0 0 1-4.5-4.7v-5a4.8 4.8 0 0 1 4.6-4.8z" />
     </svg>
   );
 }

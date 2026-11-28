@@ -31,11 +31,10 @@
     gap: 10px; padding: 12px 14px 12px 16px; background: var(--card);
     border-bottom: 1.5px solid var(--line);
   }
+  /* The talking tile (chat/ChaptMark.tsx) is its own tile: no box around it.
+     Its thought bubbles rise ~2px above the tile, inside the bar's padding. */
   html[data-aesthetic="paper"] body .chat-root .cs-mark {
-    width: 28px; height: 28px; flex: none; display: grid; place-items: center;
-    border-radius: 9px; background: var(--pp-lilac); color: var(--pp-note-ink);
-    border: 1.5px solid var(--pp-note-ink); transform: rotate(-4deg);
-    box-shadow: 1.5px 1.5px 0 var(--pp-butter); filter: var(--pp-note-filter);
+    width: 30px; height: 30px; flex: none; display: grid; place-items: center; overflow: visible;
   }
   html[data-aesthetic="paper"] body .chat-root .cs-bar .title {
     visibility: visible; margin-left: 0; white-space: nowrap;

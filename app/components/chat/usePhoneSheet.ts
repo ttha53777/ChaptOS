@@ -136,7 +136,7 @@ export function useSheetDrag(sheetRef: RefObject<HTMLDivElement | null>, onClose
   const delta = useRef(0);
 
   const onPointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!enabled || (e.target as Element).closest("button")) return;
+    if (!enabled || (e.target as Element).closest("button, .cs-mark")) return;
     start.current = e.clientY;
     delta.current = 0;
     e.currentTarget.setPointerCapture(e.pointerId);

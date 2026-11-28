@@ -32,14 +32,14 @@
   .main-route-transition main.overflow-y-auto::after { content: ""; display: block; height: var(--mtb-space); }
 
   /* Ask Chapt and the live check-in bar float above the tab bar, not on it.
-     Ask Chapt folds to its spark (the label and the ⌘K hint mean nothing to a
+     Ask Chapt folds to its mark (the label and the ⌘K hint mean nothing to a
      thumb, and the full pill sat over the cards' right half). */
   .chat-launcher {
     bottom: calc(var(--mtb-space) + 12px) !important; right: 14px !important;
     width: 50px; height: 50px; padding: 0 !important; justify-content: center;
   }
   .chat-launcher > span, .chat-launcher > .hint { display: none; }
-  .chat-launcher > .spark { width: 21px; height: 21px; }
+  .chat-launcher > .cmk { width: 30px; height: 30px; }
   .dash .lcb { bottom: calc(var(--mtb-space) + 10px); }
   html[data-sheet] .chat-launcher,
   html[data-sheet] .dash .lcb { visibility: hidden; }
