@@ -647,6 +647,7 @@ export async function POST(req: NextRequest) {
                   rows: attachRefs(answer.rows, refIndex),
                   access,
                   peek: (type, id) => getPeek(ctx, type, id),
+                  question: history[history.length - 1]?.role === "user" ? history[history.length - 1].content : undefined,
                 }) : Promise.resolve(null),
                 answer.askback ? attachPeople(answer.askback, refIndex, ctx.db, ctx.orgId) : Promise.resolve(undefined),
               ]);

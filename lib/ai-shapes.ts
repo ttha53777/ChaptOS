@@ -60,6 +60,8 @@ export interface BuildOpts {
   today?: string;
   /** The peek card for a record, built exactly as the peek sheet builds it (record answers). */
   peek?: (type: RefType, id: number) => Promise<PeekCard>;
+  /** The user's latest message; steps draws only a playbook it actually asks for. */
+  question?: string;
 }
 
 /** The newer shapes, one module per family. Each never throws past buildShape's catch. */

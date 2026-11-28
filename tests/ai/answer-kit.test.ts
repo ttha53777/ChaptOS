@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { balanceFigure, membersFigure, FIGURE_MIN_POINTS } from "@/lib/ai-shapes-figure";
-import { declineShape, stepsFromPlaybook, HOWTO_PLAYBOOKS } from "@/lib/ai-howto";
+import { declineShape, stepsFromPlaybook, playbookFits, HOWTO_PLAYBOOKS } from "@/lib/ai-howto";
 import { caseFile, pathBack, reasonRows } from "@/lib/ai-shapes-reasons";
 import { isVerbatim, legacyDecisions, quoteFrom } from "@/lib/ai-shapes-quote";
 import { createRefIndex, noteRefs } from "@/lib/ai-refs";
@@ -84,6 +84,13 @@ describe("steps", () => {
   });
   it("every playbook links to a screen relative to the org", () => {
     for (const pb of Object.values(HOWTO_PLAYBOOKS)) expect(pb.screen.path === "" || pb.screen.path.startsWith("/")).toBe(true);
+  });
+  it("a playbook the question didn't ask for draws nothing", () => {
+    // The model once drew custom_metric under "how do I invite people".
+    expect(playbookFits("custom_metric", "how do i invite people")).toBe(false);
+    expect(playbookFits("invite_members", "how do i invite people")).toBe(true);
+    expect(playbookFits("custom_metric", "how do I track study hours per member")).toBe(true);
+    expect(playbookFits("log_money", undefined)).toBe(false);
   });
 });
 
