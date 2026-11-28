@@ -89,7 +89,7 @@ export function LandingPage() {
 
           <div className="df" id="df" aria-hidden="true">
             <aside className="df-sb">
-              <div className="df-org"><span className="mark" data-o="logo">RC</span><div><b data-o="name">Robotics Club</b><small data-o="meta">FALL ’26 · 38</small></div></div>
+              <div className="df-org"><span className="mark" data-o="logo">ΔH</span><div><b data-o="name">Delta House</b><small data-o="meta">FALL ’26 · 52</small></div></div>
               <div className="df-nav" id="dfNav" />
             </aside>
             <div className="df-main">
@@ -122,8 +122,8 @@ export function LandingPage() {
               </div></div>
               <div className="pc-c"><div className="pc-ci" style={sx({ "--eb": "var(--sky-ink)" })}>
                 <div className="w-k">Next up</div>
-                <div className="w-t" data-o="nextT">General meeting · Wed 6:00</div>
-                <div className="w-s" data-o="nextS">Union 210 · moved from Tue · on everyone’s calendar</div>
+                <div className="w-t" data-o="nextT">Chapter meeting · Thu 7:00</div>
+                <div className="w-s" data-o="nextS">Room 204 · moved from Wed</div>
                 <div className="w-spine"><i style={sx({ "--c": "var(--sky)" })} /><i style={sx({ "--c": "var(--lilac)" })} /><i style={sx({ "--c": "var(--rose)" })} /><i style={sx({ "--c": "var(--peach)" })} /><i /><i style={sx({ "--c": "var(--mint)" })} /></div>
               </div></div>
             </div>
@@ -135,10 +135,10 @@ export function LandingPage() {
                 <div className="scrawl">pay me back pls<br />— alex</div>
               </div></div>
               <div className="pc-c"><div className="pc-ci" style={sx({ "--eb": "var(--mint-ink)" })}>
-                <div className="w-k" data-o="budK">Budget left</div>
-                <div className="w-big" data-o="budBig">$1,240 <small>/ 2,000</small></div>
-                <div className="w-s" data-o="budS">Student gov allocation · 1 reimbursement</div>
-                <div className="w-bar"><i data-bar="bud" style={sx({ "--v": "62%" })} /></div>
+                <div className="w-k" data-o="budK">Treasury</div>
+                <div className="w-big" data-o="budBig">$12,480</div>
+                <div className="w-s" data-o="budS">+$1,320 this month</div>
+                <div className="w-bar"><i data-bar="bud" style={sx({ "--v": "78%" })} /></div>
               </div></div>
             </div>
             <div className="pc" data-k="att">
@@ -150,7 +150,7 @@ export function LandingPage() {
                 <div className="w-k">Attendance<span className="w-kx">{"\u00a0"}· last meeting</span></div>
                 <div style={sx({ "display": "flex", "alignItems": "center", "gap": "10px", "marginTop": "auto" })}>
                   <div className="w-ring" style={sx({ "--p": "84" })} />
-                  <div><div className="w-big" style={sx({ "margin": "0" })} data-o="attN">32<small>/38</small></div><div className="w-s">84% · up 6</div></div>
+                  <div><div className="w-big" style={sx({ "margin": "0" })} data-o="attN">46<small>/52</small></div><div className="w-s">84% · up 6</div></div>
                 </div>
               </div></div>
             </div>
@@ -170,9 +170,9 @@ export function LandingPage() {
                 <div className="seen">Seen 3 weeks ago</div>
               </div></div>
               <div className="pc-c"><div className="pc-ci" style={sx({ "--eb": "var(--lilac-ink)" })}>
-                <div className="w-k" data-o="memK">Members</div>
-                <div className="w-big" data-o="memN">38 <small>members</small></div>
-                <div className="w-s" data-o="memS">2 requests to join</div>
+                <div className="w-k" data-o="memK">Roster</div>
+                <div className="w-big" data-o="memN">52 <small>brothers</small></div>
+                <div className="w-s" data-o="memS">3 requests to join</div>
                 <div className="avs" style={sx({ "marginTop": "auto" })}>
                   <i className="av" style={sx({ "--a": "var(--peach)" })}>JT</i><i className="av" style={sx({ "--a": "var(--sky)" })}>AP</i><i className="av" style={sx({ "--a": "var(--mint)" })}>SO</i><i className="av" style={sx({ "--a": "var(--butter)" })}>PN</i><i className="av" style={sx({ "--a": "var(--rose)" })}>MA</i>
                 </div>
@@ -182,7 +182,7 @@ export function LandingPage() {
               <div className="pc-m m-pad"><div className="pc-mi" style={sx({ "width": "200px", "height": "190px" })}>minutes 10/9<br />- fall trip??<br />- van $$<br />…who took notes</div></div>
               <div className="pc-c"><div className="pc-ci" style={sx({ "--eb": "var(--butter-ink)" })}>
                 <div className="w-k">Minutes · Oct 9</div>
-                <div className="w-t" data-o="minT">Fall trip approved · 3 action items</div>
+                <div className="w-t" data-o="minT">Formal budget approved · 4 action items</div>
                 <div className="w-row"><i className="w-cb on" /><span>Van quote</span><span className="to"><i className="av" style={sx({ "--a": "var(--sky)" })}>JT</i>Jordan</span></div>
                 <div className="w-row"><i className="w-cb" /><span>Sign-up form</span><span className="to role">Secretary</span></div>
               </div></div>
@@ -194,19 +194,19 @@ export function LandingPage() {
                 <span className="req">Request access</span>
               </div></div>
               <div className="pc-c"><div className="pc-ci" style={sx({ "--eb": "var(--teal-ink)" })}>
-                <div className="w-k" data-o="modK">Docs</div>
-                <div className="w-big" data-o="modBig" style={sx({ "fontSize": "1.15rem" })}>Officer handbook</div>
-                <div className="w-s" data-o="modS">updated by this year’s board</div>
-                <div className="w-bar" style={sx({ "opacity": "0" })}><i data-bar="mod" style={sx({ "--v": "0%", "--bc": "var(--teal-ink)" })} /></div>
+                <div className="w-k" data-o="modK">Dues collected</div>
+                <div className="w-big" data-o="modBig" style={sx({ "fontSize": "1.15rem" })}>83%</div>
+                <div className="w-s" data-o="modS">$4,180 of $5,040 · 6 still owe</div>
+                <div className="w-bar"><i data-bar="mod" style={sx({ "--v": "83%", "--bc": "var(--teal-ink)" })} /></div>
               </div></div>
             </div>
           </div>
 
           <div className="otypes" id="otypes">
             <span className="lbl">Built for</span>
-            <button className="ot on" data-t="club"><i style={sx({ "--c": "var(--mint)" })}>RC</i>Robotics club</button>
-            <button className="ot" data-t="team"><i style={sx({ "--c": "var(--rose)" })}>DT</i>Dance team</button>
-            <button className="ot" data-t="chapter"><i style={sx({ "--c": "var(--butter)" })}>ΔH</i>Greek chapter</button>
+            <button className="ot on" data-t="chapter"><i style={sx({ "--c": "var(--butter)" })}>ΔH</i>Greek chapter</button>
+            <button className="ot" data-t="cultural"><i style={sx({ "--c": "var(--peach)" })}>CS</i>Cultural org</button>
+            <button className="ot" data-t="club"><i style={sx({ "--c": "var(--mint)" })}>RC</i>Robotics club</button>
             <button className="ot" data-t="council"><i style={sx({ "--c": "var(--sky)" })}>EC</i>Student council</button>
           </div>
         </div>

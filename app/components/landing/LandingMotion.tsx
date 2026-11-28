@@ -135,18 +135,18 @@ function mount(): () => void {
       budK: "Budget left", budBig: "$1,240 <small>/ 2,000</small>", budS: "Student gov allocation · 1 reimbursement", bud: 62,
       attN: "32<small>/38</small>", memK: "Members", memN: "38 <small>members</small>", memS: "2 requests to join",
       minT: "Fall trip approved · 3 action items", modK: "Docs", modBig: "Officer handbook", modS: "updated by this year’s board", mod: 0 },
-    team: { logo: "DT", c: "var(--rose)", name: "Dance Team", meta: "FALL ’26 · 24", word: "team",
-      nav: [["Dashboard", "butter"], ["Timeline", "sky"], ["Members", "lilac"], ["Tasks", "peach"], ["Budget", "mint"], ["Fundraising", "butter", 1], ["Media", "peach", 1]],
-      nextT: "Rehearsal · Thu 8:00", nextS: "Studio B · costume fitting after",
-      budK: "Budget left", budBig: "$860 <small>/ 1,500</small>", budS: "Showcase costs · 2 receipts", bud: 57,
-      attN: "22<small>/24</small>", memK: "Members", memN: "24 <small>dancers</small>", memS: "1 request to join",
-      minT: "Showcase setlist locked · 2 action items", modK: "Fundraising", modBig: "$820 raised", modS: "Spring showcase · goal $1,500", mod: 55 },
     chapter: { logo: "ΔH", c: "var(--butter)", name: "Delta House", meta: "FALL ’26 · 52", word: "chapter",
       nav: [["Dashboard", "butter"], ["Timeline", "sky"], ["Brotherhood", "lilac"], ["Chapter", "butter"], ["Treasury", "mint"], ["Dues", "mint", 1], ["Service", "sky", 1], ["Parties", "rose", 1]],
       nextT: "Chapter meeting · Thu 7:00", nextS: "Room 204 · moved from Wed",
       budK: "Treasury", budBig: "$12,480", budS: "+$1,320 this month", bud: 78,
       attN: "46<small>/52</small>", memK: "Roster", memN: "52 <small>brothers</small>", memS: "3 requests to join",
       minT: "Formal budget approved · 4 action items", modK: "Dues collected", modBig: "83%", modS: "$4,180 of $5,040 · 6 still owe", mod: 83 },
+    cultural: { logo: "CS", c: "var(--peach)", name: "Caribbean Society", meta: "FALL ’26 · 64", word: "org",
+      nav: [["Dashboard", "butter"], ["Timeline", "sky"], ["Members", "lilac"], ["Meetings", "butter"], ["Budget", "mint"], ["Fundraising", "butter", 1], ["Programming", "lilac", 1]],
+      nextT: "Culture Night rehearsal · Fri 7:00", nextS: "Ballroom B · food sign-ups open",
+      budK: "Budget left", budBig: "$2,150 <small>/ 3,500</small>", budS: "Culture Night catering · 2 receipts", bud: 61,
+      attN: "51<small>/64</small>", memK: "Members", memN: "64 <small>members</small>", memS: "4 requests to join",
+      minT: "Culture Night date set · 3 action items", modK: "Fundraising", modBig: "$1,140 raised", modS: "Culture Night · goal $2,000", mod: 57 },
     council: { logo: "EC", c: "var(--sky)", name: "Eng. Student Council", meta: "FALL ’26 · 19", word: "council",
       nav: [["Dashboard", "butter"], ["Timeline", "sky"], ["Members", "lilac"], ["Meetings", "butter"], ["Tasks", "peach"], ["Docs", "paper-3"], ["Programming", "lilac", 1]],
       nextT: "General assembly · Mon 6:30", nextS: "Union 210 · agenda posted",
@@ -154,8 +154,8 @@ function mount(): () => void {
       attN: "17<small>/19</small>", memK: "Members", memN: "19 <small>reps</small>", memS: "from 11 clubs",
       minT: "Bylaws amendment passed · 2 action items", modK: "Programming", modBig: "5 events planned", modS: "2 confirmed on the Timeline", mod: 40 },
   };
-  const ORDER = ["club", "team", "chapter", "council"];
-  let orgType = "club", autoOrg = true;
+  const ORDER = ["chapter", "cultural", "club", "council"];
+  let orgType = "chapter", autoOrg = true;
   const dfNav = $("#dfNav"), oword = $("#oword"), brandMark = $("#df .df-org .mark");
   const renderNav = (o: OrgView) => { dfNav.innerHTML = o.nav.map(([l, c, m], i) => `<div class="df-it${i === 0 ? " on" : ""}${m ? " mod" : ""}" style="--d:${i * 40}ms"><i style="--c:var(--${c})"></i>${l}</div>`).join(""); };
   // eslint-disable-next-line prefer-const -- assigned below; rollWord needs it first
@@ -196,10 +196,10 @@ function mount(): () => void {
       hero.refit();
     }, 560);
   }
-  // a remount starts from the mock's opening state: one word, the club's dashboard
+  // a remount starts from the mock's opening state: one word, the chapter's dashboard
   $$(".ow", oword).forEach((e, i) => { if (i) e.remove(); else { e.className = "ow"; e.textContent = "club"; } });
   oword.style.width = "";
-  renderNav(ORG.club);
+  renderNav(ORG.chapter);
   $$(".ot").forEach(b => b.addEventListener("click", () => setOrg(b.dataset.t!, true), on));
 
   hero = (() => {
