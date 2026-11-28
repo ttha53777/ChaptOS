@@ -1481,14 +1481,14 @@ function clampLimit(n: unknown, def = 100, max = 100): number {
 // return an explicit envelope that names the contract: broaden before saying none.
 // `filtered` is whether any narrowing filter was applied — only then is broadening
 // meaningful advice.
-function listResult<T>(items: T[], filtered: boolean): T[] | { count: 0; items: []; hint: string } {
+function listResult<T>(items: T[], filtered: boolean, emptyHint?: string): T[] | { count: 0; items: []; hint: string } {
   if (items.length > 0) return items;
   return {
     count: 0,
     items: [],
-    hint: filtered
+    hint: emptyHint ?? (filtered
       ? "No rows matched these filters. Broaden — drop a filter or switch to a sort — before telling the user there are none."
-      : "This resource has no rows yet. It's safe to tell the user there are none.",
+      : "This resource has no rows yet. It's safe to tell the user there are none."),
   };
 }
 
@@ -1825,13 +1825,46 @@ async function listCalendar(args: ToolArgs, scoped: Scoped): Promise<ToolResult>
   // preview and send the model to search_meeting_notes for the rest.
   // `details` stays out: its planning half (checklist, budget) is officers-only,
   // and this tool answers members too.
-  const mapped = rows.map(({ notesSeed, notesSummaryData: _data, details: _details, ...row }) => {
-    const description = hasMinutes({ description: row.description, notesSeed }) ? row.description : null;
-    return description && description.length > CALENDAR_DESCRIPTION_PREVIEW
-      ? { ...row, description: `${description.slice(0, CALENDAR_DESCRIPTION_PREVIEW)}…`, minutesTruncated: true }
-      : { ...row, description };
+  //
+  // Bookkeeping columns (revision counters, the org id, who opened check-in)
+  // stay out too, and so do empty fields: they were most of every event's
+  // bytes, and every byte here is input the model pays for on each round. The
+  // check-in timestamps collapse to the one thing a question can ask about.
+  const mapped = rows.map(({
+    notesSeed, notesSummaryData: _data, details: _details,
+    organizationId: _org, notesSummaryAt: _nsa, notesUpdatedAt: _nua, notesDocSeq: _nds,
+    notesContentRevision: _ncr, notesSummaryRevision: _nsr, notesProtocolVersion: _npv,
+    agendaTemplateId: _tpl, checkInOpenedById: _cob, checkInClosedById: _ccb, checkInCancelledRecords: _ccr,
+    checkInOpenedAt, checkInClosedAt, checkInCancelledAt,
+    ...row
+  }) => {
+    const minutes = hasMinutes({ description: row.description, notesSeed }) ? row.description : null;
+    const description = minutes && minutes.length > CALENDAR_DESCRIPTION_PREVIEW
+      ? `${minutes.slice(0, CALENDAR_DESCRIPTION_PREVIEW)}…` : minutes;
+    const checkIn = checkInCancelledAt ? "cancelled" : checkInClosedAt ? "closed" : checkInOpenedAt ? "open" : null;
+    return dropEmpty({
+      ...row,
+      description,
+      ...(description !== minutes ? { minutesTruncated: true } : {}),
+      ...(checkIn ? { checkIn } : {}),
+    });
   });
-  return listResult(mapped, !!(title || start || end || daySuffix || category || mandatoryOnly));
+  // "What's next" with nothing ahead: the generic "broaden" hint sent the model
+  // round after round re-asking the same empty future with a different filter.
+  // An open-ended window from a start date has nothing left to broaden but the
+  // filters, so say exactly that.
+  const narrowed = !!(title || daySuffix || category || mandatoryOnly);
+  const nothingAhead = start && !end
+    ? `Nothing on the calendar from ${start} onward${narrowed ? " with these filters. Retry once without them; if that is empty too, nothing is scheduled" : ". That is the answer: nothing is scheduled. Don't search again"}.`
+    : undefined;
+  return listResult(mapped, !!(title || start || end || daySuffix || category || mandatoryOnly), nothingAhead);
+}
+
+/** A copy without null/undefined/"" fields — absent reads the same to the model, for fewer tokens. */
+function dropEmpty<T extends Record<string, unknown>>(o: T): Partial<T> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(o)) if (v !== null && v !== undefined && v !== "") out[k] = v;
+  return out as Partial<T>;
 }
 
 const CALENDAR_DESCRIPTION_PREVIEW = 400;

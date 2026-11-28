@@ -23,7 +23,7 @@ import { IcAlert, IcArrow, IcCal, IcClip, IcCoin, IcFile, IcFlag, IcMic, IcPlus,
 import { Slip } from "./chat/Slip";
 import { MarkdownLite } from "./chat/MarkdownLite";
 import { AnswerSkeleton, MarkedQuestion, WorkingLine } from "./chat/WorkingLine";
-import { AnswerBlock } from "./chat/AnswerBlock";
+import { AnswerBlock, DraftVerdict } from "./chat/AnswerBlock";
 import { PeekSheet, type PeekSeed } from "./chat/PeekSheet";
 import { EventIdeaPanel, type EventIdeaSeed } from "./chat/EventIdeaPanel";
 import { WritCard } from "./chat/WritCard";
@@ -164,6 +164,8 @@ function loadHistory(storageKey: string): ChatMessage[] {
         ?.filter(s => !s.provisional)
         .map(s => (s.status === "done" ? s : { ...s, status: "done" as const })),
       composing: undefined,
+      // A draft no answer confirmed was never the answer.
+      draft: m.answer ? m.draft : undefined,
       proposals: m.proposals?.map(p =>
         p.state === "confirming" ? { ...p, state: "error" as const, resultMessage: "Interrupted — not approved." } : p,
       ),
@@ -661,6 +663,13 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
             steps: dropProvisional(m.steps ?? []),
             composing: true,
           })));
+        } else if (event === "verdict_draft") {
+          // The headline, ahead of the rows. Provisional until `answer`.
+          flushStage();
+          const v = (parsed as { verdict?: unknown }).verdict;
+          if (typeof v === "string" && v.trim()) patchMessage(aid, m => ({ ...m, draft: v }));
+        } else if (event === "verdict_drop") {
+          patchMessage(aid, m => (m.draft === undefined ? m : { ...m, draft: undefined }));
         } else if (event === "answer") {
           flushStage();
           const a = parsed as Partial<AnswerData>;
@@ -693,12 +702,12 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
           const delta = (parsed as { delta?: string }).delta ?? "";
           // After a notice, the text is that status written for older clients —
           // the slip already says it.
-          patchMessage(aid, m => (m.notice ? m : stampElapsed({ ...m, content: m.content + delta, steps: settleLedger(m.steps) })));
+          patchMessage(aid, m => (m.notice ? m : stampElapsed({ ...m, content: m.content + delta, draft: m.answer ? m.draft : undefined, steps: settleLedger(m.steps) })));
         } else if (event === "notice") {
           flushStage();
           const kind = (parsed as { kind?: string }).kind;
           if (kind === "timeout" || kind === "error" || kind === "cut_short") {
-            patchMessage(aid, m => ({ ...m, notice: { kind }, steps: settleLedger(m.steps), composing: false }));
+            patchMessage(aid, m => ({ ...m, notice: { kind }, draft: m.answer ? m.draft : undefined, steps: settleLedger(m.steps), composing: false }));
           }
         } else if (event === "note_refs") {
           flushStage();
@@ -729,7 +738,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
           }
         } else if (event === "done") {
           flushStage();
-          patchMessage(aid, m => stampElapsed({ ...m, steps: settleLedger(m.steps), composing: false }));
+          patchMessage(aid, m => stampElapsed({ ...m, draft: m.answer ? m.draft : undefined, steps: settleLedger(m.steps), composing: false }));
           break;
         }
       }
@@ -744,13 +753,14 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
           stoppedAfter: (m.steps ?? []).filter(s => !s.provisional && s.status === "done").length,
           steps: settleHalted(m.steps),
           composing: false,
+          draft: m.answer ? m.draft : undefined,
         }));
       } else {
         console.error("chat stream failed:", e);
         // Where it broke: the source the active step was reading, if any.
         patchMessage(aid, m => {
           const at = (m.steps ?? []).find(s => !s.provisional && s.status === "active")?.source;
-          return stampElapsed({ ...m, error: at ? { at } : {}, steps: settleHalted(m.steps), composing: false });
+          return stampElapsed({ ...m, error: at ? { at } : {}, steps: settleHalted(m.steps), composing: false, draft: m.answer ? m.draft : undefined });
         });
       }
     } finally {
@@ -1333,11 +1343,15 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                           failed={!!m.error || !!m.notice}
                           answered={answered}
                         />
+                        {/* The headline, streamed ahead of the rows: muted until
+                            the answer confirms it, with the rows' placeholder under it. */}
+                        {isLive && !answered && m.draft && <DraftVerdict text={m.draft} />}
                         {isLive && !answered && <AnswerSkeleton writing={!!m.composing} />}
                         <>
                           {m.answer && (
                             <AnswerBlock
                               answer={m.answer}
+                              settleVerdict={m.draft !== undefined && m.draft === m.answer.verdict}
                               steps={m.steps ?? []}
                               selectedRow={m === lastAnswer ? selRow : -1}
                               feedback={m.feedback}

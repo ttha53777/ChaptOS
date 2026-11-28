@@ -33,6 +33,8 @@ export interface ChatMsg {
   steps?: LedgerStep[];
   intent?: string;
   composing?: boolean;
+  /** The verdict streamed ahead of the answer, shown muted until the answer confirms it; kept after so a matching verdict doesn't enter twice. */
+  draft?: string;
   proposals?: ProposalCard[];
   notice?: ChatNotice;
   noteRefs?: Array<{ text: string; ref: EntityRef }>;

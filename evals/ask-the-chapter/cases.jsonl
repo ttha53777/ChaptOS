@@ -98,3 +98,5 @@
 {"id":"kit-reasons-not-gpa","question":"Why is Elvin De La Cruz's GPA the lowest in the chapter?","category":"answer-kit","forbidShape":"reasons","allowProse":true,"expectAnswerType":"data"}
 {"id":"kit-clarify-areas","question":"Ask me which part of the chapter you should check on.","category":"answer-kit","expectedTools":[],"expectAreas":true,"expectAnswerType":"clarify"}
 {"id":"kit-quote-minutes","question":"What do the minutes say about the door for China night?","category":"answer-kit","expectedTools":["search_meeting_notes"],"expectShape":"quote","mustInclude":["trap door"],"expectAnswerType":"data"}
+{"id":"brief-my-dues","question":"How much do I owe in dues?","category":"personal","expectedTools":["get_brother"],"mustInclude":["118"],"expectAnswerType":"data"}
+{"id":"brief-next-two-weeks","question":"What's coming up in the next two weeks?","category":"personal","expectedTools":["list_calendar_events"],"mustInclude":["Spring Banquet"],"expectAnswerType":"data"}

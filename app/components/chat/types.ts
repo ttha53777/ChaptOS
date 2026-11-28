@@ -117,6 +117,12 @@ export interface ChatMessage {
   intent?: string;
   /** The model is writing the answer rather than calling tools (server-signalled). */
   composing?: boolean;
+  /**
+   * The verdict streamed ahead of the answer (`verdict_draft`), shown muted
+   * until the answer confirms it. Kept after the answer lands: when the two
+   * match, the verdict is already on screen and doesn't animate in again.
+   */
+  draft?: string;
   /** Client clock when the question went — drives the working line's timer. */
   startedAt?: number;
   /** Question → first thing that replaced the placeholder (or the end, if nothing did). */

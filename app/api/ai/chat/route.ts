@@ -9,9 +9,11 @@ import { createShapeEvidence, buildShape, attachPeople, checkVerdict } from "@/l
 import { resolveTone } from "@/lib/ai-tone";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { getPeek } from "@/lib/services/peek-service";
-import { tryFastPath } from "@/lib/ai-fastpath";
+import { tryFastPath, matchIntent } from "@/lib/ai-fastpath";
+import { buildBrief, briefMessages, BRIEF_STEP, type Brief } from "@/lib/ai-brief";
 import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/ai-stream";
 import { assembleToolCalls, stepId, stepNameSettled } from "@/lib/ai-ledger";
+import { draftVerdict } from "@/lib/ai-verdict-draft";
 import { logError, logTiming } from "@/lib/observability";
 import type { AnswerCitation, ChatAvailability, ChatStreamEventName, ChatStreamEvents } from "@/lib/api-types";
 import { filesEnabled, FILE_MAX_BYTES, FILES_PER_THREAD, FILE_EXTENSIONS, CHAT_FILE_CHARS_BUDGET, FILE_ANSWER_MAX_ROWS } from "@/lib/files/limits";
@@ -44,6 +46,10 @@ interface ClientMessage {
 // step_drop  { ids }                        — named steps that will never run (truncated turn);
 //                                             the client removes them rather than spinning forever
 // composing  {}                             — the model is writing the answer, not calling tools
+// verdict_draft { verdict }                 — the verdict, read out of compose_answer the moment its
+//                                             string closes, while the rows are still being written
+//                                             (lib/ai-verdict-draft). PROVISIONAL: `answer` is final.
+// verdict_drop  {}                          — that draft was sent back or abandoned; remove it
 // proposal   Proposal                       — writ card (see lib/ai-tools.ts)
 // answer     { verdict, rows, follows, sources, askback? } — structured final answer; sources are
 //                                             server-derived from the read tools actually run.
@@ -156,8 +162,22 @@ export async function POST(req: NextRequest) {
   const attachmentsPromise: Promise<ChatAttachmentMeta[]> = attachmentIds.length
     ? listActiveByPublicIds(ctx, attachmentIds).catch(() => [])
     : Promise.resolve([]);
-  const systemPromptPromise = attachmentsPromise.then(files =>
-    buildSystemPrompt(ctx.db, ctx.orgId, { id: ctx.actorId, name: ctx.actorName }, undefined, files.length ? { files: true } : {}));
+  // Today's brief (lib/ai-brief): the reads most questions start with, run now
+  // so the first model call can usually answer. Not on file turns (the
+  // question is about the file) nor when the fast path will answer without
+  // the model at all.
+  const latestText = history.at(-1)?.content ?? "";
+  const briefStart = performance.now();
+  let briefMs: number | null = null;
+  const briefPromise: Promise<Brief | null> = attachmentsPromise.then(files =>
+    files.length || matchIntent(latestText)
+      ? null
+      : buildBrief(ctx.db, ctx.orgId, access).catch(() => null).finally(() => { briefMs = performance.now() - briefStart; }));
+  const systemPromptPromise = Promise.all([attachmentsPromise, briefPromise]).then(([files, brief]) =>
+    buildSystemPrompt(ctx.db, ctx.orgId, { id: ctx.actorId, name: ctx.actorName }, undefined, {
+      ...(files.length ? { files: true } : {}),
+      ...(brief ? { brief: true } : {}),
+    }));
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -184,6 +204,16 @@ export async function POST(req: NextRequest) {
       const perIterMs: number[] = [];
       const toolMs: Record<string, number> = {};
       let ttftMs: number | null = null; // first visible token/tool-call across the request
+      // When the first verdict draft and the final answer reached the client:
+      // answerMs − draftMs is how much sooner the headline showed than before.
+      let draftMs: number | null = null;
+      let answerMs: number | null = null;
+      // A draft is on the client's screen that no `answer` has confirmed yet.
+      let draftPending = false;
+      // Characters of brief handed to the model (0 = no brief this turn).
+      let briefChars = 0;
+      // True once a read tool other than the brief runs this turn.
+      let ranTools = false;
       let totalIters = 0;
       let fastPathPattern: string | null = null;
       let answeredStructured = false;
@@ -260,11 +290,23 @@ export async function POST(req: NextRequest) {
           return; // finally{} still runs: emits the timing line + closes the stream
         }
 
-        const systemPrompt = await systemPromptPromise;
+        const [systemPrompt, brief] = await Promise.all([systemPromptPromise, briefPromise]);
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
           { role: "system", content: systemPrompt },
+          // Ahead of the conversation, so system prompt + brief is one prefix a
+          // follow-up repeats byte for byte (the brief is cached per asker).
+          ...(brief ? briefMessages(brief) : []),
           ...history.map(m => ({ role: m.role, content: m.content }) as OpenAI.Chat.Completions.ChatCompletionMessageParam),
         ];
+        if (brief) {
+          briefChars = brief.chars;
+          // The brief's reads count as this turn's reads: rows resolve to its
+          // records and pictures may draw from it, as if the model had called them.
+          for (const c of brief.calls) {
+            refIndex.add(c.name, c.result);
+            evidence.add(c.name, c.args, c.result);
+          }
+        }
         const tools = chatToolsFor(!!fileCtx);
 
         // Files: the list (and, on the turn a small file arrives, its text) go in
@@ -306,6 +348,11 @@ export async function POST(req: NextRequest) {
           // The model has results from the previous round and is now writing —
           // truthful the moment we ask for iteration 2+, before a token lands.
           if (iter > 0) { send("composing", {}); composingSent = true; }
+          // A new round means last round's draft was sent back (or never
+          // finished): take it off the screen before this round writes another.
+          if (draftPending) { send("verdict_drop", {}); draftPending = false; }
+          // Draft at most one verdict per round, from the first compose_answer.
+          let draftIdx: number | null = null;
 
           const completion = await openai.chat.completions.create({
             model: CHAT_MODEL,
@@ -372,6 +419,19 @@ export async function POST(req: NextRequest) {
                 if (tc.id) slot.id = tc.id;
                 if (tc.function?.name) slot.name = tc.function.name;
                 if (tc.function?.arguments) slot.argsBuf += tc.function.arguments;
+
+                // The verdict is done long before the rows: send it now as a
+                // draft. Cheap — one scan of a buffer of a few KB, stopping
+                // once the draft is out.
+                if (draftIdx === null && tc.function?.arguments && isAnswerTool(slot.name)) {
+                  const v = draftVerdict(slot.argsBuf);
+                  if (v) {
+                    draftIdx = idx;
+                    draftPending = true;
+                    if (draftMs === null) draftMs = performance.now() - reqStart;
+                    send("verdict_draft", { verdict: v });
+                  }
+                }
 
                 // Announce the step the moment the NAME is final, mid-turn —
                 // ahead of the batch dispatching, and staggered by real timing
@@ -520,6 +580,7 @@ export async function POST(req: NextRequest) {
           for (const { tc, argsObj, resultPayload, proposalEvent } of results) {
             if (proposalEvent) { anyVisible = true; send("proposal", proposalEvent); }
             if (isReadTool(tc.name)) {
+              ranTools = true;
               const ui = TOOL_UI[tc.name];
               let src: string | null | undefined;
               try { src = ui?.sourceOf ? ui.sourceOf(resultPayload, argsObj) : ui?.source; } catch { src = null; }
@@ -602,6 +663,13 @@ export async function POST(req: NextRequest) {
                 if (!vc.ok) answer.verdict = vc.fallback;
                 shapeType = built.shape.type;
               }
+              // Answered from the brief alone: the ledger says so — one chip
+              // for what was read before the question, not an empty trace.
+              if (brief && !ranTools) {
+                send("step", { id: "brief", verb: BRIEF_STEP.verb, source: BRIEF_STEP.source });
+                send("step_done", { id: "brief" });
+                if (!consulted.includes(BRIEF_STEP.source)) consulted.push(BRIEF_STEP.source);
+              }
               // The shape's own reading of the data beats the model's tone.
               const tone = resolveTone(answer.tone, built?.shape);
               const { tone: _modelTone, ...rest } = answer;
@@ -614,6 +682,8 @@ export async function POST(req: NextRequest) {
                 ...(verdictCitations.length ? { citations: verdictCitations } : {}),
                 sources: consulted,
               });
+              draftPending = false;
+              answerMs = performance.now() - reqStart;
               answeredStructured = true;
               break;
             }
@@ -629,6 +699,8 @@ export async function POST(req: NextRequest) {
           // Loop back: the model now sees the tool results and writes its answer.
         }
 
+        // A draft the loop ran out before confirming is not an answer.
+        if (draftPending) { send("verdict_drop", {}); draftPending = false; }
         // The last resort of the answer guard: never an empty bubble.
         if (!answeredStructured && !answeredProposal && !anyVisible) {
           answeredNone = true;
@@ -636,6 +708,8 @@ export async function POST(req: NextRequest) {
         }
         send("done", {});
       } catch (e) {
+        // Whatever went wrong, a draft on screen is not the answer.
+        if (draftPending) { send("verdict_drop", {}); draftPending = false; }
         if (e instanceof StreamIdleTimeoutError) {
           // A stalled upstream stream — not an app bug. Tell the client the
           // response timed out rather than the generic error copy.
@@ -671,6 +745,14 @@ export async function POST(req: NextRequest) {
             shape: shapeType,
             shapeMs,
             ttftMs: ttftMs === null ? null : Math.round(ttftMs),
+            // The verdict draft vs the finished answer: the gap is the headline's head start.
+            draftMs: draftMs === null ? null : Math.round(draftMs),
+            // Today's brief: its size, time to build (≈0 on a cache hit), and
+            // whether the answer needed nothing beyond it (the one-round win).
+            briefChars,
+            briefMs: briefMs === null ? null : Math.round(briefMs),
+            briefOnly: briefChars > 0 && answeredStructured && !ranTools,
+            answerMs: answerMs === null ? null : Math.round(answerMs),
             promptTokens,
             cachedTokens,
             completionTokens,

@@ -37,6 +37,7 @@ import {
 } from "../lib/ai-tools";
 import { ALL_PERMISSIONS } from "../lib/permissions";
 import { buildSystemPrompt } from "../lib/ai-prompt";
+import { buildBrief, briefMessages } from "../lib/ai-brief";
 import { db } from "../lib/db";
 import { extractFile } from "../lib/files";
 import type { AttachmentContent } from "../lib/files/types";
@@ -141,6 +142,10 @@ interface TurnResult {
   iters: number;
   ms: number;
   promptTokens: number;
+  /** Of promptTokens, served from OpenAI's prompt cache (billed at a discount). */
+  cachedTokens: number;
+  /** Output tokens, reasoning included — the expensive kind. */
+  completionTokens: number;
   /** Proposals refused because the request had read file content. */
   blockedProposals: number;
   /** Server-resolved citations on the answer, as "f1:p3" / "f2:sh1!B2:D9". */
@@ -174,6 +179,8 @@ function answerToText(a: AnswerPayload): string {
 // a low per-minute token budget marks every case FAIL and the score is noise.
 // Honors the server's suggested wait when present, else backs off 2^n seconds.
 const MAX_RETRIES = 6;
+/** EVAL_BRIEF=1 sends today's brief (lib/ai-brief) with every non-file case, as the route does. */
+const BRIEF = process.env.EVAL_BRIEF === "1";
 
 function isRetryableError(e: unknown): boolean {
   const status = (e as { status?: number })?.status;
@@ -240,6 +247,8 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
   let iters = 0;
 
   let promptTokens = 0;
+  let cachedTokens = 0;
+  let completionTokens = 0;
   let blockedProposals = 0;
   let cited: string[] = [];
   let citeRetried = false;
@@ -248,8 +257,20 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
   const refIndex = createRefIndex();
   let shape: string | null = null;
   let verdictRetried = false;
+  // EVAL_BRIEF=1: today's brief, exactly as the route sends it (not on file
+  // turns). Its reads count as this turn's tool calls, so a case expecting
+  // get_treasury passes when the brief already read it.
+  const brief = BRIEF && !fc ? await buildBrief(scoped, orgId, pctx, now) : null;
+  if (brief) {
+    for (const bc of brief.calls) {
+      toolCalls.push({ name: bc.name, args: bc.args });
+      refIndex.add(bc.name, bc.result);
+      evidence.add(bc.name, bc.args, bc.result);
+    }
+  }
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
+    ...(brief ? briefMessages(brief) : []),
     { role: "user", content: c.question },
   ];
   // Same order as the route: the file list (and small fresh files) answered
@@ -286,6 +307,8 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
     });
 
     promptTokens += completion.usage?.prompt_tokens ?? 0;
+    cachedTokens += completion.usage?.prompt_tokens_details?.cached_tokens ?? 0;
+    completionTokens += completion.usage?.completion_tokens ?? 0;
     const msg = completion.choices[0]?.message;
     if (!msg) break;
 
@@ -453,6 +476,8 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
     iters,
     ms: Date.now() - t0,
     promptTokens,
+    cachedTokens,
+    completionTokens,
     blockedProposals,
     cited,
     shape,
@@ -521,11 +546,14 @@ function grade_case(
   // Tool-args assertions (subset match)
   if (c.expectedToolArgs) {
     for (const [toolName, expectedArgs] of Object.entries(c.expectedToolArgs)) {
-      const call = obs.toolCalls.find(t => t.name === toolName);
-      if (!call) {
+      // Any call of the tool may carry the args: with today's brief on, the
+      // first get_brother is the brief's own {id} read, not the model's.
+      const calls = obs.toolCalls.filter(t => t.name === toolName);
+      if (!calls.length) {
         reasons.push(`expected args on ${toolName} but tool was not called`);
         continue;
       }
+      const call = calls.find(t => Object.entries(expectedArgs).every(([k, v]) => valuesMatch(t.args[k], v))) ?? calls[calls.length - 1];
       for (const [key, expectedVal] of Object.entries(expectedArgs)) {
         const actual = call.args[key];
         if (!valuesMatch(actual, expectedVal)) {
@@ -637,7 +665,7 @@ async function main() {
     id: Number(process.env.EVAL_CALLER_ID ?? 1),
     name: process.env.EVAL_CALLER_NAME ?? "Eval Caller",
   };
-  const systemPrompt = await buildSystemPrompt(db(EVAL_ORG_ID), EVAL_ORG_ID, EVAL_CALLER, PINNED_DATE);
+  const systemPrompt = await buildSystemPrompt(db(EVAL_ORG_ID), EVAL_ORG_ID, EVAL_CALLER, PINNED_DATE, BRIEF ? { brief: true } : {});
   const filesPrompt = await buildSystemPrompt(db(EVAL_ORG_ID), EVAL_ORG_ID, EVAL_CALLER, PINNED_DATE, { files: true });
 
   // The eval caller can approve anything — the suite grades tool selection and
@@ -652,6 +680,7 @@ async function main() {
 
   console.log(`Model: ${CHAT_MODEL}`);
   console.log(`Cases: ${cases.length}`);
+  console.log(`Today's brief: ${BRIEF ? "on" : "off"}`);
   console.log(`Pinned date: ${PINNED_DATE.toISOString().slice(0, 10)}`);
   console.log(`List forms: ${formsEnabled() ? "on" : "off"} · Answer kit: ${kitEnabled() ? "on" : "off"}`);
   console.log("");
@@ -671,7 +700,7 @@ async function main() {
         const r = await runCase(c, openai, fc ? filesPrompt : systemPrompt, EVAL_ORG_ID, PINNED_DATE, pctx, fc);
         results[i] = r;
         const mark = r.pass ? "PASS" : "FAIL";
-        process.stdout.write(`[${mark}] ${cases[i].id} (${r.ms}ms, ${r.iters} iter, ${r.promptTokens} prompt tok${r.blockedProposals ? `, ${r.blockedProposals} proposal blocked` : ""})\n`);
+        process.stdout.write(`[${mark}] ${cases[i].id} (${r.ms}ms, ${r.iters} iter, ${r.promptTokens} prompt tok (${r.cachedTokens} cached), ${r.completionTokens} out${r.blockedProposals ? `, ${r.blockedProposals} proposal blocked` : ""})\n`);
         if (!r.pass) {
           for (const reason of r.reasons) process.stdout.write(`        ↳ ${reason}\n`);
           // EVAL_DEBUG=1: show what the model actually did on a failing case —
@@ -697,6 +726,8 @@ async function main() {
           iters: 0,
           ms: 0,
           promptTokens: 0,
+          cachedTokens: 0,
+          completionTokens: 0,
           blockedProposals: 0,
           cited: [],
           shape: null,
@@ -748,6 +779,8 @@ async function main() {
     console.log(`Iterations: mean ${meanIters.toFixed(2)} · ${histoStr}`);
     const tokens = results.filter(r => r.promptTokens > 0).map(r => r.promptTokens).sort((a, b) => a - b);
     if (tokens.length) console.log(`Prompt tokens: median ${tokens[Math.floor(tokens.length / 2)]} · max ${tokens[tokens.length - 1]}`);
+    const sum = (f: (r: TurnResult) => number) => results.reduce((n, r) => n + f(r), 0);
+    console.log(`Token totals: prompt ${sum(r => r.promptTokens)} (cached ${sum(r => r.cachedTokens)}) · output ${sum(r => r.completionTokens)}`);
     console.log("──────────────────────────────────");
   }
 

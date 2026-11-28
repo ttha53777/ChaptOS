@@ -289,6 +289,14 @@ export interface ChatStreamEvents {
   composing: Record<string, never>;
   /** Streamed plain-text reply, appended delta by delta. */
   text: { delta: string };
+  /**
+   * The verdict, before the rest of the answer is written. PROVISIONAL: show it
+   * as a draft. The `answer` that follows is final and may word it differently;
+   * a later `verdict_draft` replaces it; `verdict_drop` retracts it.
+   */
+  verdict_draft: { verdict: string };
+  /** The draft verdict won't become an answer as sent — remove it. */
+  verdict_drop: Record<string, never>;
   /** The structured reply (verdict + rows). Terminal for the answer body. */
   answer: AnswerData;
   /** A drafted write to confirm. */

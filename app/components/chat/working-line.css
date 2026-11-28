@@ -94,6 +94,16 @@ html[data-aesthetic="paper"] .chat-root .wl-mark.on::before { transform: rotate(
 /* the verdict arrives word by word into the placeholder's space */
 html[data-aesthetic="paper"] .chat-root .verdict .vw { animation: wl-word .3s var(--pp-ease-out) both; }
 
+/* the verdict streamed ahead of the rows: written in, but muted until the
+   answer confirms it — then the same sentence firms up in place */
+html[data-aesthetic="paper"] .chat-root .answer.draft .verdict { opacity: .55; }
+html[data-aesthetic="paper"] .chat-root .answer.draft + .wl-skel { padding-top: 2px; }
+html[data-aesthetic="paper"] .chat-root .verdict.settle { animation: wl-settle .35s var(--pp-ease-out) both; }
+@keyframes wl-settle { from { opacity: .55; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  html[data-aesthetic="paper"] .chat-root .verdict.settle { animation: none; }
+}
+
 @keyframes wl-spin { to { transform: rotate(360deg); } }
 @keyframes wl-pop { from { opacity: 0; transform: scale(.88); } to { opacity: 1; transform: none; } }
 @keyframes wl-roll-in { from { transform: translateY(100%); opacity: 0; } to { transform: none; opacity: 1; } }

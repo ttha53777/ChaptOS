@@ -3,6 +3,7 @@ import { isoWeekBounds } from "@/lib/dates";
 import { netBalance } from "@/lib/treasury-balance";
 import { formsEnabled, kitEnabled, FORM_SHAPE_TYPES } from "@/lib/ai-shape-request";
 import { playbookGuide } from "@/lib/ai-howto";
+import { BRIEF_RULE } from "@/lib/ai-brief";
 
 /**
  * Which list form to name, checked in this order — the first that fits wins
@@ -186,7 +187,7 @@ export async function buildSystemPrompt(
   orgId: number,
   caller: { id: number; name: string },
   now: Date = new Date(),
-  opts: { files?: boolean } = {},
+  opts: { files?: boolean; brief?: boolean } = {},
 ): Promise<string> {
   const today = now.toISOString().slice(0, 10);
   const weekday = WEEKDAYS[now.getDay()];
@@ -258,6 +259,9 @@ export async function buildSystemPrompt(
       : "OUT OF SCOPE: for anything outside chapter ops (weather, news, general knowledge, writing code), decline in ONE sentence and stop. Don't suggest workarounds, name external tools/apps, or volunteer adjacent info — a clean 'I can only help with chapter data' is the whole reply. This does NOT cover product how-to about ChaptOS's own features (see PRODUCT HOW-TO).",
     "Be terse. Numbers and names over prose. Skip preamble.",
     opts.files ? FILE_RULES : "",
+    // Static text, so it stays in the cached prefix; present only when the
+    // request carries a brief (lib/ai-brief).
+    opts.brief ? BRIEF_RULE : "",
     callerLine,
     dateLine,
     snapshotLine,

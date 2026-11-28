@@ -32,8 +32,22 @@ function Words({ text, from }: { text: string; from: number }) {
   );
 }
 
-function Verdict({ text }: { text: string }) {
+/**
+ * The verdict sentence. `settle`: it is already on screen as the streamed draft
+ * (see DraftVerdict), so it doesn't fade in word by word a second time — it
+ * only firms up from the draft's muted ink.
+ */
+export function Verdict({ text, settle }: { text: string; settle?: boolean }) {
   const m = /\*([^*]+)\*/.exec(text);
+  if (settle) {
+    return (
+      <p className="verdict settle">
+        {m && m.index !== undefined
+          ? <>{text.slice(0, m.index)}<em>{m[1]}</em>{text.slice(m.index + m[0].length).replace(/\*/g, "")}</>
+          : text.replace(/\*/g, "")}
+      </p>
+    );
+  }
   if (!m || m.index === undefined) return <p className="verdict"><Words text={text.replace(/\*/g, "")} from={0} /></p>;
   const before = text.slice(0, m.index);
   const after = text.slice(m.index + m[0].length).replace(/\*/g, "");
@@ -299,8 +313,23 @@ export function FeedbackRow({ value, onFeedback }: {
   );
 }
 
-export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPeek, onNav, onIdea, onFeedback, onCite }: {
+/**
+ * The verdict streamed ahead of the rows (`verdict_draft`), in the spot the
+ * answer's verdict will take, muted because the server hasn't confirmed it.
+ * The rows' placeholder stays beneath it.
+ */
+export function DraftVerdict({ text }: { text: string }) {
+  return (
+    <div className="answer t-now draft" aria-busy="true">
+      <Verdict text={text} />
+    </div>
+  );
+}
+
+export function AnswerBlock({ answer, steps, selectedRow, feedback, settleVerdict, onAsk, onPeek, onNav, onIdea, onFeedback, onCite }: {
   answer: AnswerData;
+  /** The verdict was already shown as the draft: don't animate it in again. */
+  settleVerdict?: boolean;
   steps: LedgerStep[];
   /** Index of the keyboard-selected row, or -1. */
   selectedRow: number;
@@ -340,7 +369,7 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
   const consulted = new Set(steps.filter(s => !s.provisional && s.status === "done").map(s => s.source ?? s.verb));
   return (
     <div className={`answer t-${answerTone(answer)}`}>
-      <Verdict text={answer.verdict} />
+      <Verdict text={answer.verdict} settle={settleVerdict} />
       <CitationChips citations={answer.citations} onOpen={onCite} className="verdict-cites in in-2" />
       {shape && <ShapeBlock shape={shape} rows={answer.rows} h={{ selectedRow, act, onPeek, onAsk, onIdea }} renderRow={renderRow} />}
       {/* No server shape: two forms are decided here, from rows that already

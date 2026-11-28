@@ -92,6 +92,8 @@ export async function openThread(slug: string) {
       ...m,
       steps: m.steps?.filter(st => !st.provisional).map(st => (st.status === "done" ? st : { ...st, status: "done" as const })),
       composing: undefined,
+      // A draft no answer confirmed was never the answer.
+      draft: m.answer ? m.draft : undefined,
       proposals: m.proposals?.map(p => (p.state === "confirming" ? { ...p, state: "error" as const, resultMessage: "Interrupted. Not confirmed." } : p)),
     })) : [];
   } catch { /* unreadable: start fresh */ }
@@ -169,6 +171,14 @@ export async function send(question: string, files: { ids: string[]; newNames: s
         case "composing":
           enqueueStage(() => patch(aid, m => ({ ...m, steps: dropProvisional(m.steps ?? []), composing: true })));
           break;
+        case "verdict_draft":
+          // The headline, ahead of the rows. Provisional until `answer`.
+          flushStage();
+          if (typeof ev.data.verdict === "string" && ev.data.verdict.trim()) patch(aid, { draft: ev.data.verdict });
+          break;
+        case "verdict_drop":
+          patch(aid, m => (m.draft === undefined ? m : { ...m, draft: undefined }));
+          break;
         case "answer": {
           flushStage();
           const a = ev.data;
@@ -188,11 +198,11 @@ export async function send(question: string, files: { ids: string[]; newNames: s
         }
         case "text":
           flushStage();
-          patch(aid, m => (m.notice ? m : { ...m, content: m.content + (ev.data.delta ?? ""), steps: settleLedger(m.steps) }));
+          patch(aid, m => (m.notice ? m : { ...m, content: m.content + (ev.data.delta ?? ""), draft: m.answer ? m.draft : undefined, steps: settleLedger(m.steps) }));
           break;
         case "notice":
           flushStage();
-          if (["timeout", "error", "cut_short"].includes(ev.data.kind)) patch(aid, m => ({ ...m, notice: { kind: ev.data.kind }, steps: settleLedger(m.steps), composing: false }));
+          if (["timeout", "error", "cut_short"].includes(ev.data.kind)) patch(aid, m => ({ ...m, notice: { kind: ev.data.kind }, draft: m.answer ? m.draft : undefined, steps: settleLedger(m.steps), composing: false }));
           break;
         case "note_refs":
           flushStage();
@@ -212,7 +222,7 @@ export async function send(question: string, files: { ids: string[]; newNames: s
         }
         case "done":
           flushStage();
-          patch(aid, m => ({ ...m, steps: settleLedger(m.steps), composing: false }));
+          patch(aid, m => ({ ...m, draft: m.answer ? m.draft : undefined, steps: settleLedger(m.steps), composing: false }));
           break;
         case "open":
           break;
@@ -223,13 +233,13 @@ export async function send(question: string, files: { ids: string[]; newNames: s
     flushStage();
     if (!live()) { /* switched away */ }
     else if ((e as { name?: string })?.name === "AbortError") {
-      patch(aid, m => ({ ...m, stopped: true, steps: settleLedger(m.steps), composing: false }));
+      patch(aid, m => ({ ...m, stopped: true, steps: settleLedger(m.steps), composing: false, draft: m.answer ? m.draft : undefined }));
     } else {
       const status = e instanceof ChatHttpError ? e.status : undefined;
       const message = e instanceof ChatHttpError || e instanceof ChatOffError ? e.message : undefined;
       patch(aid, m => {
         const at = (m.steps ?? []).find(st => !st.provisional && st.status === "active")?.source;
-        return { ...m, error: { ...(at ? { at } : {}), ...(status ? { status } : {}), ...(message ? { message } : {}) }, steps: settleLedger(m.steps), composing: false };
+        return { ...m, error: { ...(at ? { at } : {}), ...(status ? { status } : {}), ...(message ? { message } : {}) }, steps: settleLedger(m.steps), composing: false, draft: m.answer ? m.draft : undefined };
       });
     }
   } finally {

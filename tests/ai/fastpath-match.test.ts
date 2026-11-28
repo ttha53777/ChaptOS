@@ -72,3 +72,21 @@ describe("fast-path matcher — abstains (must fall through to the LLM)", () => 
     expect(matchIntent("what's our budget balance?")).toBeNull();
   });
 });
+
+describe("fast-path matcher — questions about the asker", () => {
+  it("sends first-person questions to the model (it has their record in today's brief)", () => {
+    for (const q of [
+      "How much do I owe in dues?",
+      "do i still owe dues",
+      "what's my dues balance outstanding",
+      "am I at risk?",
+      "what's on my plate this week",
+      "I'm wondering what's due this week",
+    ]) expect(matchIntent(q), q).toBeNull();
+  });
+
+  it("still serves 'show me / tell me X' — asking for X, not about the asker", () => {
+    expect(matchIntent("show me at-risk brothers")?.pattern).toBe("at-risk");
+    expect(matchIntent("tell me who owes dues")?.pattern).toBe("dues-owed");
+  });
+});

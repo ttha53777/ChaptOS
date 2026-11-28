@@ -71,10 +71,18 @@ export function AssistantTurn({ msg, streaming }: { msg: ChatMsg; streaming: boo
 
       {working ? <LiveLedger intent={msg.intent ?? "Searching the records…"} steps={msg.steps ?? []} composing={msg.composing} />
         : msg.steps?.length ? <Trace steps={msg.steps} /> : null}
+      {/* The headline, streamed ahead of the rows: muted until the answer
+          confirms it. */}
+      {working && msg.draft ? (
+        <Enter fresh={fresh} i={0}><View style={{ opacity: 0.55 }}><Verdict text={msg.draft} tone="lilac" /></View></Enter>
+      ) : null}
 
       {a ? (
         <>
-          <Enter fresh={fresh} i={0}><Verdict text={a.verdict} tone={tone} /></Enter>
+          {/* Already on screen as the draft: firm it up in place, don't enter it again. */}
+          {msg.draft !== undefined && msg.draft === a.verdict
+            ? <View><Verdict text={a.verdict} tone={tone} /></View>
+            : <Enter fresh={fresh} i={0}><Verdict text={a.verdict} tone={tone} /></Enter>}
           {a.citations?.length ? <Enter fresh={fresh} i={1}><Cites list={a.citations} onCite={act.cite} /></Enter> : null}
           <Enter fresh={fresh} i={1}><Body a={a} /></Enter>
           {a.askback ? <Enter fresh={fresh} i={2}><AskBackBlock askback={a.askback} replied={!!msg.replied} onSend={t => { markReplied(msg.id); act.ask(t); }} /></Enter> : null}

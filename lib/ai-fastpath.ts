@@ -260,10 +260,19 @@ const INTENTS: Intent[] = [
 // confirm card. Any of these sends the question to the model instead.
 const SELF_SERVICE_ASK = /\b(excuse|excused|can t make|cant make|won t make|reimburse\w*|pay me back|vote|voting|log my|mark (it|this|that|my)\b.*\bdone)\b/;
 
+// A question about the asker ("how much do I owe", "my tasks") shares the
+// chapter-wide matchers' keywords, but the canned answer is everyone's list:
+// "How much do I owe in dues?" got "2 of 9 owe dues". Those go to the model,
+// which already has the asker's own record in today's brief (lib/ai-brief).
+const FIRST_PERSON = /\b(i|me|my|mine|myself|i m|i ve|i d)\b/;
+// "show me / tell me / give me X" asks for X, not about the asker.
+const ASKING_FOR = /\b(show|tell|give|get|send|list|find|pull up) me\b/g;
+
 export function matchIntent(question: string): { pattern: string; tool: string; args: Record<string, unknown> } | null {
   const q = normalize(question);
   if (!q) return null;
   if (SELF_SERVICE_ASK.test(q)) return null;
+  if (FIRST_PERSON.test(q.replace(ASKING_FOR, " "))) return null;
   for (const intent of INTENTS) {
     let call: { tool: string; args: Record<string, unknown> } | null = null;
     try { call = intent.match(q); } catch { continue; }

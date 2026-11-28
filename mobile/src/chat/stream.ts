@@ -21,7 +21,7 @@ export class ChatHttpError extends Error {
 }
 export class ChatOffError extends Error {}
 
-const KNOWN = new Set<string>(["open", "step", "step_start", "step_done", "step_drop", "composing", "text", "answer", "proposal", "notice", "note_refs", "done"]);
+const KNOWN = new Set<string>(["open", "step", "step_start", "step_done", "step_drop", "composing", "verdict_draft", "verdict_drop", "text", "answer", "proposal", "notice", "note_refs", "done"]);
 
 async function post(body: ChatRequest, token: string | null, signal: AbortSignal) {
   const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "text/event-stream", "x-app-version": config.appVersion };
