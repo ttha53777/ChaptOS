@@ -28,7 +28,7 @@
 {"id":"propose-deadline","question":"Add a deadline called 'Fall Roster Update' due 2026-09-01, owner Thalha Thabish.","category":"proposal","expectedTools":["propose_add_deadline"],"expectedProposalAction":"propose_add_deadline","expectAnswerType":"proposal"}
 {"id":"propose-mark-dues-already-paid","question":"Mark Noah Kim's dues as paid.","category":"proposal","expectedTools":["get_brother"],"toolMatch":"any","mustInclude":["0"],"expectAnswerType":"data","allowProse":true}
 {"id":"propose-log-tx","question":"Log a $45 expense for Party Supplies on 2026-05-23 — ice for the kickback.","category":"proposal","expectedTools":["propose_log_transaction"],"expectedProposalAction":"propose_log_transaction","expectAnswerType":"proposal"}
-{"id":"propose-add-event","question":"Schedule a chapter meeting on 2026-06-16.","category":"proposal","expectedTools":["propose_add_calendar_event"],"expectedProposalAction":"propose_add_calendar_event","expectAnswerType":"proposal"}
+{"id":"propose-add-event","question":"Schedule a chapter meeting on 2026-06-16.","category":"proposal","expectedTools":["propose_add_event"],"expectedProposalAction":"propose_add_calendar_event","expectAnswerType":"proposal"}
 {"id":"out-of-scope","question":"What's the weather in Albany tomorrow?","category":"refuse","expectedTools":[],"expectAnswerType":"refuse","mustNotInclude":["sunny","rain","°"]}
 {"id":"roles-president","question":"Who's the president?","category":"roles","expectedTools":["list_roles"],"mustInclude":["Bryan Lee"],"expectAnswerType":"data"}
 {"id":"roles-officers","question":"Who are our officers?","category":"roles","expectedTools":["list_roles"],"mustInclude":["President"],"expectAnswerType":"data"}
@@ -100,3 +100,4 @@
 {"id":"kit-quote-minutes","question":"What do the minutes say about the door for China night?","category":"answer-kit","expectedTools":["search_meeting_notes"],"expectShape":"quote","mustInclude":["trap door"],"expectAnswerType":"data"}
 {"id":"brief-my-dues","question":"How much do I owe in dues?","category":"personal","expectedTools":["get_brother"],"mustInclude":["118"],"expectAnswerType":"data"}
 {"id":"brief-next-two-weeks","question":"What's coming up in the next two weeks?","category":"personal","expectedTools":["list_calendar_events"],"mustInclude":["Spring Banquet"],"expectAnswerType":"data"}
+{"id":"propose-add-dated-fundraiser","question":"I have a fundraiser on the 4th with SYZ can you help me put this in","category":"proposal","expectedTools":["propose_add_event"],"expectedProposalAction":"propose_add_calendar_event","expectAnswerType":"proposal"}

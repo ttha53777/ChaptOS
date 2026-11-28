@@ -38,7 +38,7 @@ const MOCK_EVENT_TYPES = [
   { slug: "social",  label: "Social",            creatable: true,  hidden: false },
   { slug: "fundy",   label: "Fundraiser",        creatable: true,  hidden: false },
 ];
-function mockScoped(duesBefore: number | null = 135): { scoped: Scoped; findFirst: ReturnType<typeof vi.fn> } {
+function mockScoped(duesBefore: number | null = 135, enabledWorkflows: string[] = ["events"]): { scoped: Scoped; findFirst: ReturnType<typeof vi.fn> } {
   // `name` serves proposeAddDeadline's assignee resolution (a missing name now
   // BLOCKS the draft); `duesOwed` serves proposeRecordDuesPayment's balance read.
   // `isGhost` is on the shape because roster reads return a flattened row that
@@ -46,6 +46,9 @@ function mockScoped(duesBefore: number | null = 135): { scoped: Scoped; findFirs
   const findFirst = vi.fn(async () =>
     (duesBefore === null ? null : { duesOwed: duesBefore, name: "Mock Owner", isGhost: false }));
   const findMany = vi.fn(async () => MOCK_EVENT_TYPES);
+  // organizationConfig.find — propose_add_event reads enabledWorkflows to know
+  // whether the Programming board is a page this org uses.
+  const findConfig = vi.fn(async () => ({ enabledWorkflows }));
   const explode = (op: string) => () => { throw new Error(`unexpected DB write: ${op}`); };
   // A Proxy so any model.method access resolves: reads return findFirst/findMany
   // where expected; every mutating verb throws.
@@ -58,6 +61,7 @@ function mockScoped(duesBefore: number | null = 135): { scoped: Scoped; findFirs
     get(_t, prop: string) {
       if (["findFirst", "findUnique", "findRosterRow", "findByBrotherId"].includes(prop)) return findFirst;
       if (["findMany", "listRoster", "search"].includes(prop)) return findMany;
+      if (prop === "find") return findConfig;
       if (["create", "update", "delete", "upsert", "updateMany", "deleteMany", "createMany",
            "updateByBrotherId", "updateManyByBrotherIds", "compareAndSetDues", "deleteByBrotherId",
            "setName"].includes(prop)) {
@@ -83,6 +87,7 @@ const ALL_PROPOSAL_TOOLS = [
   "propose_log_transaction",
   "propose_record_dues_payment",
   "propose_add_programming_event",
+  "propose_add_event",
 ] as const;
 
 /** Minimal VALID args per tool, used to assert the happy path produces a proposal. */
@@ -93,7 +98,11 @@ const VALID_ARGS: Record<string, Record<string, unknown>> = {
   propose_log_transaction:       { type: "expense", category: "Food", amount: 42.5, date: "2026-07-01", description: "pizza" },
   propose_record_dues_payment:   { brother_id: 3, brother_name: "Bryan" },
   propose_add_programming_event: { title: "Mixer", type: "Social" },
+  propose_add_event:             { title: "Mixer", type: "Social", date: "2026-07-01" },
 };
+
+/** propose_add_event returns another action's draft — the one approval keys off. */
+const ROUTED_ACTION: Record<string, string> = { propose_add_event: "propose_add_calendar_event" };
 
 describe("registry", () => {
   it("recognizes every propose_* tool and rejects unknown / read tools", () => {
@@ -111,7 +120,7 @@ describe("every builder proposes and never writes", () => {
       expect("error" in out).toBe(false);
       const proposal = out as Extract<typeof out, { kind: "proposal" }>;
       expect(proposal.kind).toBe("proposal");
-      expect(proposal.action).toBe(tool);
+      expect(proposal.action).toBe(ROUTED_ACTION[tool] ?? tool);
       expect(["POST", "PATCH"]).toContain(proposal.method);
       expect(typeof proposal.endpoint).toBe("string");
       expect(proposal.endpoint.startsWith("/api/")).toBe(true);
@@ -264,5 +273,60 @@ describe("validateArgs (direct)", () => {
 
   it("rejects a wrong-typed field", () => {
     expect(validateArgs("propose_add_deadline", { title: 123, dueDate: "2026-07-01" }).ok).toBe(false);
+  });
+});
+
+/**
+ * Where an event lands is the server's call, not the model's: "fundraiser with
+ * SYZ on the 4th" used to become a Programming-board idea because that tool's
+ * description happened to say "fundraiser".
+ */
+describe("propose_add_event — the server routes calendar vs Programming board", () => {
+  type P = Extract<Awaited<ReturnType<typeof runProposal>>, { kind: "proposal" }>;
+  const run = async (args: Record<string, unknown>, workflows?: string[]) => {
+    const { scoped } = mockScoped(135, workflows);
+    return runProposal("propose_add_event", args, scoped, PCTX);
+  };
+  const goesOn = (p: P) => p.display.rows.find(r => r.k === "Goes on")?.v;
+
+  it("a dated fundraiser goes on the calendar", async () => {
+    const p = await run({ title: "Fundraiser with SYZ", type: "Fundraiser", date: "2026-12-04" }) as P;
+    expect(p.action).toBe("propose_add_calendar_event");
+    expect(p.endpoint).toBe("/api/calendar");
+    expect(p.payload).toMatchObject({ title: "Fundraiser with SYZ", date: "2026-12-04", category: "fundy" });
+    expect(p.display).toMatchObject({ kind: "events", title: "Add an event" });
+    expect(goesOn(p)).toBe("Calendar");
+  });
+
+  it("an undated event goes on the Programming board as an idea", async () => {
+    const p = await run({ title: "Bake sale", type: "Fundraiser" }) as P;
+    expect(p.action).toBe("propose_add_programming_event");
+    expect(p.endpoint).toBe("/api/programming");
+    expect(p.display).toMatchObject({ kind: "programming", title: "Add an event" });
+    expect(goesOn(p)).toBe("Programming board · Idea");
+  });
+
+  it("planning: true sends even a dated event to the board, keeping the date", async () => {
+    const p = await run({ title: "Mixer", type: "Social", date: "2026-12-04", planning: true }) as P;
+    expect(p.action).toBe("propose_add_programming_event");
+    expect(p.payload).toMatchObject({ dueDate: "2026-12-04" });
+  });
+
+  it("with the Programming page off, a dated event still goes on the calendar", async () => {
+    const p = await run({ title: "Mixer", type: "Social", date: "2026-12-04", planning: true }, ["members"]) as P;
+    expect(p.action).toBe("propose_add_calendar_event");
+  });
+
+  it("with the Programming page off, an undated event asks for a date", async () => {
+    expect(await run({ title: "Mixer", type: "Social" }, ["members"])).toEqual({ error: expect.stringContaining("needs a date") });
+  });
+
+  it("a malformed date is an error, not silently dropped onto the board", async () => {
+    expect(await run({ title: "Mixer", type: "Social", date: "12/04" })).toHaveProperty("error");
+  });
+
+  it("calendar-only fields carry to the calendar payload", async () => {
+    const p = await run({ title: "Chapter", type: "chapter", date: "2026-12-04", time: "7:00 PM", location: "House" }) as P;
+    expect(p.payload).toMatchObject({ time: "7:00 PM", location: "House", mandatory: true });
   });
 });

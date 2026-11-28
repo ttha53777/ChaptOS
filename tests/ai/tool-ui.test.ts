@@ -58,7 +58,12 @@ describe("TOOL_UI / PROPOSAL_META completeness", () => {
   it("no orphan entries name tools that don't exist", () => {
     for (const n of allToolNames) expect(TOOL_UI[n]?.verb, n).toBeTruthy();
     for (const n of Object.keys(TOOL_UI)) expect(allToolNames, `TOOL_UI.${n}`).toContain(n);
-    for (const n of Object.keys(PROPOSAL_META)) expect(toolNames, `PROPOSAL_META.${n}`).toContain(n);
+    // Draft-only actions: a routing tool (propose_add_event) produces them, so
+    // the model never calls them by name — but signed cards still carry them.
+    const draftOnly = new Set(["propose_add_calendar_event", "propose_add_programming_event"]);
+    for (const n of Object.keys(PROPOSAL_META)) {
+      if (!draftOnly.has(n)) expect(toolNames, `PROPOSAL_META.${n}`).toContain(n);
+    }
   });
 
   it("every tool is classified exactly one way (read | proposal | answer)", () => {

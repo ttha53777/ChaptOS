@@ -21,6 +21,7 @@ import { readStandingConfig, rosterMeasured, type StandingConfig } from "@/lib/m
 import { anyMeasured, resolveMeasuredMetrics, type TrackedMetrics } from "@/lib/tracked-metrics";
 import { netBalance } from "@/lib/treasury-balance";
 import { isProgrammingManagedType } from "@/lib/programming";
+import { isNavVisible } from "@/lib/nav-order";
 import { ownerLabel, resolveOwner, type OwnerRow } from "@/lib/event-owner";
 import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
 import { hasPermission, type Permission } from "@/lib/permissions";
@@ -205,10 +206,16 @@ export interface ProposalCtx {
 export const PROPOSAL_META: Record<string, { perm: Permission | null; label: string; kind: ProposalKind; title: string }> = {
   propose_add_deadline:          { perm: "MANAGE_TASKS",     label: "Manage timeline",  kind: "timeline",    title: "Add a deadline" },
   propose_add_instagram_task:    { perm: "MANAGE_INSTAGRAM", label: "Manage Media",     kind: "instagram",   title: "Add a social post" },
-  propose_add_calendar_event:    { perm: "MANAGE_EVENTS",    label: "Manage events",    kind: "events",      title: "Add a calendar event" },
+  // The model only ever sees propose_add_event; the server routes it to one of
+  // the two draft actions below (see proposeAddEvent), and the card, approval
+  // record and edit fields all key off THAT action. They stay here because the
+  // signed card carries them (and the event-idea panel drafts a calendar event
+  // directly). Both read "Add an event" — the "Goes on" row says where.
+  propose_add_event:             { perm: "MANAGE_EVENTS",    label: "Manage events",    kind: "events",      title: "Add an event" },
+  propose_add_calendar_event:    { perm: "MANAGE_EVENTS",    label: "Manage events",    kind: "events",      title: "Add an event" },
   propose_log_transaction:       { perm: "MANAGE_TREASURY",  label: "Manage treasury",  kind: "treasury",    title: "Log a transaction" },
   propose_record_dues_payment:   { perm: "MANAGE_TREASURY",  label: "Manage dues",      kind: "dues",        title: "Record a dues payment" },
-  propose_add_programming_event: { perm: "MANAGE_EVENTS",    label: "Manage events",    kind: "programming", title: "Add a programming event" },
+  propose_add_programming_event: { perm: "MANAGE_EVENTS",    label: "Manage events",    kind: "programming", title: "Add an event" },
   // Self-service (perm null — see ProposalPerm). Each endpoint writes only the
   // caller's own row, so the draft never needs anyone else's authority.
   propose_submit_excuse:         { perm: null, label: "Just you", kind: "excuse",        title: "Submit an excuse" },
@@ -811,23 +818,25 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
-      name: "propose_add_calendar_event",
+      name: "propose_add_event",
       description:
-        "Propose adding a chapter calendar event. Returns a confirm card; the event is NOT created until confirmed. " +
-        "Only ask the user for the required fields (title, date, category). Do NOT ask for time, location, description, or mandatory — " +
-        "those are optional. Mandatory defaults to true for 'chapter' category and false otherwise.",
+        "Propose adding ANY event — a meeting, social, fundraiser, program, service event, anything with a type. Returns a confirm card; nothing is created until confirmed. " +
+        "The server decides where it goes: a dated event goes on the calendar; an undated one, or one the user is still planning, goes on the Programming board as an idea. " +
+        "Ask only for what's missing among title and type (and a date if they want it scheduled). Do NOT ask for time, location, owner, description, or mandatory — include them only if the user said them.",
       parameters: {
         type: "object",
         properties: {
-          title:       { type: "string" },
-          date:        { type: "string", description: "YYYY-MM-DD." },
-          time:        { type: "string", description: "Optional, e.g. '7:00 PM'. Only include if the user mentions a time." },
-          category:    { type: "string", description: "Event-type slug or name. Types are per-chapter; 'chapter' and 'service' are built-ins, and many chapters have their own (e.g. 'social', 'fundy', 'program'). An unknown type is rejected with the valid list." },
-          mandatory:   { type: "boolean", description: "Optional. Defaults to true for 'chapter' category, false otherwise. Only set if the user explicitly says mandatory/optional." },
-          location:    { type: "string", description: "Optional. Only include if the user mentions a location." },
-          description: { type: "string", description: "Optional. Only include if the user provides one." },
+          title:       { type: "string", description: "Short descriptive title." },
+          type:        { type: "string", description: "Event-type slug or name. Types are per-chapter; 'chapter' and 'service' are built-ins, and many chapters have their own (e.g. 'social', 'Fundraiser', 'program'). An unknown type is rejected with the valid list." },
+          date:        { type: "string", description: "YYYY-MM-DD. Include whenever the user names a day." },
+          planning:    { type: "boolean", description: "True ONLY when the user says it's an idea, still being planned, tentative, or asks for the Programming board. Leave out otherwise — 'put in X on the 4th' is NOT planning." },
+          time:        { type: "string", description: "Optional, e.g. '7:00 PM'. Only if the user mentions a time." },
+          location:    { type: "string", description: "Optional. Only if the user mentions a location." },
+          description: { type: "string", description: "Optional. Only if the user provides one." },
+          mandatory:   { type: "boolean", description: "Optional. Defaults to true for 'chapter', false otherwise. Only set if the user explicitly says mandatory/optional." },
+          owner:       { type: "string", description: "Optional member responsible. Only if the user names one." },
         },
-        required: ["title", "date", "category"],
+        required: ["title", "type"],
       },
     },
   },
@@ -894,25 +903,6 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           order:    { type: "string", enum: ["asc", "desc"], description: "Default asc." },
           limit:    { type: "integer", minimum: 1, maximum: 100, description: "Default 100; use ~5 for 'next' or 'top'." },
         },
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "propose_add_programming_event",
-      description:
-        "Propose adding a programming event (program, social, fundraiser, or community service). Returns a confirm card; the event is NOT created until confirmed. " +
-        "Only ask the user for the required fields (title, type). Omit date/owner/stage unless the user mentions them — defaults handle the rest.",
-      parameters: {
-        type: "object",
-        properties: {
-          title: { type: "string", description: "Short descriptive title." },
-          type:  { type: "string", description: "Event type — a slug or display name from the chapter's event types (e.g. 'social', 'Fundraiser', 'Community Service'). An unknown type is rejected with the valid list." },
-          date:  { type: "string", description: "Optional YYYY-MM-DD. Only include if the user mentions a date." },
-          owner: { type: "string", description: "Optional brother name responsible. Only include if the user mentions one." },
-        },
-        required: ["title", "type"],
       },
     },
   },
@@ -3326,6 +3316,58 @@ async function proposeAddProgrammingEvent(args: ToolArgs, scoped: Scoped): Promi
   };
 }
 
+/**
+ * Is the Programming board a page this org uses? It's the "events" workflow
+ * (lib/nav-order.ts NAV_WORKFLOW_MAP). A missing config row reads as off: the
+ * calendar is always on, so that's the safe place to land.
+ */
+async function programmingBoardOn(scoped: Scoped): Promise<boolean> {
+  const cfg = await scoped.organizationConfig.find();
+  return isNavVisible("Programming", cfg?.enabledWorkflows ?? []);
+}
+
+/**
+ * The one event-creating tool the model sees. Calendar event vs Programming
+ * card used to be the model's call, made from two tool descriptions — and
+ * "fundraiser with SYZ on the 4th" landed on the planning board because that
+ * description said "fundraiser". Where an event goes is a product rule, so the
+ * server makes it:
+ *
+ *   • dated and not flagged as planning → calendar
+ *   • undated, or `planning` → Programming board (Idea stage)
+ *   • Programming page switched off → calendar always, which needs a date
+ *
+ * The draft carries the existing action (propose_add_calendar_event /
+ * propose_add_programming_event), so approval, the signed card and inline
+ * edits work exactly as before; the "Goes on" row tells the officer where.
+ */
+async function proposeAddEvent(args: ToolArgs, scoped: Scoped): Promise<ProposalDraft | { error: string }> {
+  const title = String(args.title ?? "").trim();
+  const type  = String(args.type  ?? "").trim();
+  if (!title || !type) return badProposal("Missing required fields.");
+  const date = optionalDate(args.date);
+  if (typeof date === "object") return date;
+  const planning = args.planning === true;
+  const boardOn = await programmingBoardOn(scoped);
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+
+  if (boardOn && (planning || !date)) {
+    const draft = await proposeAddProgrammingEvent({ title, type, date, owner: str(args.owner) }, scoped);
+    if ("error" in draft) return draft;
+    return { ...draft, rows: [...draft.rows, { k: "Goes on", v: "Programming board · Idea" }] };
+  }
+  if (!date) {
+    return badProposal("This chapter doesn't use the Programming board, so the event goes on the calendar and needs a date — ask the user which day.");
+  }
+  const draft = await proposeAddCalendarEvent({
+    title, date, category: type,
+    time: str(args.time), location: str(args.location), description: str(args.description),
+    ...(typeof args.mandatory === "boolean" ? { mandatory: args.mandatory } : {}),
+  }, scoped);
+  if ("error" in draft) return draft;
+  return { ...draft, rows: [...draft.rows, { k: "Goes on", v: "Calendar" }] };
+}
+
 // ── Self-service builders ──────────────────────────────────────────────────
 // Each acts on the ASKER's own record. Two things keep them fast and keep the
 // model from inventing anything:
@@ -3699,6 +3741,7 @@ type ProposalHandler = (args: ToolArgs, scoped: Scoped, pctx: ProposalCtx) =>
 const PROPOSAL_HANDLERS: Record<string, ProposalHandler> = {
   propose_add_deadline:           proposeAddDeadline,
   propose_add_instagram_task:     proposeAddInstagram,
+  propose_add_event:              proposeAddEvent,
   propose_add_calendar_event:     proposeAddCalendarEvent,
   propose_log_transaction:        proposeLogTransaction,
   propose_record_dues_payment:    proposeRecordDuesPayment,
@@ -3735,14 +3778,17 @@ export function isProposalTool(name: string): boolean {
  */
 export async function runProposal(name: string, args: ToolArgs, scoped: Scoped, pctx: ProposalCtx): Promise<Proposal | { error: string }> {
   const handler = PROPOSAL_HANDLERS[name];
-  const meta = PROPOSAL_META[name];
-  if (!handler || !meta) return { error: `Unknown proposal: ${name}` };
+  const toolMeta = PROPOSAL_META[name];
+  if (!handler || !toolMeta) return { error: `Unknown proposal: ${name}` };
   const v = validateArgs(name, args);
   if (!v.ok) return { error: v.error };
   try {
     const draft = await handler(args, scoped, pctx);
     if ("error" in draft) return draft;
     const { rows, ...core } = draft;
+    // A routing tool (propose_add_event) returns another action's draft; the
+    // card, perm and signature must match THAT action, since approval looks it up.
+    const meta = PROPOSAL_META[core.action] ?? toolMeta;
     const display: ProposalDisplay = { kind: meta.kind, title: meta.title, rows };
     const iat = Date.now();
     // Self-service: the handler already checked the caller may act on this
@@ -4071,10 +4117,9 @@ export const TOOL_UI: Record<string, ToolUiMeta> = {
   // finding — the writ card that follows IS the result.
   propose_add_deadline:          { verb: "Drafting a deadline" },
   propose_add_instagram_task:    { verb: "Drafting a social post" },
-  propose_add_calendar_event:    { verb: "Drafting an event" },
+  propose_add_event:             { verb: "Drafting an event" },
   propose_log_transaction:       { verb: "Drafting a transaction" },
   propose_record_dues_payment:   { verb: "Drafting a payment record" },
-  propose_add_programming_event: { verb: "Drafting a programming event" },
   propose_submit_excuse:         { verb: "Drafting your excuse" },
   propose_request_reimbursement: { verb: "Drafting your reimbursement" },
   propose_log_my_service_hours:  { verb: "Drafting your service hours" },
