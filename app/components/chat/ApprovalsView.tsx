@@ -131,7 +131,7 @@ export function ApprovalsView() {
             return (
               <div key={a.id} className={`appr${isOpen ? " open" : ""}`}>
                 <button type="button" className="appr-row" onClick={() => setOpenId(isOpen ? null : a.id)}>
-                  <span className="glyph"><KindGlyph kind={a.kind} /></span>
+                  <span className="glyph" data-kind={a.kind}><KindGlyph kind={a.kind} /></span>
                   <span className="rb">
                     <span className="t">{a.summary}</span>
                     <span className="s">Approved by <b>{a.approvedByName}</b> · {a.approvedByRole} · {new Date(a.approvedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>

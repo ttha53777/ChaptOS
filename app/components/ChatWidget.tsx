@@ -14,12 +14,12 @@
 // v3.html — Fraunces serif counsel voice, ONE violet accent, zero gradients.
 // Styling in chat-spotlight.css; fonts come from next/font vars on <html>.
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { orgFetch } from "../lib/api";
 import { iterSSE } from "../lib/sse";
 import { useChapter } from "../context/ChapterContext";
-import { IcAlert, IcArrow, IcCal, IcClip, IcCoin, IcFlag, IcMic, IcRedo, IcSend, IcStop, IcUsers } from "./chat/icons";
+import { IcAlert, IcArrow, IcCal, IcClip, IcCoin, IcFile, IcFlag, IcMic, IcPlus, IcRedo, IcSend, IcSpark, IcStop, IcUsers, IcX } from "./chat/icons";
 import { Slip } from "./chat/Slip";
 import { MarkdownLite } from "./chat/MarkdownLite";
 import { AnswerSkeleton, MarkedQuestion, WorkingLine } from "./chat/WorkingLine";
@@ -56,6 +56,7 @@ import {
 } from "./chat/types";
 import "./chat-spotlight.css";
 import "./chat-phone.css";
+import "./chat/spotlight-desk.css";
 import "./chat/chat-attachments.css";
 import { orgHref } from "@/lib/org-paths";
 
@@ -71,6 +72,17 @@ const STARTERS = [
   { icon: <IcUsers size={14} />, label: "Attendance gaps", q: "Who missed the last two meetings?" },
   { icon: <IcCal size={14} />, label: "This week", q: "Summarize what's happening this week." },
 ] as const;
+
+// Desktop's welcome asks three whole questions that suit any org, dues or not.
+// The phone keeps STARTERS on its own landing (PhoneLanding).
+const DESK_STARTERS = [
+  { icon: <IcFlag size={15} />, tone: "var(--pp-butter)", q: "What's due for me this week?" },
+  { icon: <IcCal size={15} />, tone: "var(--pp-sky)", q: "What's happening this week?" },
+  { icon: <IcFile size={15} />, tone: "var(--pp-peach)", q: "What did we decide at the last meeting?" },
+] as const;
+
+// The welcome → first message flight (desktop): the composer's spring.
+const FLIGHT_EASE = "cubic-bezier(.16,.9,.3,1.02)";
 
 type Scene = "briefing" | "thread" | "approvals";
 
@@ -492,7 +504,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
     s.q.length = 0;
   }, []);
 
-  const sendMessage = useCallback(async (text: string) => {
+  const sendMessage = useCallback(async (text: string, opts?: { stayOnWelcome?: boolean }) => {
     const trimmed = text.trim();
     // A file still uploading or being read isn't attached yet — wait for it.
     if (!trimmed || streaming || att.busy) return;
@@ -530,7 +542,9 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
     setMessages(prev => [...prev, userMsg, assistantMsg]);
     // Asking always lands you on the answer, wherever you'd scrolled to.
     pinnedRef.current = true;
-    setScene("thread");
+    // Leaving the desktop welcome, the scene switches a beat later (askFromWelcome)
+    // so the headline can fade first; the request above has already gone.
+    if (!opts?.stayOnWelcome) setScene("thread");
     setInput("");
     setSelRow(-1);
     setStreaming(true);
@@ -710,6 +724,106 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort();
   }, []);
+
+  // ── Welcome → first message (desktop) ──────────────────────────────────────
+  // The request goes first, always: sendMessage runs before any animation, and
+  // the stream fills `messages` while the welcome fades. What the flight needs
+  // from the welcome (the composer's rect, where the words were) is captured
+  // here, before the switch, and played as a FLIP once the thread mounts.
+  const flightRef = useRef<{ comp: DOMRect; x: number; y: number } | null>(null);
+  const flightAnimsRef = useRef<Animation[]>([]);
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current); }, []);
+
+  /** Ask from the desktop welcome. `origin` is the tapped question row, if any. */
+  function askFromWelcome(text: string, origin?: HTMLElement) {
+    const spot = spotRef.current;
+    const comp = spot?.querySelector<HTMLElement>(".brief .composer");
+    const field = textareaRef.current;
+    const canFly = !phone && !reducedRef.current && scene === "briefing" && !!spot && !!comp && !!field
+      && typeof (comp as HTMLElement).animate === "function";
+    if (!canFly || !text.trim() || streaming || att.busy) { void sendMessage(text); return; }
+
+    const cr = comp.getBoundingClientRect();
+    const or = origin?.getBoundingClientRect();
+    flightRef.current = {
+      comp: cr,
+      // The question's own words: past a row's tile, or where the field's text starts.
+      x: or ? or.left + 51 : field.getBoundingClientRect().left,
+      y: or ? or.top + or.height / 2 : cr.top + cr.height / 2,
+    };
+    void sendMessage(text, { stayOnWelcome: true });
+    spot.querySelectorAll<HTMLElement>(".brief h2, .brief .try").forEach((el, i) => el.animate(
+      [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-8px)" }],
+      { duration: 170, delay: i * 18, easing: "ease-in", fill: "forwards" },
+    ));
+    if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    leaveTimerRef.current = setTimeout(() => {
+      leaveTimerRef.current = null;
+      // New (or a close) in the meantime leaves no thread to land on.
+      if (messagesRef.current.length === 0 || !spotRef.current) { flightRef.current = null; return; }
+      setScene(s => (s === "briefing" ? "thread" : s));
+    }, 150);
+  }
+
+  // The thread's first frame: fly the composer down into the dock, the words up
+  // into their card, and fade the turn in behind them.
+  useLayoutEffect(() => {
+    const from = flightRef.current;
+    if (scene !== "thread" || !from) return;
+    flightRef.current = null;
+    const spot = spotRef.current;
+    if (!spot) return;
+    const anims: Animation[] = [];
+    const comp = spot.querySelector<HTMLElement>(".cs-dock .composer");
+    if (comp) {
+      const cr = comp.getBoundingClientRect();
+      anims.push(comp.animate([
+        { transform: `translate(${from.comp.left - cr.left}px, ${from.comp.top - cr.top}px)`, width: `${from.comp.width}px` },
+        { transform: "none", width: `${cr.width}px` },
+      ], { duration: 560, easing: FLIGHT_EASE }));
+    }
+    const users = spot.querySelectorAll<HTMLElement>(".cs-thread .msg.user");
+    const note = users[users.length - 1];
+    if (note) {
+      note.style.animation = "none";
+      const nr = note.getBoundingClientRect();
+      const cs = getComputedStyle(note);
+      const dx = from.x - (nr.left + parseFloat(cs.paddingLeft));
+      const dy = from.y - (nr.top + nr.height / 2);
+      // Bare words at first; the card inks in from 45% of the way.
+      const bare = { borderColor: "transparent", backgroundColor: "transparent", boxShadow: "0 0 0 transparent" };
+      anims.push(note.animate([
+        { transform: `translate(${dx}px, ${dy}px)`, ...bare },
+        { ...bare, offset: 0.45 },
+        { transform: "none", borderColor: cs.borderColor, backgroundColor: cs.backgroundColor, boxShadow: cs.boxShadow },
+      ], { duration: 620, easing: FLIGHT_EASE }));
+    }
+    const turns = spot.querySelectorAll<HTMLElement>(".cs-thread .msg.ai");
+    const turn = turns[turns.length - 1];
+    if (turn) {
+      turn.style.animation = "none";
+      anims.push(turn.animate(
+        [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }],
+        { duration: 360, delay: 300, easing: "ease-out", fill: "backwards" },
+      ));
+    }
+    flightAnimsRef.current = anims;
+    Promise.all(anims.map(a => a.finished)).catch(() => {}).finally(() => {
+      if (flightAnimsRef.current === anims) flightAnimsRef.current = [];
+    });
+  }, [scene]);
+
+  // A fast answer (the fast path can land in well under 600ms) never waits on
+  // the flight: whatever is still moving hurries to its place.
+  useEffect(() => {
+    const anims = flightAnimsRef.current;
+    if (!anims.length) return;
+    const last = messages[messages.length - 1];
+    if (last?.role === "assistant" && (last.answer || last.content || last.proposals?.length)) {
+      for (const a of anims) if (a.playState === "running") a.updatePlaybackRate(3);
+    }
+  }, [messages]);
 
   // ── Proposal approve / discard ─────────────────────────────────────────────
 
@@ -896,16 +1010,22 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
 
   // ── Composer plumbing ──────────────────────────────────────────────────────
 
+  // Asking from the desktop welcome flies the question into the thread.
+  function ask(text: string) {
+    if (scene === "briefing" && !phone) askFromWelcome(text);
+    else void sendMessage(text);
+  }
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (streaming) stopStreaming();
-    else void sendMessage(input);
+    else ask(input);
   }
 
   function handleKeyDown(e: ReactKeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (!streaming) void sendMessage(input);
+      if (!streaming) ask(input);
     }
   }
 
@@ -945,6 +1065,9 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
 
   function handleNew() {
     if (streaming) stopStreaming();
+    // A flight still waiting to land has nothing to land on now.
+    if (leaveTimerRef.current) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
+    flightRef.current = null;
     // Starting a new thread is the one legitimate way to an empty one, so it
     // clears the key itself — saveHistory deliberately won't write [] over a
     // stored thread (see there for why an empty save is always a mount artifact).
@@ -970,6 +1093,79 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
 
   const lastMsg = messages[messages.length - 1];
 
+  // The one composer: in the dock, or on the desktop welcome under the headline.
+  // Only one renders at a time, so textareaRef always points at the live field.
+  const composer = (
+    <>
+      {att.enabled && <AttachmentTray chips={att.chips} onRemove={att.remove} />}
+      {dictation.error && <p className="mic-note" role="status">{dictation.error}</p>}
+      <form className="composer" onSubmit={handleSubmit}>
+        {att.enabled && fileLimits && (
+          <>
+            <button
+              type="button"
+              className="clip"
+              aria-label="Attach a file"
+              title="Attach a PDF, Word, Excel, CSV or text file"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <IcClip />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              hidden
+              accept={fileLimits.extensions.join(",")}
+              onChange={e => { attachFiles(e.target.files); e.target.value = ""; }}
+            />
+          </>
+        )}
+        <textarea
+          ref={textareaRef}
+          value={input}
+          rows={1}
+          enterKeyHint="send"
+          placeholder={scene === "approvals" ? "Ask about an approval…" : scene === "briefing" ? (phone ? "Ask the chapter anything…" : "Ask about your chapter…") : "Ask a follow-up…"}
+          onChange={e => {
+            // Typing takes the composer back — the next heard word would overwrite it.
+            if (dictation.listening) dictation.cancel();
+            setInput(e.target.value);
+            autosize(e.target);
+          }}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+        />
+        {dictation.supported && (
+          <button
+            type="button"
+            className={`mic${dictation.listening ? " is-listening" : ""}`}
+            aria-pressed={dictation.listening}
+            aria-label={dictation.listening ? "Stop dictating" : "Dictate your question"}
+            title={dictation.listening ? "Stop dictating" : "Dictate"}
+            disabled={streaming}
+            onClick={() => {
+              if (dictation.listening) dictation.stop();
+              else dictation.start(input);
+              // Back to the field, so Enter sends rather than toggling the mic.
+              textareaRef.current?.focus();
+            }}
+          >
+            <IcMic />
+          </button>
+        )}
+        <button
+          type="submit"
+          className={`send${streaming ? " stop" : ""}`}
+          disabled={!streaming && (!input.trim() || att.busy)}
+          aria-label={streaming ? "Stop" : att.busy ? "Waiting for the file" : "Ask"}
+        >
+          {streaming ? <IcStop /> : <IcSend />}
+        </button>
+      </form>
+    </>
+  );
+
   return (
     <div className="chat-root" data-scene={open ? scene : "closed"} data-kb={keyboard ? "" : undefined}>
       {/* Launcher — visible only when the spotlight is closed */}
@@ -990,7 +1186,11 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
               <button type="button" className="cs-close" aria-label="Close" onClick={closeSpotlight}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
               </button>
-              <span className="tick" aria-hidden />
+              {phone ? (
+                <span className="tick" aria-hidden />
+              ) : (
+                <span className="cs-mark" aria-hidden><IcSpark size={15} /></span>
+              )}
               <span className="title">Ask Chapt</span>
               <span className="spacer" />
               <button
@@ -1005,7 +1205,12 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                 Approvals
               </button>
               {scene !== "briefing" && (
-                <button type="button" className="newq" onClick={handleNew}>← New</button>
+                <button type="button" className="newq" onClick={handleNew}>{phone ? "← New" : <><IcPlus size={13} />New</>}</button>
+              )}
+              {!phone && (
+                <button type="button" className="cs-x" aria-label="Close (Esc)" title="Close · Esc" onClick={closeSpotlight}>
+                  <IcX size={11} />
+                </button>
               )}
             </div>
 
@@ -1023,18 +1228,24 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                 </div>
               )}
 
-              {/* Briefing — a calm, centered invitation */}
+              {/* Briefing — one headline, the composer, three questions */}
               {scene === "briefing" && !phone && (
                 <div className="cs-welcome">
-                  <div className="wl">
-                    <h2 className="in in-1">What do you want to <em>know?</em></h2>
-                    <p className="in in-2">
-                      Dues, attendance, events, the treasury — ask, and I&apos;ll read the chapter&apos;s records and answer.
-                    </p>
-                    <div className="starters in in-3">
-                      {STARTERS.map(s => (
-                        <button key={s.label} type="button" className="starter" onClick={() => void sendMessage(s.q)}>
-                          <i>{s.icon}</i>{s.label}
+                  <div className="brief">
+                    <h2>Where should we <em>start</em>?</h2>
+                    <div className="brief-dock">{composer}</div>
+                    <div className="tries">
+                      {DESK_STARTERS.map(s => (
+                        <button
+                          key={s.q}
+                          type="button"
+                          className="try"
+                          style={{ "--t": s.tone } as CSSProperties}
+                          onClick={e => askFromWelcome(s.q, e.currentTarget)}
+                        >
+                          <span className="tile">{s.icon}</span>
+                          {s.q}
+                          <IcArrow className="go" />
                         </button>
                       ))}
                     </div>
@@ -1051,7 +1262,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                       const replyLive = streaming && messages[mi + 1] === lastMsg;
                       return (
                         <div key={m.id} className="msg user send-in">
-                          <MarkedQuestion text={m.content} live={replyLive} />
+                          {phone ? <MarkedQuestion text={m.content} live={replyLive} /> : m.content}
                           {m.attachments?.length ? (
                             <span className="msg-files">
                               <IcClip size={12} />{m.attachments.join(", ")}
@@ -1194,75 +1405,8 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
               )}
             </div>
 
-            {/* Dock / composer */}
-            <div className="cs-dock">
-              {att.enabled && <AttachmentTray chips={att.chips} onRemove={att.remove} />}
-              {dictation.error && <p className="mic-note" role="status">{dictation.error}</p>}
-              <form className="composer" onSubmit={handleSubmit}>
-                {att.enabled && fileLimits && (
-                  <>
-                    <button
-                      type="button"
-                      className="clip"
-                      aria-label="Attach a file"
-                      title="Attach a PDF, Word, Excel, CSV or text file"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <IcClip />
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      multiple
-                      hidden
-                      accept={fileLimits.extensions.join(",")}
-                      onChange={e => { attachFiles(e.target.files); e.target.value = ""; }}
-                    />
-                  </>
-                )}
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  rows={1}
-                  enterKeyHint="send"
-                  placeholder={scene === "approvals" ? "Ask about an approval…" : scene === "briefing" ? "Ask the chapter anything…" : "Ask a follow-up…"}
-                  onChange={e => {
-                    // Typing takes the composer back — the next heard word would overwrite it.
-                    if (dictation.listening) dictation.cancel();
-                    setInput(e.target.value);
-                    autosize(e.target);
-                  }}
-                  onKeyDown={handleKeyDown}
-                  onPaste={handlePaste}
-                />
-                {dictation.supported && (
-                  <button
-                    type="button"
-                    className={`mic${dictation.listening ? " is-listening" : ""}`}
-                    aria-pressed={dictation.listening}
-                    aria-label={dictation.listening ? "Stop dictating" : "Dictate your question"}
-                    title={dictation.listening ? "Stop dictating" : "Dictate"}
-                    disabled={streaming}
-                    onClick={() => {
-                      if (dictation.listening) dictation.stop();
-                      else dictation.start(input);
-                      // Back to the field, so Enter sends rather than toggling the mic.
-                      textareaRef.current?.focus();
-                    }}
-                  >
-                    <IcMic />
-                  </button>
-                )}
-                <button
-                  type="submit"
-                  className={`send${streaming ? " stop" : ""}`}
-                  disabled={!streaming && (!input.trim() || att.busy)}
-                  aria-label={streaming ? "Stop" : att.busy ? "Waiting for the file" : "Ask"}
-                >
-                  {streaming ? <IcStop /> : <IcSend />}
-                </button>
-              </form>
-            </div>
+            {/* Dock / composer — on the desktop welcome the composer sits under the headline instead */}
+            {(phone || scene !== "briefing") && <div className="cs-dock">{composer}</div>}
           </div>
         </div>
       )}

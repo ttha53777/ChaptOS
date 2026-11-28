@@ -1,0 +1,240 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Ask Chapt on desktop — the paper spotlight chrome of _design/Ask Chapt
+   Paper.html: the panel and its bar, the welcome (headline, the one composer,
+   three questions), sent messages as inked cards, the answer footing, and the
+   Approvals record. Answer bodies, shapes, rows and writs are not styled here.
+
+   Every rule sits inside @media (min-width: 768px) — the complement of
+   PHONE_QUERY in chat/usePhoneSheet.ts — so nothing here can reach the phone
+   sheet (chat-phone.css). Selectors start `html[data-aesthetic="paper"] body
+   .chat-root` to outrank paper-chat.css and paper-chat-kit.css.
+
+   Markup that exists only for desktop is hidden outside the query (below), or
+   renders only when `!phone`.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Desktop-only markup inside shared components (AnswerBlock's follow-up tile). */
+.chat-root .chip.next .tile { display: none; }
+
+@media (min-width: 768px) {
+  /* ── Panel ───────────────────────────────────────────────────────────────── */
+  html[data-aesthetic="paper"] body .chat-root .cs-overlay { padding: 24px 16px 48px; }
+  html[data-aesthetic="paper"] body .chat-root .cs-spot {
+    position: relative;
+    width: min(760px, 100%); min-height: 444px; max-height: min(700px, calc(100vh - 110px));
+    background: var(--card); border: 1.5px solid var(--ink); border-radius: 22px;
+    box-shadow: 6px 6px 0 var(--pp-lilac), var(--pp-sh-3);
+  }
+
+  /* ── Bar: mark tile, title, Approvals, New, close ────────────────────────── */
+  html[data-aesthetic="paper"] body .chat-root .cs-bar {
+    gap: 10px; padding: 12px 14px 12px 16px; background: var(--card);
+    border-bottom: 1.5px solid var(--line);
+  }
+  html[data-aesthetic="paper"] body .chat-root .cs-mark {
+    width: 28px; height: 28px; flex: none; display: grid; place-items: center;
+    border-radius: 9px; background: var(--pp-lilac); color: var(--pp-note-ink);
+    border: 1.5px solid var(--pp-note-ink); transform: rotate(-4deg);
+    box-shadow: 1.5px 1.5px 0 var(--pp-butter); filter: var(--pp-note-filter);
+  }
+  html[data-aesthetic="paper"] body .chat-root .cs-bar .title {
+    visibility: visible; margin-left: 0; white-space: nowrap;
+    font-family: var(--font-fraunces); font-size: 15px; font-weight: 600; line-height: 1.1; letter-spacing: -.02em;
+  }
+  html[data-aesthetic="paper"] body .chat-root .cs-bar :is(.apprchip, .newq) {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1.5px solid var(--line); border-radius: 999px; padding: 5px 11px; background: none;
+    font-family: var(--font-geist-sans); font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none;
+    color: var(--ink-soft); transition: border-color .15s, color .15s, background .15s;
+  }
+  html[data-aesthetic="paper"] body .chat-root .cs-bar :is(.apprchip, .newq):hover { border-color: var(--muted); color: var(--ink); }
+  html[data-aesthetic="paper"] body .chat-root[data-scene="approvals"] .cs-bar .apprchip { border-color: var(--ink); color: var(--ink); background: var(--paper-2); }
+  html[data-aesthetic="paper"] body .chat-root .cs-x {
+    width: 30px; height: 30px; flex: none; display: grid; place-items: center; margin-left: -2px;
+    border: 0; border-radius: 9px; background: none; color: var(--muted); cursor: pointer;
+  }
+  html[data-aesthetic="paper"] body .chat-root .cs-x:hover { background: var(--paper-2); color: var(--ink); }
+
+  /* ── The one composer (welcome, thread, Approvals) ───────────────────────── */
+  html[data-aesthetic="paper"] body .chat-root .composer {
+    display: flex; align-items: center; gap: 6px;
+    border: 1.5px solid var(--ink); border-radius: 18px; background: var(--card);
+    padding: 7px 7px 7px 18px; box-shadow: 4px 4px 0 var(--pp-lilac);
+    transition: box-shadow .2s var(--pp-ease-spring);
+  }
+  html[data-aesthetic="paper"] body .chat-root .composer:focus-within { border-color: var(--ink); box-shadow: 5px 5px 0 var(--pp-lilac); }
+  html[data-aesthetic="paper"] body .chat-root .composer textarea {
+    flex: 1; min-width: 0; border: 0; outline: none; resize: none; background: transparent;
+    color: var(--ink); caret-color: var(--ink);
+    font-family: var(--font-geist-sans); font-size: 16px; line-height: 1.45; padding: 9px 0; max-height: 120px;
+  }
+  html[data-aesthetic="paper"] body .chat-root .composer textarea::placeholder { color: var(--muted); }
+  html[data-aesthetic="paper"] body .chat-root .composer :is(.clip, .mic) {
+    flex: 0 0 auto; align-self: center; width: 34px; height: 34px; margin: 0;
+    display: grid; place-items: center; cursor: pointer; background: transparent; border: 0;
+    border-radius: 10px; color: var(--muted); transition: color .14s, background .14s;
+  }
+  html[data-aesthetic="paper"] body .chat-root .composer .clip:hover,
+  html[data-aesthetic="paper"] body .chat-root .composer .mic:hover:not(:disabled),
+  html[data-aesthetic="paper"] body .chat-root .composer .mic.is-listening { color: var(--ink); background: var(--card-3); }
+  html[data-aesthetic="paper"] body .chat-root .composer .mic:disabled { color: var(--faint); cursor: default; }
+  html[data-aesthetic="paper"] body .chat-root .composer .send {
+    flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; cursor: pointer;
+    display: grid; place-items: center;
+    border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper);
+    transition: transform .18s var(--pp-ease-spring), opacity .2s;
+  }
+  html[data-aesthetic="paper"] body .chat-root .composer .send:hover:not(:disabled) { background: var(--ink); opacity: 1; transform: translateY(-1px); }
+  html[data-aesthetic="paper"] body .chat-root .composer .send:disabled { background: var(--card-3); border-color: var(--line-med); color: var(--muted); cursor: default; }
+  html[data-aesthetic="paper"] body .chat-root .composer .send.stop { background: var(--card); border-color: var(--ink); color: var(--ink); }
+  html[data-aesthetic="paper"] body .chat-root .composer .send svg { width: 15px; height: 15px; }
+  html[data-aesthetic="paper"] body .chat-root .mic-note { margin: 0 2px 8px; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+
+  /* The dock is only a fade: the thread scrolls under it, no strip or border. */
+  html[data-aesthetic="paper"] body .chat-root .cs-dock {
+    position: relative; z-index: 2; flex-shrink: 0;
+    margin-top: -28px; padding: 28px 18px 16px 14px; border: 0;
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--card) 0%, transparent), var(--card) 26px);
+  }
+  html[data-aesthetic="paper"] body .chat-root .cs-thread { padding: 24px 26px 36px; gap: 16px; }
+  html[data-aesthetic="paper"] body .chat-root .cs-inbox { padding: 28px 30px 36px; gap: 0; }
+
+  /* ── Welcome: the headline, the composer, three questions ────────────────── */
+  html[data-aesthetic="paper"] body .chat-root .cs-welcome {
+    justify-content: flex-start; align-items: stretch; text-align: left; padding: 0;
+  }
+  html[data-aesthetic="paper"] body .chat-root .brief {
+    display: flex; flex-direction: column; align-items: center; padding: 56px 40px 36px;
+  }
+  html[data-aesthetic="paper"] body .chat-root .brief h2 {
+    margin: 0; text-align: center;
+    font-family: var(--font-fraunces); font-weight: 600; font-size: clamp(28px, 4.4vw, 38px); line-height: 1.1; letter-spacing: -.04em;
+    animation: cs-desk-rise .45s var(--pp-ease-spring) both;
+  }
+  html[data-aesthetic="paper"] body .chat-root .brief-dock {
+    width: 100%; max-width: 540px; margin-top: 26px;
+    animation: cs-desk-rise .45s var(--pp-ease-spring) .05s both;
+  }
+  html[data-aesthetic="paper"] body .chat-root .tries { width: 100%; max-width: 540px; margin-top: 26px; }
+  html[data-aesthetic="paper"] body .chat-root .try {
+    display: flex; align-items: center; gap: 13px; width: 100%; padding: 8px 10px 8px 8px;
+    border: 0; border-radius: 13px; background: none; cursor: pointer; text-align: left;
+    font-family: var(--font-geist-sans); font-size: 14.5px; font-weight: 500; line-height: 1.4; color: var(--ink-soft);
+    transition: background .15s, color .15s;
+    animation: cs-desk-rise .45s var(--pp-ease-spring) both;
+  }
+  html[data-aesthetic="paper"] body .chat-root .try:nth-child(1) { animation-delay: .1s; }
+  html[data-aesthetic="paper"] body .chat-root .try:nth-child(2) { animation-delay: .14s; }
+  html[data-aesthetic="paper"] body .chat-root .try:nth-child(3) { animation-delay: .18s; }
+  html[data-aesthetic="paper"] body .chat-root .try + .try { margin-top: 2px; }
+  html[data-aesthetic="paper"] body .chat-root :is(.try, .chip.next) .tile {
+    width: 30px; height: 30px; flex: none; display: grid; place-items: center;
+    border-radius: 9px; background: var(--t, var(--pp-lilac)); color: var(--pp-note-ink);
+    border: 1.5px solid var(--pp-note-ink); filter: var(--pp-note-filter);
+    transform: rotate(-4deg); transition: transform .3s var(--pp-ease-spring);
+  }
+  html[data-aesthetic="paper"] body .chat-root :is(.try, .chip.next) .tile svg { width: 15px; height: 15px; color: currentColor; }
+  html[data-aesthetic="paper"] body .chat-root .try .go {
+    width: 15px; height: 15px; flex: none; margin-left: auto; color: var(--ink);
+    opacity: 0; translate: -4px 0; transition: opacity .15s, translate .25s var(--pp-ease-spring);
+  }
+  html[data-aesthetic="paper"] body .chat-root :is(.try, .chip.next):is(:hover, :focus-visible) { background: var(--paper-2); color: var(--ink); }
+  html[data-aesthetic="paper"] body .chat-root :is(.try, .chip.next):hover .tile { transform: rotate(0) scale(1.06); }
+  html[data-aesthetic="paper"] body .chat-root .try:is(:hover, :focus-visible) .go { opacity: 1; translate: 0; }
+
+  /* ── Sent message: the composer's inked card, lifted into the thread ─────── */
+  html[data-aesthetic="paper"] body .chat-root .msg.user {
+    max-width: min(78%, 480px); margin: 2px 4px 4px 0; padding: 9px 16px 10px;
+    background: var(--card); color: var(--ink); border: 1.5px solid var(--ink); border-radius: 18px 18px 6px 18px;
+    box-shadow: 3px 3px 0 var(--pp-sky);
+    font-family: var(--font-geist-sans); font-size: 14.5px; font-weight: 500; line-height: 1.45;
+  }
+  html[data-aesthetic="paper"] body .chat-root .msg.user.send-in { animation: cs-desk-lift .45s var(--pp-ease-spring) both; }
+  html[data-aesthetic="paper"] body .chat-root .msg.ai .who { display: none; }
+
+  /* ── Footing: follow-ups as rows, then sources + thumbs on one hairline ──── */
+  html[data-aesthetic="paper"] body .chat-root .answer .foot { display: flex; flex-direction: column; margin-top: 14px; }
+  html[data-aesthetic="paper"] body .chat-root .foot .follows {
+    order: 0; display: flex; flex-direction: column; flex-wrap: nowrap; gap: 2px; margin-top: 0;
+  }
+  html[data-aesthetic="paper"] body .chat-root .chip.next {
+    display: flex; align-items: center; gap: 13px; width: 100%; padding: 6px 10px 6px 6px;
+    border: 0; border-radius: 13px; background: none; box-shadow: none; text-align: left;
+    font-family: var(--font-geist-sans); font-size: 14px; font-weight: 500; line-height: 1.4; color: var(--ink-soft);
+    transition: background .15s, color .15s;
+  }
+  html[data-aesthetic="paper"] body .chat-root .chip.next:hover { transform: none; }
+  html[data-aesthetic="paper"] body .chat-root .chip.next .tile { width: 26px; height: 26px; border-radius: 8px; --t: var(--pp-lilac); }
+  html[data-aesthetic="paper"] body .chat-root .chip.next .tile svg { width: 13px; height: 13px; }
+  /* The chip's own arrow becomes the hover arrow at the row's end. */
+  html[data-aesthetic="paper"] body .chat-root .chip.next > svg {
+    order: 2; width: 14px; height: 14px; margin-left: auto; color: var(--ink);
+    opacity: 0; translate: -4px 0; transition: opacity .15s, translate .25s var(--pp-ease-spring);
+  }
+  html[data-aesthetic="paper"] body .chat-root .chip.next:is(:hover, :focus-visible) > svg { opacity: 1; translate: 0; }
+
+  html[data-aesthetic="paper"] body .chat-root .foot .footing {
+    order: 1; display: flex; flex-wrap: nowrap; align-items: center; gap: 10px;
+    margin-top: 10px; padding: 10px 6px 0; border-top: 1.5px solid var(--line);
+  }
+  html[data-aesthetic="paper"] body .chat-root .footing .sources { flex: 1 1 auto; min-width: 0; gap: 0; }
+  html[data-aesthetic="paper"] body .chat-root .footing .sources .lbl {
+    display: inline-flex; align-items: center; gap: 6px; margin-right: .3em;
+    font-family: var(--font-geist-sans); font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted);
+  }
+  html[data-aesthetic="paper"] body .chat-root .footing .sources .lbl::before {
+    content: ""; width: 12px; height: 12px; flex: none; background: var(--pp-mint-ink);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2.5 6.3 2.3 2.3 4.7-5'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2.5 6.3 2.3 2.3 4.7-5'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  html[data-aesthetic="paper"] body .chat-root .footing .src {
+    border: 0; border-radius: 0; padding: 0; background: none;
+    font-family: var(--font-geist-sans); font-size: 12px; font-weight: 400; color: var(--muted);
+  }
+  html[data-aesthetic="paper"] body .chat-root .footing .src i { display: none; }
+  html[data-aesthetic="paper"] body .chat-root .footing .src:not(:last-child)::after { content: ","; margin-right: .3em; }
+  html[data-aesthetic="paper"] body .chat-root .footing .feedback { margin-left: auto; gap: 2px; }
+
+  /* ── Approvals: tinted rows, filter pills, mono day labels ───────────────── */
+  html[data-aesthetic="paper"] body .chat-root .inbox-hd { padding: 0; gap: 6px; flex-direction: column; align-items: flex-start; }
+  html[data-aesthetic="paper"] body .chat-root .inbox-hd h3 {
+    font-family: var(--font-fraunces); font-size: 28px; font-weight: 600; line-height: 1.1; letter-spacing: -.04em;
+  }
+  html[data-aesthetic="paper"] body .chat-root .inbox-hd .meta {
+    font-family: var(--font-geist-sans); font-size: 13.5px; letter-spacing: 0; color: var(--muted);
+  }
+  html[data-aesthetic="paper"] body .chat-root .audit-filters { padding: 0; margin-top: 16px; gap: 6px; }
+  html[data-aesthetic="paper"] body .chat-root .fchip {
+    border: 1.5px solid var(--line); border-radius: 999px; padding: 4px 11px; background: none;
+    font-family: var(--font-geist-sans); font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--ink-soft);
+  }
+  html[data-aesthetic="paper"] body .chat-root .fchip:hover { border-color: var(--muted); color: var(--ink); }
+  html[data-aesthetic="paper"] body .chat-root .fchip.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  html[data-aesthetic="paper"] body .chat-root .inbox-sec { margin-top: 20px; }
+  html[data-aesthetic="paper"] body .chat-root .inbox-sec > .lbl {
+    gap: 10px; padding: 0 0 8px 8px;
+    font-family: var(--font-geist-mono); font-size: 10.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  }
+  html[data-aesthetic="paper"] body .chat-root .inbox-sec > .lbl::after { display: none; }
+  html[data-aesthetic="paper"] body .chat-root .inbox-sec > .lbl .date { margin-left: 0; letter-spacing: .06em; color: var(--faint); }
+  html[data-aesthetic="paper"] body .chat-root .appr {
+    margin-bottom: 2px; border: 1.5px solid transparent; border-radius: 13px; background: none; box-shadow: none;
+    animation: cs-desk-rise .35s var(--pp-ease-spring) both;
+  }
+  html[data-aesthetic="paper"] body .chat-root .appr:hover,
+  html[data-aesthetic="paper"] body .chat-root .appr.open { border-color: transparent; background: var(--paper-2); box-shadow: none; }
+  html[data-aesthetic="paper"] body .chat-root .appr-row { gap: 13px; padding: 10px 10px 10px 8px; }
+  html[data-aesthetic="paper"] body .chat-root .appr-row .glyph {
+    width: 30px; height: 30px; border-radius: 9px; transform: rotate(-4deg);
+    background: var(--t, var(--pp-lilac)); color: var(--pp-note-ink); border: 1.5px solid var(--pp-note-ink); filter: var(--pp-note-filter);
+  }
+  html[data-aesthetic="paper"] body .chat-root .appr-row .glyph svg { width: 15px; height: 15px; }
+  html[data-aesthetic="paper"] body .chat-root .appr-row :is([data-kind="dues"], [data-kind="treasury"]) { --t: var(--pp-butter); }
+  html[data-aesthetic="paper"] body .chat-root .appr-row :is([data-kind="events"], [data-kind="timeline"]) { --t: var(--pp-sky); }
+  html[data-aesthetic="paper"] body .chat-root .appr-row :is([data-kind="instagram"], [data-kind="programming"]) { --t: var(--pp-peach); }
+  html[data-aesthetic="paper"] body .chat-root .appr-row .t { font-size: 13.5px; font-weight: 600; }
+  html[data-aesthetic="paper"] body .chat-root .appr-row .s { font-size: 12px; color: var(--muted); }
+
+  @keyframes cs-desk-rise { from { opacity: 0; translate: 0 8px; } }
+  @keyframes cs-desk-lift { from { opacity: 0; transform: translateY(14px); box-shadow: 0 0 0 var(--pp-sky); } }
+}

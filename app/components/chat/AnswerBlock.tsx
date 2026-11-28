@@ -356,7 +356,7 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
       {answer.askback && <AskBackBlock askback={answer.askback} onAsk={onAsk} />}
       {/* The footing: where it came from, was it useful, what to ask next —
           the same strip under every answer, whatever its body. */}
-      <div className="in in-4">
+      <div className="in in-4 foot">
         <div className="footing">
           {/* The working line's chips already name what was read; the
               server's list earns its row only when it adds to them (a file
@@ -367,7 +367,11 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
         {!answer.askback && answer.follows.length > 0 && (
           <div className="follows">
             {answer.follows.map(f => (
-              <button key={f.label} type="button" className="chip next" onClick={() => onAsk(f.ask)}><IcArrow />{f.label}</button>
+              <button key={f.label} type="button" className="chip next" onClick={() => onAsk(f.ask)}>
+                {/* The tile is desktop-only (chat/spotlight-desk.css); the phone keeps the arrow chip. */}
+                <span className="tile" aria-hidden><IcSpark /></span>
+                <IcArrow />{f.label}
+              </button>
             ))}
           </div>
         )}
