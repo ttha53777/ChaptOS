@@ -101,9 +101,9 @@ export const ChaptMark = memo(function ChaptMark({ state, size, className }: { s
           </g>
         </g>
         <g className="cmk-thought">
-          <circle className="cmk-t1" cx="22.6" cy="-.6" r="1.35" />
-          <circle className="cmk-t2" cx="27.3" cy="-.6" r="1.35" />
-          <circle className="cmk-t3" cx="32" cy="-.6" r="1.35" />
+          <circle className="cmk-t1" cx="22.6" cy="-1.3" r="1.35" />
+          <circle className="cmk-t2" cx="27.3" cy="-1.3" r="1.35" />
+          <circle className="cmk-t3" cx="32" cy="-1.3" r="1.35" />
         </g>
         <g className="cmk-script">
           <path className="cmk-w1" pathLength={1} d={WORD_PATHS[0]} />

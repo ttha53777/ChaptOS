@@ -32,7 +32,7 @@
     border-bottom: 1.5px solid var(--line);
   }
   /* The talking tile (chat/ChaptMark.tsx) is its own tile: no box around it.
-     Its thought bubbles rise ~2px above the tile, inside the bar's padding. */
+     Its thought bubbles rise ~2.5px above the tile, inside the bar's padding. */
   html[data-aesthetic="paper"] body .chat-root .cs-mark {
     width: 30px; height: 30px; flex: none; display: grid; place-items: center; overflow: visible;
   }
