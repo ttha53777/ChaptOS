@@ -10,7 +10,12 @@ export async function GET(req: NextRequest) {
   if (error) return error;
   try {
     const { searchParams } = new URL(req.url);
-    return Response.json(await listCalendar(ctx, { category: searchParams.get("category") }));
+    // Optional `take`: only the newest N entries. Absent or invalid, every entry, as before.
+    const take = Number(searchParams.get("take"));
+    return Response.json(await listCalendar(ctx, {
+      category: searchParams.get("category"),
+      ...(Number.isInteger(take) && take > 0 && take <= 50 ? { take } : {}),
+    }));
   } catch (e) {
     logError(e, { route: "/api/calendar", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
     return toResponse(e);

@@ -75,6 +75,8 @@ async function shot(p: Page, n: string, wait = 700) { await p.waitForTimeout(wai
       if (mode === "hold") return r.fulfill({ status: 200, headers: { "content-type": "text/event-stream" }, body: STEPS + frame("step", { id: "2", verb: "Checking payment plans", source: "Dues" }) + frame("step_start", { id: "2" }) }).catch(() => {});
       return r.fulfill({ status: 200, headers: { "content-type": "text/event-stream" }, body: STREAM });
     }
+    // NOMEET=1: an org with no chapter meeting yet (the desktop welcome's day-one question).
+    if (process.env.NOMEET && url.pathname === "/api/calendar" && url.searchParams.get("take")) return r.fulfill({ json: [] });
     if (r.request().method() !== "GET") return r.abort();
     for (let i = 0; ; i++) {
       const res = await r.fetch({ timeout: 60000 }).catch(() => null);
@@ -96,6 +98,18 @@ async function shot(p: Page, n: string, wait = 700) { await p.waitForTimeout(wai
   await p.waitForSelector(".cs-spot textarea");
   await p.evaluate(() => (document.activeElement as HTMLElement)?.blur());
   await shot(p, "01-welcome", 900);
+  if (DESK) {
+    const t0 = Date.now();
+    await p.waitForFunction(() => document.querySelectorAll(".try").length === 3, null, { timeout: 30000 }).catch(() => {});
+    console.log("starters", `(${Date.now() - t0}ms)`, JSON.stringify(await p.evaluate(() => [...document.querySelectorAll(".try")].map(b => b.textContent))));
+    await shot(p, "01b-welcome", 600);
+    // Reopen in the same browser: the remembered answer should show the third row at once.
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(400);
+    await p.locator(".chat-launcher").click({ force: true });
+    await p.waitForSelector(".try");
+    console.log("reopen rows at first paint", await p.evaluate(() => document.querySelectorAll(".try").length));
+  }
   console.log("welcome overflow", await overflow(), "spot", await p.evaluate(() => { const r = document.querySelector(".cs-spot")!.getBoundingClientRect(); return { w: r.width, h: r.height }; }));
 
   if (DESK && FRAMES) {

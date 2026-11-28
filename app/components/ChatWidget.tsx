@@ -78,8 +78,13 @@ const STARTERS = [
 const DESK_STARTERS = [
   { icon: <IcFlag size={15} />, tone: "var(--pp-butter)", q: "What's due for me this week?" },
   { icon: <IcCal size={15} />, tone: "var(--pp-sky)", q: "What's happening this week?" },
-  { icon: <IcFile size={15} />, tone: "var(--pp-peach)", q: "What did we decide at the last meeting?" },
 ] as const;
+// The third depends on whether the org has a meeting yet. On day one there are
+// no minutes to ask about, so whoever can add events is offered the first one
+// instead (Ask Chapt asks the type and date, then drafts it for approval).
+// Once a chapter meeting exists, booked or held, it asks about the last one.
+const LAST_MEETING_STARTER = { icon: <IcFile size={15} />, tone: "var(--pp-peach)", q: "What did we decide at the last meeting?" } as const;
+const FIRST_MEETING_STARTER = { icon: <IcPlus size={15} />, tone: "var(--pp-peach)", q: "Can you set up my first meeting?" } as const;
 
 // The welcome → first message flight (desktop): the composer's spring.
 const FLIGHT_EASE = "cubic-bezier(.16,.9,.3,1.02)";
@@ -206,7 +211,7 @@ function SparkleIcon({ className = "" }: { className?: string }) {
  * widget instead of carrying one thread's messages into another's key.
  */
 export function ChatWidget({ brotherId, storageKey }: { brotherId: number; storageKey: string }) {
-  const { currentUser, refreshChapterData } = useChapter();
+  const { currentUser, refreshChapterData, can } = useChapter();
   const router = useRouter();
   const [enabled, setEnabled] = useState<boolean | null>(null); // null = unknown
   const [open, setOpen] = useState(false);
@@ -332,6 +337,40 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
   }, [cancelDictation]);
 
   const { phone, keyboard } = usePhoneSheet(open, overlayRef);
+
+  // Whether the org has any chapter meeting (null until known), for the desktop
+  // welcome's third question. Re-read each time the welcome shows: one row, and
+  // a meeting approved in chat or added on the Meetings page flips it.
+  // The last answer is remembered per org in this browser, so only the very
+  // first open waits on the read; after that the row is right at once and the
+  // read just confirms it.
+  const [hasMeetings, setHasMeetings] = useState<boolean | null>(null);
+  const orgSlug = currentUser?.org?.slug;
+  useEffect(() => {
+    if (!open || phone || scene !== "briefing" || !orgSlug) return;
+    const key = `chaptos_has_meetings_v1:${orgSlug}`;
+    // This org's last answer, or unknown — never another org's.
+    let seen: string | null = null;
+    try { seen = localStorage.getItem(key); } catch { /* storage off: just wait for the read */ }
+    setHasMeetings(seen === null ? null : seen === "1");
+    let cancelled = false;
+    orgFetch("/api/calendar?category=chapter&take=1")
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((rows: unknown) => {
+        if (cancelled) return;
+        const has = Array.isArray(rows) && rows.length > 0;
+        setHasMeetings(has);
+        try { localStorage.setItem(key, has ? "1" : "0"); } catch { /* ignore */ }
+      })
+      // Unknown: keep what we knew, else fall back to the established question.
+      .catch(() => { if (!cancelled) setHasMeetings(prev => prev ?? true); });
+    return () => { cancelled = true; };
+  }, [open, phone, scene, orgSlug]);
+  const canEvents = can("MANAGE_EVENTS");
+  // The third row waits for the answer rather than flipping under the reader.
+  const deskStarters = hasMeetings === null
+    ? DESK_STARTERS
+    : [...DESK_STARTERS, hasMeetings || !canEvents ? LAST_MEETING_STARTER : FIRST_MEETING_STARTER];
   const dragHandlers = useSheetDrag(spotRef, closeSpotlight, phone);
 
   const openCite = useCallback((c: AnswerCitation) => {
@@ -1235,7 +1274,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                     <h2>Where should we <em>start</em>?</h2>
                     <div className="brief-dock">{composer}</div>
                     <div className="tries">
-                      {DESK_STARTERS.map(s => (
+                      {deskStarters.map(s => (
                         <button
                           key={s.q}
                           type="button"

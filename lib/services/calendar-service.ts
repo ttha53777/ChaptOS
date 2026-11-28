@@ -33,9 +33,10 @@ async function assertCategoryUsable(ctx: RequestContext, slug: string, mode: "cr
 /**
  * `upcoming` narrows the read to the next `take` entries dated on or after
  * `from` (YYYY-MM-DD), soonest first, for the app's Home screen. Without it,
- * every entry, newest first.
+ * every entry, newest first — or only the newest `take` of them (Ask Chapt asks
+ * for one chapter meeting to learn whether the org has held or booked any).
  */
-export async function listCalendar(ctx: RequestContext, opts: { category?: string | null; upcoming?: { from: string; take: number } } = {}) {
+export async function listCalendar(ctx: RequestContext, opts: { category?: string | null; upcoming?: { from: string; take: number }; take?: number } = {}) {
   // Trust the category string as a plain WHERE filter — valid values are now
   // per-org CalendarEventType slugs, so custom categories must pass through.
   const where: Prisma.CalendarEventWhereInput = {
@@ -53,13 +54,13 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
     where,
     omit: { notesDoc: true },
     orderBy: opts.upcoming ? [{ date: "asc" }, { id: "asc" }] : [{ date: "desc" }, { id: "desc" }],
-    ...(opts.upcoming ? { take: opts.upcoming.take } : {}),
+    ...(opts.upcoming ? { take: opts.upcoming.take } : opts.take ? { take: opts.take } : {}),
     // Pull the owning ProgrammingEvent id (1:1 back-relation) so the Timeline can
     // deep-link a programming-backed event into the Programming page.
     include: { programmingEvent: { select: { id: true } }, partyEvent: { select: { id: true, theme: true, collabOrg: true } } },
   }) as unknown as CalendarRowWithProgramming[];
   // Fetch only IDs of initialized documents, never the binary state in list reads.
-  const initializedWhere: Prisma.CalendarEventWhereInput = opts.upcoming ? { id: { in: rows.map(row => row.id) } } : where;
+  const initializedWhere: Prisma.CalendarEventWhereInput = opts.upcoming || opts.take ? { id: { in: rows.map(row => row.id) } } : where;
   const initialized = new Set((await ctx.db.calendarEvent.findMany({ where: { ...initializedWhere, notesDoc: { not: null } }, select: { id: true } })).map(row => row.id));
   // Flatten the relation to a scalar so the client DTO stays flat (app/data.ts).
   // Planning details (checklist, budget) are officers' working notes; a member's
