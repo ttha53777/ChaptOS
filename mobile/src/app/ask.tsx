@@ -60,7 +60,53 @@ export default function Ask() {
   const [cite, setCite] = useState<AnswerCitation | null>(null);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const input = useRef<ComponentRef<typeof TextInput>>(null);
-  const atEnd = useRef(true);
+  // Follow the newest turn while pinned, but never past its top: the thread grows
+  // into view until the answer's headline reaches the top edge, then holds, so a long
+  // answer's rows run on below the fold instead of pushing the verdict off the top.
+  // The web widget does the same (ChatWidget pinThread).
+  const pinned = useRef(true);
+  const geo = useRef({ y: 0, contentH: 0, viewH: 0, lastTop: Number.POSITIVE_INFINITY });
+  const [below, setBelow] = useState<null | "more" | "latest">(null);
+  // Until when scroll events are our own glide: they mustn't overwrite the offset it's
+  // headed for, or the next content change would cut the glide short.
+  const glideUntil = useRef(0);
+  const target = useCallback(() => {
+    const g = geo.current;
+    const max = Math.max(0, g.contentH - g.viewH);
+    return Math.max(0, Math.min(max, g.lastTop - ANCHOR_GAP));
+  }, []);
+  // Whether anything waits below the fold, and whose it is: the rest of the answer
+  // being read, or newer turns while reading back through history.
+  const measure = useCallback(() => {
+    const g = geo.current;
+    const rest = g.contentH - g.viewH - g.y;
+    setBelow(rest < 40 || !g.viewH ? null : g.lastTop < g.y + g.viewH ? "more" : "latest");
+  }, []);
+  const follow = useCallback(() => {
+    const to = target();
+    if (pinned.current && Math.abs(geo.current.y - to) > 1) {
+      // A big step (the answer landing all at once) glides; streamed growth and the
+      // keyboard track instantly.
+      const glide = !m.reduced && to - geo.current.y > 120;
+      if (glide) glideUntil.current = Date.now() + 450;
+      scroll.current?.scrollTo({ y: to, animated: glide });
+      geo.current.y = to;
+    }
+    measure();
+  }, [target, measure, m.reduced]);
+  // Only the reader's own drags decide pinning; our scrollTo never fires these.
+  const settle = useCallback((y: number) => {
+    geo.current.y = y;
+    pinned.current = Math.abs(y - target()) < 48;
+    measure();
+  }, [target, measure]);
+  const jumpBelow = () => {
+    const toEnd = below === "more";
+    const g = geo.current;
+    const to = toEnd ? Math.max(0, g.contentH - g.viewH) : target();
+    pinned.current = !toEnd;
+    scroll.current?.scrollTo({ y: to, animated: !m.reduced });
+  };
 
   useEffect(() => { setReducedMotion(m.reduced); }, [m.reduced]);
   useEffect(() => { if (slug) { void openThread(slug); void openFiles(slug); } }, [slug]);
@@ -72,7 +118,7 @@ export default function Ask() {
     const text = q.trim();
     if (!text || threadNow().streaming) return; // read outside React so a double tap can't queue a second turn
     setDraft("");
-    atEnd.current = true;
+    pinned.current = true;
     void send(text, takeForSend());
   }, []);
 
@@ -87,6 +133,10 @@ export default function Ask() {
   const first = entry ? entry.me.name.split(" ")[0] || entry.me.name : "";
   const orgName = entry?.me.org?.name ?? "";
   const empty = thread.loaded && thread.messages.length === 0;
+  let lastAi = -1;
+  thread.messages.forEach((x, i) => { if (x.role === "assistant") lastAi = i; });
+  // A new chapter, a cleared thread: land on the newest answer's top again.
+  useEffect(() => { if (empty) pinned.current = true; }, [empty]);
 
   return (
     <ActionsContext.Provider value={actions}>
@@ -116,22 +166,33 @@ export default function Ask() {
               <Landing first={first} org={orgName} compact={kbUp} onAsk={ask} />
             </ScrollView>
           ) : (
-            <ScrollView
-              ref={scroll}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              contentContainerStyle={{ padding: 18, gap: 22, paddingBottom: 24 }}
-              onScroll={e => {
-                const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-                atEnd.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 80;
-              }}
-              scrollEventThrottle={64}
-              onContentSizeChange={() => { if (atEnd.current) scroll.current?.scrollToEnd({ animated: !m.reduced }); }}
-            >
-              {thread.messages.map((msg, i) => msg.role === "user"
-                ? <UserSlip key={msg.id} msg={msg} />
-                : <AssistantTurn key={msg.id} msg={msg} streaming={thread.streaming && i === thread.messages.length - 1} />)}
-            </ScrollView>
+            <View style={{ flex: 1 }}>
+              <ScrollView
+                ref={scroll}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
+                contentContainerStyle={{ padding: 18, gap: 22, paddingBottom: 24 }}
+                onScroll={e => { if (Date.now() > glideUntil.current) { geo.current.y = e.nativeEvent.contentOffset.y; measure(); } }}
+                onScrollEndDrag={e => settle(e.nativeEvent.contentOffset.y)}
+                onMomentumScrollEnd={e => settle(e.nativeEvent.contentOffset.y)}
+                scrollEventThrottle={64}
+                onLayout={e => { geo.current.viewH = e.nativeEvent.layout.height; follow(); }}
+                onContentSizeChange={(_, h) => { geo.current.contentH = h; follow(); }}
+              >
+                {thread.messages.map((msg, i) => msg.role === "user"
+                  ? <UserSlip key={msg.id} msg={msg} />
+                  : (
+                    <View key={msg.id} onLayout={i === lastAi ? e => { geo.current.lastTop = e.nativeEvent.layout.y; follow(); } : undefined}>
+                      <AssistantTurn msg={msg} streaming={thread.streaming && i === thread.messages.length - 1} />
+                    </View>
+                  ))}
+              </ScrollView>
+              {below && !peek && !cite ? (
+                <Animated.View key={below} entering={(m.reduced ? FadeIn.duration(m.t(160)) : FadeInDown.duration(m.t(220))).reduceMotion(ReduceMotion.Never)} style={styles.below} pointerEvents="box-none">
+                  <Button label={below === "more" ? "More below" : "Latest answer"} icon="chev-d" variant="ghost" tone="lilac" size="sm" onPress={jumpBelow} style={{ alignSelf: "center" }} />
+                </Animated.View>
+              ) : null}
+            </View>
           )}
 
           {avail.data?.enabled === false ? null : (
@@ -152,6 +213,9 @@ export default function Ask() {
     </ActionsContext.Provider>
   );
 }
+
+// How far below the thread's top edge a followed answer stops.
+const ANCHOR_GAP = 14;
 
 const KICKER: Record<string, string> = { member: "Member", event: "Event", task: "Task", transaction: "Transaction" };
 
@@ -220,5 +284,6 @@ const styles = StyleSheet.create({
   bar: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 18, paddingBottom: 10, borderBottomWidth: 1 },
   mark: { width: 30, height: 30, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center", transform: [{ rotate: "-4deg" }] },
   dock: { paddingHorizontal: 12, paddingTop: 8, borderTopWidth: 1, gap: 6 },
+  below: { position: "absolute", left: 0, right: 0, bottom: 10, alignItems: "center" },
   slip: { alignSelf: "flex-end", maxWidth: "86%", borderWidth: 1, borderRadius: 18, borderBottomRightRadius: 6, paddingHorizontal: 14, paddingVertical: 10, gap: 6 },
 });

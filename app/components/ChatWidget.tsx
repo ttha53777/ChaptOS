@@ -87,6 +87,9 @@ const LAST_MEETING_STARTER = { icon: <IcFile size={15} />, tone: "var(--pp-peach
 const FIRST_MEETING_STARTER = { icon: <IcPlus size={15} />, tone: "var(--pp-peach)", q: "Can you set up my first meeting?" } as const;
 
 // The welcome → first message flight (desktop): the composer's spring.
+// How far below the thread's top edge a newest answer stops when followed —
+// the turn's trace and headline sit just under it, the question above the fold.
+const ANCHOR_GAP = 14;
 const FLIGHT_EASE = "cubic-bezier(.16,.9,.3,1.02)";
 
 type Scene = "briefing" | "thread" | "approvals";
@@ -306,13 +309,47 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
     saveHistory(storageKey, messages);
   }, [storageKey, messages]);
 
-  // Keep the thread on its newest turn while it's pinned there. Scrolls the
-  // thread itself: scrollIntoView would also scroll its ancestors, which on a
-  // phone is the page behind the sheet.
+  // Follow the newest turn while it's pinned, but never past its top. The
+  // thread grows into view until the answer's headline reaches the top edge,
+  // then holds there: a long answer's rows extend below the fold instead of
+  // pushing the verdict out the top (the old pin-to-bottom dropped readers at
+  // the end of the rows, past the line that answered them). Scrolls the thread
+  // itself: scrollIntoView would also scroll its ancestors, which on a phone
+  // is the page behind the sheet.
+  const [below, setBelow] = useState<null | "more" | "latest">(null);
+  // Until when scroll events are our own smooth scroll, not the reader's.
+  const autoScrollUntil = useRef(0);
+  const followTarget = useCallback((el: HTMLElement) => {
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    const turns = el.querySelectorAll<HTMLElement>(":scope > .msg.ai");
+    const last = turns[turns.length - 1];
+    if (!last) return { target: max, top: Infinity };
+    const top = last.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+    return { target: Math.max(0, Math.min(max, top - ANCHOR_GAP)), top };
+  }, []);
+  // Whether anything waits below the fold, and whose it is: the rest of the
+  // answer being read, or newer turns while reading back through history.
+  const measureBelow = useCallback((el: HTMLElement, top: number) => {
+    const rest = el.scrollHeight - el.clientHeight - el.scrollTop;
+    setBelow(rest < 40 ? null : top < el.scrollTop + el.clientHeight ? "more" : "latest");
+  }, []);
   const pinThread = useCallback(() => {
     const el = threadRef.current;
-    if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
-  }, []);
+    if (!el) return;
+    const { target, top } = followTarget(el);
+    if (pinnedRef.current && Math.abs(el.scrollTop - target) > 1) {
+      // A big step — the answer landing all at once — glides; streamed growth
+      // and the keyboard opening track instantly.
+      const glide = target - el.scrollTop > 120 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (glide) {
+        autoScrollUntil.current = performance.now() + 700;
+        el.scrollTo({ top: target, behavior: "smooth" });
+      } else {
+        el.scrollTop = target;
+      }
+    }
+    measureBelow(el, top);
+  }, [followTarget, measureBelow]);
   useEffect(pinThread, [messages, streaming, scene, pinThread]);
   useEffect(() => {
     const el = threadRef.current;
@@ -323,8 +360,26 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
   }, [scene, open, pinThread]);
   const onThreadScroll = useCallback(() => {
     const el = threadRef.current;
-    if (el) pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-  }, []);
+    if (!el) return;
+    const { target, top } = followTarget(el);
+    // Still pinned while the reader sits at the follow point; scrolling away
+    // from it — up into history, or down through the rows — lets go.
+    if (performance.now() > autoScrollUntil.current) pinnedRef.current = Math.abs(el.scrollTop - target) < 48;
+    measureBelow(el, top);
+  }, [followTarget, measureBelow]);
+  // "More below" reads on to the end of the answer; "Latest answer" returns
+  // from history to the newest turn's top and follows it again.
+  const jumpBelow = useCallback(() => {
+    const el = threadRef.current;
+    if (!el) return;
+    const toEnd = below === "more";
+    pinnedRef.current = !toEnd;
+    autoScrollUntil.current = performance.now() + 700;
+    el.scrollTo({
+      top: toEnd ? el.scrollHeight : followTarget(el).target,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  }, [below, followTarget]);
 
   const openSpotlight = useCallback(() => {
     pinnedRef.current = true;
@@ -1427,6 +1482,12 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                     );
                   })}
                 </div>
+              )}
+              {scene === "thread" && below && !peek && !idea && !excerpt && (
+                <button type="button" className="cs-below" onClick={jumpBelow} key={below}>
+                  {below === "more" ? "More below" : "Latest answer"}
+                  <IcArrow className="dn" />
+                </button>
               )}
 
               {/* Approvals — the approval record */}

@@ -1133,3 +1133,26 @@
 .chat-root .rcp-sum .in .mono { color: var(--ok); }
 .chat-root .rcp-sum .net { margin-top: 5px; padding-top: 8px; border-top: 3px double var(--ink); font-weight: 600; color: var(--ink); }
 @media (max-width: 600px) { .chat-root .rcp-d { margin-left: 0; } }
+
+/* ── More below ───────────────────────────────────────────────────────────── */
+/* The thread follows a new answer only until its headline reaches the top, so
+   a long answer's rows can sit under the fold. This tab says so, and reads on
+   (or, from history, returns to the newest answer). Rides over the thread's
+   bottom edge, clear of the composer below it. */
+html[data-aesthetic] body .chat-root .cs-below {
+  position: absolute; left: 50%; bottom: 12px; z-index: 3;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 6px 12px 6px 14px; border-radius: 999px;
+  background: var(--card); color: var(--ink); border: 1.5px solid var(--ink);
+  box-shadow: 2.5px 2.5px 0 var(--pp-lilac, var(--line));
+  font: 600 12px/1 var(--font-geist-sans, var(--sans)); letter-spacing: 0; white-space: nowrap;
+  transform: translateX(-50%);
+  animation: cs-below-in .32s cubic-bezier(.16,.9,.3,1.02) both;
+  transition: transform .16s, box-shadow .16s;
+}
+html[data-aesthetic] body .chat-root .cs-below:hover { transform: translateX(-50%) translateY(-1px); box-shadow: 3px 3.5px 0 var(--pp-lilac, var(--line)); }
+html[data-aesthetic] body .chat-root .cs-below:active { transform: translateX(-50%) translateY(1px); box-shadow: 1px 1px 0 var(--pp-lilac, var(--line)); }
+html[data-aesthetic] body .chat-root .cs-below:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+html[data-aesthetic] body .chat-root .cs-below .dn { transform: rotate(90deg); }
+@keyframes cs-below-in { from { opacity: 0; transform: translateX(-50%) translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { html[data-aesthetic] body .chat-root .cs-below { animation: none; } }
